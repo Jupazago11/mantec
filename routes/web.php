@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\AdminAreaController;
 use App\Http\Controllers\Admin\AdminElementTypeController;
 use App\Http\Controllers\Admin\AdminDiagnosticController;
 use App\Http\Controllers\Admin\AdminComponentDiagnosticController;
+use App\Http\Controllers\Admin\AdminPreventiveReportController;
 
 use App\Http\Controllers\Inspector\InspectorReportController;
 use App\Http\Controllers\Admin\AdminConditionController;
@@ -145,5 +146,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/cd/clients/{client}/diagnostics', [AdminComponentDiagnosticController::class, 'getDiagnostics']);
     Route::get('/admin/cd/components/{component}/assigned', [AdminComponentDiagnosticController::class, 'getAssigned']);
 
+    Route::get(
+    '/admin/preventive-reports/{client}/{elementType}',
+    [AdminPreventiveReportController::class, 'show'])->name('admin.preventive-reports.show');
+
+    Route::patch(
+    '/admin/preventive-reports/report-details/{reportDetail}/toggle-execution',
+    [AdminPreventiveReportController::class, 'toggleExecution']
+    )->name('admin.preventive-reports.toggle-execution');
 
 });

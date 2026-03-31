@@ -20,6 +20,7 @@ class ConditionSeeder extends Seeder
             ['name' => 'Seguridad por diseño', 'code' => 'SEG D', 'severity' => 2],
             ['name' => 'Material acumulado', 'code' => 'ASEO', 'severity' => 0],
             ['name' => 'Observación', 'code' => 'OBSERV', 'severity' => 0],
+            ['name' => 'OK', 'code' => 'OK', 'severity' => 0],
         ];
 
         foreach ($conditions as $condition) {

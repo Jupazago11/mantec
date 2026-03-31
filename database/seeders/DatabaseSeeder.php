@@ -18,6 +18,11 @@ class DatabaseSeeder extends Seeder
             ElementSeeder::class,
             ExecutionStatusSeeder::class,
             DemoUsersSeeder::class,
+
+            BeltDiagnosticSeeder::class,
+            BeltComponentSeeder::class,
+            BeltComponentDiagnosticSeeder::class,
+            ElementComponentSeeder::class,
         ]);
     }
 }

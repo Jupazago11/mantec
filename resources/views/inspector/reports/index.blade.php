@@ -6,11 +6,20 @@
 @section('content')
 <div class="space-y-8">
 
+    @php
+        $formState = session('form_state', []);
+        $selectedClientId = old('client_id', $formState['client_id'] ?? '');
+        $selectedAreaId = old('area_id', $formState['area_id'] ?? '');
+        $selectedElementId = old('element_id', $formState['element_id'] ?? '');
+        $selectedComponentId = old('component_id');
+        $selectedDiagnosticId = old('diagnostic_id');
+    @endphp
+
     <div class="flex items-start justify-between gap-4">
         <div>
             <h2 class="text-3xl font-bold tracking-tight text-slate-900">Registro de reportes</h2>
             <p class="mt-2 text-slate-600">
-                Diligencia hallazgos por elemento, componente y diagnóstico según la semana actual.
+                Diligencia hallazgos por activo, componente y diagnóstico según la semana actual.
             </p>
         </div>
 
@@ -58,7 +67,12 @@
                                 <div class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
                                     {{ $inspectorClients->first()->name }}
                                 </div>
-                                <input type="hidden" name="client_id" id="client_id" value="{{ $inspectorClients->first()->id }}">
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="client_id"
+                                    value="{{ $inspectorClients->first()->id }}"
+                                >
                             </div>
                         @elseif(isset($inspectorClients) && $inspectorClients->count() > 1)
                             <div class="md:col-span-2">
@@ -70,13 +84,14 @@
                                                 type="checkbox"
                                                 value="{{ $client->id }}"
                                                 class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                {{ (string) $selectedClientId === (string) $client->id ? 'checked' : '' }}
                                                 onchange="handleSingleClientSelection(this)"
                                             >
                                             {{ $client->name }}
                                         </label>
                                     @endforeach
                                 </div>
-                                <input type="hidden" name="client_id" id="client_id" value="">
+                                <input type="hidden" name="client_id" id="client_id" value="{{ $selectedClientId }}">
                             </div>
                         @elseif($assignedClient ?? false)
                             <div>
@@ -84,7 +99,12 @@
                                 <div class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
                                     {{ $assignedClient->name }}
                                 </div>
-                                <input type="hidden" name="client_id" id="client_id" value="{{ $assignedClient->id }}">
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="client_id"
+                                    value="{{ $assignedClient->id }}"
+                                >
                             </div>
                         @endif
 
@@ -94,15 +114,15 @@
                                 <option
                                     value="{{ $area->id }}"
                                     data-client-id="{{ $area->client_id }}"
-                                    @selected(old('area_id') == $area->id)
+                                    @selected((string) $selectedAreaId === (string) $area->id)
                                 >
                                     {{ $area->name }}
                                 </option>
                             @endforeach
                         </x-form.select>
 
-                        <x-form.select name="element_id" label="Elemento" id="element_id">
-                            <option value="">Seleccione un elemento</option>
+                        <x-form.select name="element_id" label="Activo" id="element_id">
+                            <option value="">Seleccione un activo</option>
                         </x-form.select>
 
                         <x-form.select name="component_id" label="Componente" id="component_id">
@@ -158,7 +178,7 @@
 
                 <div id="pending-container" class="mt-5 space-y-3">
                     <div class="text-sm text-slate-500">
-                        Selecciona un elemento.
+                        Selecciona un activo.
                     </div>
                 </div>
 
@@ -199,6 +219,11 @@ const elementSelect = document.getElementById('element_id');
 const componentSelect = document.getElementById('component_id');
 const diagnosticSelect = document.getElementById('diagnostic_id');
 
+const selectedAreaId = @json($selectedAreaId);
+const selectedElementId = @json($selectedElementId);
+const selectedComponentId = @json($selectedComponentId);
+const selectedDiagnosticId = @json($selectedDiagnosticId);
+
 function reset(select, text) {
     select.innerHTML = `<option value="">${text}</option>`;
 }
@@ -207,7 +232,7 @@ function resetPending() {
     document.getElementById('pending-count').innerText = '0';
     document.getElementById('pending-container').innerHTML = `
         <div class="text-sm text-slate-500">
-            Selecciona un elemento.
+            Selecciona un activo.
         </div>
     `;
 }
@@ -222,7 +247,7 @@ function handleSingleClientSelection(checkbox) {
     clientInput.value = checkbox.checked ? checkbox.value : '';
 
     areaSelect.value = '';
-    reset(elementSelect, 'Seleccione un elemento');
+    reset(elementSelect, 'Seleccione un activo');
     reset(componentSelect, 'Seleccione un componente');
     reset(diagnosticSelect, 'Seleccione un diagnóstico');
     resetPending();
@@ -248,8 +273,8 @@ function filterAreasByClient() {
     }
 }
 
-async function loadElements() {
-    reset(elementSelect, 'Seleccione un elemento');
+async function loadElements(preselectId = '') {
+    reset(elementSelect, 'Seleccione un activo');
     reset(componentSelect, 'Seleccione un componente');
     reset(diagnosticSelect, 'Seleccione un diagnóstico');
     resetPending();
@@ -260,11 +285,16 @@ async function loadElements() {
     const data = await res.json();
 
     data.forEach(e => {
-        elementSelect.innerHTML += `<option value="${e.id}">${e.name}</option>`;
+        const selected = String(preselectId) === String(e.id) ? 'selected' : '';
+        elementSelect.innerHTML += `<option value="${e.id}" ${selected}>${e.name}</option>`;
     });
+
+    if (preselectId) {
+        await loadComponents(selectedComponentId || '');
+    }
 }
 
-async function loadComponents() {
+async function loadComponents(preselectId = '') {
     reset(componentSelect, 'Seleccione un componente');
     reset(diagnosticSelect, 'Seleccione un diagnóstico');
 
@@ -274,13 +304,18 @@ async function loadComponents() {
     const data = await res.json();
 
     data.forEach(c => {
-        componentSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        const selected = String(preselectId) === String(c.id) ? 'selected' : '';
+        componentSelect.innerHTML += `<option value="${c.id}" ${selected}>${c.name}</option>`;
     });
 
-    loadPending();
+    await loadPending();
+
+    if (preselectId) {
+        await loadDiagnostics(selectedDiagnosticId || '');
+    }
 }
 
-async function loadDiagnostics() {
+async function loadDiagnostics(preselectId = '') {
     reset(diagnosticSelect, 'Seleccione un diagnóstico');
 
     if (!componentSelect.value) return;
@@ -289,7 +324,8 @@ async function loadDiagnostics() {
     const data = await res.json();
 
     data.forEach(d => {
-        diagnosticSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+        const selected = String(preselectId) === String(d.id) ? 'selected' : '';
+        diagnosticSelect.innerHTML += `<option value="${d.id}" ${selected}>${d.name}</option>`;
     });
 }
 
@@ -304,15 +340,26 @@ async function loadPending() {
     document.getElementById('pending-container').innerHTML =
         data.items.length
             ? data.items.map(i => `<div class="text-sm">${i.component_name} - ${i.diagnostic_name}</div>`).join('')
-            : `<div class="text-sm text-slate-500">No hay pendientes para este elemento.</div>`;
+            : `<div class="text-sm text-slate-500">No hay pendientes para este activo.</div>`;
 }
 
-areaSelect.addEventListener('change', loadElements);
-elementSelect.addEventListener('change', loadComponents);
-componentSelect.addEventListener('change', loadDiagnostics);
+areaSelect.addEventListener('change', () => loadElements());
+elementSelect.addEventListener('change', () => loadComponents());
+componentSelect.addEventListener('change', () => loadDiagnostics());
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
     filterAreasByClient();
+
+    if (clientInput && clientInput.value) {
+        document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+            cb.checked = String(cb.value) === String(clientInput.value);
+        });
+    }
+
+    if (selectedAreaId) {
+        areaSelect.value = String(selectedAreaId);
+        await loadElements(selectedElementId || '');
+    }
 });
 </script>
 @endsection

@@ -185,6 +185,7 @@ class InspectorReportController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'client_id' => ['nullable', 'exists:clients,id'],
             'area_id' => ['required', 'exists:areas,id'],
             'element_id' => ['required', 'exists:elements,id'],
             'component_id' => ['required', 'exists:components,id'],
@@ -210,9 +211,15 @@ class InspectorReportController extends Controller
             'No tienes acceso a esta área.'
         );
 
+        if (!empty($validated['client_id']) && (int) $validated['client_id'] !== (int) $area->client_id) {
+            return back()
+                ->withErrors(['client_id' => 'El área no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
+
         if ($element->area_id !== $area->id) {
             return back()
-                ->withErrors(['element_id' => 'El elemento no pertenece al área seleccionada.'])
+                ->withErrors(['element_id' => 'El activo no pertenece al área seleccionada.'])
                 ->withInput();
         }
 
@@ -230,7 +237,7 @@ class InspectorReportController extends Controller
 
         if (!$element->components()->where('components.id', $component->id)->exists()) {
             return back()
-                ->withErrors(['component_id' => 'El componente no pertenece al elemento seleccionado.'])
+                ->withErrors(['component_id' => 'El componente no pertenece al activo seleccionado.'])
                 ->withInput();
         }
 
@@ -240,19 +247,46 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
-        $exists = ReportDetail::where('element_id', $element->id)
+        /**
+         * NUEVA LÓGICA:
+         * Si existe un reporte del mismo usuario + activo + componente + diagnóstico
+         * dentro de las últimas 24 horas, se actualiza recommendation
+         * en vez de crear un nuevo registro.
+         */
+        $existingRecentReport = ReportDetail::where('user_id', $user->id)
+            ->where('element_id', $element->id)
             ->where('component_id', $component->id)
             ->where('diagnostic_id', $validated['diagnostic_id'])
-            ->where('week', $currentWeek)
-            ->where('year', $currentYear)
-            ->exists();
+            ->where('created_at', '>=', now()->subHours(24))
+            ->orderByDesc('created_at')
+            ->first();
 
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'diagnostic_id' => 'Ese diagnóstico ya fue diligenciado para este elemento, componente, semana y año.',
-                ])
-                ->withInput();
+        if ($existingRecentReport) {
+            $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
+
+            if ($newRecommendation !== '') {
+                $currentRecommendation = trim((string) ($existingRecentReport->recommendation ?? ''));
+
+                $existingRecentReport->update([
+                    'recommendation' => $currentRecommendation !== ''
+                        ? $currentRecommendation . PHP_EOL . $newRecommendation
+                        : $newRecommendation,
+                    'condition_id' => $validated['condition_id'],
+                ]);
+            } else {
+                $existingRecentReport->update([
+                    'condition_id' => $validated['condition_id'],
+                ]);
+            }
+
+            return redirect()
+                ->route('inspector.reports.index')
+                ->with('success', 'El reporte existente fue complementado correctamente.')
+                ->with('form_state', [
+                    'client_id' => $area->client_id,
+                    'area_id' => $area->id,
+                    'element_id' => $element->id,
+                ]);
         }
 
         ReportDetail::create([
@@ -274,6 +308,11 @@ class InspectorReportController extends Controller
 
         return redirect()
             ->route('inspector.reports.index')
-            ->with('success', 'Reporte registrado correctamente.');
+            ->with('success', 'Reporte registrado correctamente.')
+            ->with('form_state', [
+                'client_id' => $area->client_id,
+                'area_id' => $area->id,
+                'element_id' => $element->id,
+            ]);
     }
 }
