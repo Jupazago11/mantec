@@ -13,14 +13,14 @@ class ConditionSeeder extends Seeder
         $corona = Client::where('name', 'CORONA')->firstOrFail();
 
         $conditions = [
-            ['name' => 'Probabilidad de falla alta', 'code' => 'PF1', 'severity' => 1],
-            ['name' => 'Probabilidad de falla media', 'code' => 'PF2', 'severity' => 2],
-            ['name' => 'Probabilidad de falla baja', 'code' => 'PF3', 'severity' => 3],
-            ['name' => 'Seguridad por condición', 'code' => 'SEG C', 'severity' => 1],
-            ['name' => 'Seguridad por diseño', 'code' => 'SEG D', 'severity' => 2],
-            ['name' => 'Material acumulado', 'code' => 'ASEO', 'severity' => 0],
-            ['name' => 'Observación', 'code' => 'OBSERV', 'severity' => 0],
-            ['name' => 'OK', 'code' => 'OK', 'severity' => 0],
+            ['name' => 'ALTA',      'code' => 'PF1',        'severity' => 1,    'color' => '#ff0000'],
+            ['name' => 'MEDIA',     'code' => 'PF2',        'severity' => 2,    'color' => '#fffb00'],
+            ['name' => 'BAJA',      'code' => 'PF3',        'severity' => 3,    'color' => '#00a2ff'],
+            ['name' => 'ALTA',      'code' => 'SEG C',      'severity' => 1,    'color' => '#ff0000'],
+            ['name' => 'MEDIA',     'code' => 'SEG D',      'severity' => 2,    'color' => '#fffb00'],
+            ['name' => 'ASEO',      'code' => 'ASEO',       'severity' => 0,    'color' => '#ffae00'],
+            ['name' => 'OBSERVACIÓN', 'code' => 'OBSERV',   'severity' => 0,    'color' => '#6e34cc'],
+            ['name' => 'OK',        'code' => 'OK',         'severity' => 0,    'color' => '#11a152'],
         ];
 
         foreach ($conditions as $condition) {
@@ -30,6 +30,7 @@ class ConditionSeeder extends Seeder
                 'code' => $condition['code'],
                 'description' => null,
                 'severity' => $condition['severity'],
+                'color' => $condition['color'],
                 'status' => true,
             ]);
         }

@@ -25,7 +25,6 @@ class AdminAreaController extends Controller
             ->get();
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
-
         $selectedClientId = $request->filled('client_id') ? (int) $request->client_id : null;
 
         $areasQuery = Area::with('client')
@@ -38,7 +37,7 @@ class AdminAreaController extends Controller
 
         $areas = $areasQuery
             ->orderByDesc('id')
-            ->paginate(10)
+            ->paginate(6)
             ->withQueryString();
 
         return view('admin.managed-areas.index', compact(
@@ -68,7 +67,7 @@ class AdminAreaController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index')
+            ->route('admin.managed-areas.index', $this->filterQuery($request))
             ->with('success', 'Área creada correctamente.');
     }
 
@@ -92,11 +91,11 @@ class AdminAreaController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index')
+            ->route('admin.managed-areas.index', $this->filterQuery($request))
             ->with('success', 'Área actualizada correctamente.');
     }
 
-    public function destroy(Area $area): RedirectResponse
+    public function destroy(Request $request, Area $area): RedirectResponse
     {
         $authUser = Auth::user();
         $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
@@ -105,18 +104,18 @@ class AdminAreaController extends Controller
 
         if ($area->hasDependencies()) {
             return redirect()
-                ->route('admin.managed-areas.index')
+                ->route('admin.managed-areas.index', $this->filterQuery($request))
                 ->with('success', 'El área tiene registros asociados y no puede eliminarse.');
         }
 
         $area->delete();
 
         return redirect()
-            ->route('admin.managed-areas.index')
+            ->route('admin.managed-areas.index', $this->filterQuery($request))
             ->with('success', 'Área eliminada correctamente.');
     }
 
-    public function toggleStatus(Area $area): RedirectResponse
+    public function toggleStatus(Request $request, Area $area): RedirectResponse
     {
         $authUser = Auth::user();
         $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
@@ -125,7 +124,7 @@ class AdminAreaController extends Controller
 
         if (!$area->hasDependencies()) {
             return redirect()
-                ->route('admin.managed-areas.index')
+                ->route('admin.managed-areas.index', $this->filterQuery($request))
                 ->with('success', 'Esta área no tiene dependencias. Puedes eliminarla si lo deseas.');
         }
 
@@ -134,7 +133,7 @@ class AdminAreaController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index')
+            ->route('admin.managed-areas.index', $this->filterQuery($request))
             ->with('success', 'Estado del área actualizado correctamente.');
     }
 
@@ -143,5 +142,10 @@ class AdminAreaController extends Controller
         if (!in_array($area->client_id, $allowedClientIds)) {
             abort(403, 'No autorizado para gestionar esta área.');
         }
+    }
+
+    private function filterQuery(Request $request): array
+    {
+        return $request->only(['client_id', 'page']);
     }
 }

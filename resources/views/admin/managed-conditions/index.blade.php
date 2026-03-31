@@ -30,7 +30,6 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-3">
-            <!-- FORMULARIO -->
             <div class="xl:col-span-1">
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nueva condición</h3>
@@ -97,6 +96,25 @@
                             placeholder="Ej. 1"
                         />
 
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Color</label>
+                            <div class="flex items-center gap-3">
+                                <input
+                                    type="color"
+                                    name="color"
+                                    value="{{ old('color', '#ff0000') }}"
+                                    class="h-12 w-20 cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
+                                >
+                                <input
+                                    type="text"
+                                    value="{{ old('color', '#ff0000') }}"
+                                    readonly
+                                    class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                                    id="create_color_preview"
+                                >
+                            </div>
+                        </div>
+
                         <button
                             type="submit"
                             class="inline-flex w-full items-center justify-center rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
@@ -107,7 +125,6 @@
                 </div>
             </div>
 
-            <!-- TABLA -->
             <div class="xl:col-span-2">
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
@@ -157,30 +174,14 @@
                         <table class="min-w-full divide-y divide-slate-200">
                             <thead class="bg-slate-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Cliente
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Código
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Nombre
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Descripción
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Severidad
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Uso
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Estado
-                                    </th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Acciones
-                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Cliente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Código</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nombre</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Descripción</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Severidad</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Uso</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Estado</th>
+                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Acciones</th>
                                 </tr>
                             </thead>
 
@@ -200,6 +201,10 @@
                                         </td>
 
                                         <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
+                                            
+                                            <span class="inline-block h-5 w-5 rounded-full border border-slate-300"
+                                                    style="background-color: {{ $condition->color ?? '#ffffff' }};"></span>
+                                            
                                             {{ $condition->name }}
                                         </td>
 
@@ -236,6 +241,7 @@
                                                     data-name="{{ $condition->name }}"
                                                     data-description="{{ $condition->description }}"
                                                     data-severity="{{ $condition->severity }}"
+                                                    data-color="{{ $condition->color }}"
                                                     data-client_id="{{ $condition->client_id }}"
                                                     data-action="{{ route('admin.managed-conditions.update', $condition) }}"
                                                     onclick="openEditConditionModal(this)"
@@ -277,7 +283,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="px-6 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="9" class="px-6 py-10 text-center text-sm text-slate-500">
                                             No hay condiciones registradas todavía.
                                         </td>
                                     </tr>
@@ -296,7 +302,6 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR -->
     <div id="editConditionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -363,6 +368,27 @@
                     id="edit_condition_severity"
                 />
 
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Color</label>
+                    <div class="flex items-center gap-3">
+                        <input
+                            type="color"
+                            name="color"
+                            id="edit_condition_color"
+                            value="#ff0000"
+                            class="h-12 w-20 cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
+                            oninput="document.getElementById('edit_color_preview').value = this.value"
+                        >
+                        <input
+                            type="text"
+                            id="edit_color_preview"
+                            readonly
+                            class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                            value="#ff0000"
+                        >
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-3">
                     <button
                         type="button"
@@ -415,6 +441,10 @@
             document.getElementById('edit_condition_description').value = btn.dataset.description ?? '';
             document.getElementById('edit_condition_severity').value = btn.dataset.severity ?? '';
 
+            const color = btn.dataset.color && btn.dataset.color !== '' ? btn.dataset.color : '#ff0000';
+            document.getElementById('edit_condition_color').value = color;
+            document.getElementById('edit_color_preview').value = color;
+
             const clientId = btn.dataset.client_id ?? '';
 
             const hiddenClientInput = document.getElementById('edit_selected_client_id');
@@ -443,6 +473,15 @@
             if (selectedClient && selectedClient.value) {
                 document.querySelectorAll('.client-single-checkbox').forEach(cb => {
                     cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
+                });
+            }
+
+            const createColorInput = document.querySelector('input[name="color"]');
+            const createColorPreview = document.getElementById('create_color_preview');
+
+            if (createColorInput && createColorPreview) {
+                createColorInput.addEventListener('input', function () {
+                    createColorPreview.value = this.value;
                 });
             }
         });

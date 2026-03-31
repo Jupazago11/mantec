@@ -3,13 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ElementType extends Model
 {
     protected $fillable = [
         'client_id',
         'name',
-        'description',
         'status',
     ];
 
@@ -20,23 +22,25 @@ class ElementType extends Model
         ];
     }
 
-    public function client()
+    public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
-    public function components()
+    public function components(): HasMany
     {
         return $this->hasMany(Component::class);
     }
 
-    public function elements()
+    public function elements(): HasMany
     {
         return $this->hasMany(Element::class);
     }
 
-    public function hasDependencies(): bool
+    public function allowedUsers(): BelongsToMany
     {
-        return $this->components()->exists() || $this->elements()->exists();
+        return $this->belongsToMany(User::class, 'user_client_element_type')
+            ->withPivot('client_id')
+            ->withTimestamps();
     }
 }

@@ -12,6 +12,7 @@ class Condition extends Model
         'name',
         'description',
         'severity',
+        'color',
         'status',
     ];
 

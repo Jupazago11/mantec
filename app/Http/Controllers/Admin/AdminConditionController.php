@@ -66,6 +66,7 @@ class AdminConditionController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:255'],
             'severity' => ['required', 'integer'],
+            'color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);
 
         Condition::create([
@@ -74,6 +75,7 @@ class AdminConditionController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'severity' => $validated['severity'],
+            'color' => $validated['color'] ?? null,
             'status' => true,
         ]);
 
@@ -104,6 +106,7 @@ class AdminConditionController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:255'],
             'severity' => ['required', 'integer'],
+            'color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);
 
         $condition->update([
@@ -112,6 +115,7 @@ class AdminConditionController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'severity' => $validated['severity'],
+            'color' => $validated['color'] ?? null,
         ]);
 
         return redirect()

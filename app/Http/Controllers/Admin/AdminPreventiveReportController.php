@@ -9,6 +9,7 @@ use App\Models\ExecutionStatus;
 use App\Models\ReportDetail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -35,93 +36,10 @@ class AdminPreventiveReportController extends Controller
 
         $currentYear = now()->year;
 
-        $query = ReportDetail::with([
-            'user',
-            'element.area.client',
-            'element.elementType',
-            'diagnostic',
-            'condition',
-            'executionStatus',
-        ])
-            ->where('year', $currentYear)
-            ->whereHas('element', function ($q) use ($client, $elementType) {
-                $q->where('element_type_id', $elementType->id)
-                    ->whereHas('area', function ($areaQuery) use ($client) {
-                        $areaQuery->where('client_id', $client->id);
-                    });
-            });
+        $baseQuery = $this->baseScopedQuery($client, $elementType, $currentYear);
 
-        if ($request->filled('element_name')) {
-            $value = trim($request->element_name);
-            $query->whereHas('element', function ($q) use ($value) {
-                $q->where('name', 'ilike', '%' . $value . '%');
-            });
-        }
-
-        if ($request->filled('diagnostic_name')) {
-            $value = trim($request->diagnostic_name);
-            $query->whereHas('diagnostic', function ($q) use ($value) {
-                $q->where('name', 'ilike', '%' . $value . '%');
-            });
-        }
-
-        if ($request->filled('recommendation')) {
-            $value = trim($request->recommendation);
-            $query->where('recommendation', 'ilike', '%' . $value . '%');
-        }
-
-        if ($request->filled('orden')) {
-            $value = trim($request->orden);
-            $query->where('orden', 'ilike', '%' . $value . '%');
-        }
-
-        if ($request->filled('aviso')) {
-            $value = trim($request->aviso);
-            $query->where('aviso', 'ilike', '%' . $value . '%');
-        }
-
-        if ($request->filled('responsable')) {
-            $value = trim($request->responsable);
-            $query->whereHas('user', function ($q) use ($value) {
-                $q->where('name', 'ilike', '%' . $value . '%');
-            });
-        }
-
-        if ($request->filled('report_date')) {
-            $query->whereDate('created_at', $request->report_date);
-        }
-
-        if ($request->filled('execution_date')) {
-            $query->whereDate('execution_date', $request->execution_date);
-        }
-
-        if ($request->filled('condition_name')) {
-            $value = trim($request->condition_name);
-            $query->whereHas('condition', function ($q) use ($value) {
-                $q->where('name', 'ilike', '%' . $value . '%');
-            });
-        }
-
-        if ($request->filled('execution_status')) {
-            if ($request->execution_status === 'realizado') {
-                $query->whereHas('executionStatus', function ($q) {
-                    $q->where('name', 'Realizado');
-                });
-            }
-
-            if ($request->execution_status === 'pendiente') {
-                $query->where(function ($q) {
-                    $q->whereNull('execution_status_id')
-                        ->orWhereHas('executionStatus', function ($statusQ) {
-                            $statusQ->where('name', '!=', 'Realizado');
-                        });
-                });
-            }
-        }
-
-        if ($request->filled('week')) {
-            $query->where('week', (int) $request->week);
-        }
+        $query = clone $baseQuery;
+        $this->applyFilters($query, $request);
 
         $reports = $query
             ->orderByDesc('week')
@@ -129,11 +47,138 @@ class AdminPreventiveReportController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        $optionsRows = (clone $baseQuery)
+            ->with([
+                'user:id,name',
+                'element:id,name',
+                'component:id,name',
+                'diagnostic:id,name',
+                'condition:id,name,code,color',
+                'executionStatus:id,name',
+            ])
+            ->orderByDesc('week')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $filterOptions = [
+            'element_names' => $optionsRows
+                ->map(fn ($row) => $row->element?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'diagnostic_pairs' => $optionsRows
+                ->map(function ($row) {
+                    if (!$row->component || !$row->diagnostic) {
+                        return null;
+                    }
+
+                    return [
+                        'value' => $row->component->id . '|' . $row->diagnostic->id,
+                        'label' => $row->component->name . ' — ' . $row->diagnostic->name,
+                    ];
+                })
+                ->filter()
+                ->unique('value')
+                ->sortBy('label')
+                ->values(),
+
+            'recommendation_values' => $optionsRows
+                ->flatMap(function ($row) {
+                    $text = (string) ($row->recommendation ?? '');
+
+                    if (trim($text) === '') {
+                        return [];
+                    }
+
+                    return collect(preg_split('/\r\n|\r|\n/', $text))
+                        ->map(fn ($line) => trim($line))
+                        ->filter(fn ($line) => $line !== '')
+                        ->values();
+                })
+                ->unique()
+                ->sort()
+                ->values(),
+
+
+            'condition_codes' => $optionsRows
+                ->map(fn ($row) => $row->condition?->code)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'orden_values' => $optionsRows
+                ->map(function ($row) {
+                    $value = trim((string) ($row->orden ?? ''));
+                    return $value !== '' ? $value : null;
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'aviso_values' => $optionsRows
+                ->map(function ($row) {
+                    $value = trim((string) ($row->aviso ?? ''));
+                    return $value !== '' ? $value : null;
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'responsable_names' => $optionsRows
+                ->map(fn ($row) => $row->user?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'condition_names' => $optionsRows
+                ->map(fn ($row) => $row->condition?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO']),
+
+            'weeks' => $optionsRows
+                ->map(fn ($row) => $row->week)
+                ->filter()
+                ->unique()
+                ->sortDesc()
+                ->values(),
+
+            'warehouse_ids' => collect(),
+        ];
+
+        $activeFilters = [
+            'element_names' => $request->input('element_names', []),
+            'diagnostic_pairs' => $request->input('diagnostic_pairs', []),
+            'recommendation_values' => $request->input('recommendation_values', []),
+            'condition_codes' => $request->input('condition_codes', []),
+            'orden_values' => $request->input('orden_values', []),
+            'aviso_values' => $request->input('aviso_values', []),
+            'responsable_names' => $request->input('responsable_names', []),
+            'condition_names' => $request->input('condition_names', []),
+            'execution_statuses' => $request->input('execution_statuses', []),
+            'weeks' => $request->input('weeks', []),
+            'report_date_from' => $request->input('report_date_from'),
+            'report_date_to' => $request->input('report_date_to'),
+            'execution_date_from' => $request->input('execution_date_from'),
+            'execution_date_to' => $request->input('execution_date_to'),
+        ];
+
         return view('admin.reports.preventive.show', compact(
             'client',
             'elementType',
             'reports',
-            'currentYear'
+            'currentYear',
+            'filterOptions',
+            'activeFilters'
         ));
     }
 
@@ -146,10 +191,12 @@ class AdminPreventiveReportController extends Controller
             ->pluck('clients.id')
             ->toArray();
 
+        $reportDetail->loadMissing('element.area', 'executionStatus');
+
         $reportClientId = $reportDetail->element?->area?->client_id;
 
         abort_unless(
-            in_array($reportClientId, $allowedClientIds),
+            $reportClientId && in_array($reportClientId, $allowedClientIds),
             403,
             'No autorizado para modificar este reporte.'
         );
@@ -158,12 +205,12 @@ class AdminPreventiveReportController extends Controller
             'is_checked' => ['required', 'boolean'],
         ]);
 
-        $realizadoStatus = ExecutionStatus::where('name', 'Realizado')->first();
+        $realizadoStatus = ExecutionStatus::where('name', 'REALIZADO')->first();
 
         if ($validated['is_checked']) {
             if (!$realizadoStatus) {
                 return response()->json([
-                    'message' => 'No existe el estado de ejecución "Realizado".'
+                    'message' => 'No existe el estado de ejecución "REALIZADO".'
                 ], 422);
             }
 
@@ -178,6 +225,7 @@ class AdminPreventiveReportController extends Controller
             ]);
         }
 
+        $reportDetail->refresh();
         $reportDetail->load('executionStatus');
 
         return response()->json([
@@ -186,4 +234,334 @@ class AdminPreventiveReportController extends Controller
             'execution_date' => $reportDetail->execution_date,
         ]);
     }
+
+    private function baseScopedQuery(Client $client, ElementType $elementType, int $year)
+    {
+        return ReportDetail::query()
+            ->with([
+                'user',
+                'element.area.client',
+                'element.elementType',
+                'component',
+                'diagnostic',
+                'condition',
+                'executionStatus',
+            ])
+            ->where('year', $year)
+            ->whereHas('element', function ($query) use ($client, $elementType) {
+                $query->where('element_type_id', $elementType->id)
+                    ->whereHas('area', function ($areaQuery) use ($client) {
+                        $areaQuery->where('client_id', $client->id);
+                    });
+            });
+    }
+
+    private function applyFilters($query, Request $request): void
+    {
+        $elementNames = array_filter((array) $request->input('element_names', []));
+        if (!empty($elementNames)) {
+            $query->whereHas('element', function ($q) use ($elementNames) {
+                $q->whereIn('name', $elementNames);
+            });
+        }
+
+        $diagnosticPairs = array_filter((array) $request->input('diagnostic_pairs', []));
+        if (!empty($diagnosticPairs)) {
+            $query->where(function ($outer) use ($diagnosticPairs) {
+                foreach ($diagnosticPairs as $pair) {
+                    [$componentId, $diagnosticId] = array_pad(explode('|', $pair), 2, null);
+
+                    if ($componentId && $diagnosticId) {
+                        $outer->orWhere(function ($inner) use ($componentId, $diagnosticId) {
+                            $inner->where('component_id', (int) $componentId)
+                                ->where('diagnostic_id', (int) $diagnosticId);
+                        });
+                    }
+                }
+            });
+        }
+
+        $recommendationValues = array_filter((array) $request->input('recommendation_values', []));
+        if (!empty($recommendationValues)) {
+            $normalizedValues = collect($recommendationValues)
+                ->map(fn ($value) => trim((string) $value))
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $query->where(function ($recommendationQuery) use ($normalizedValues) {
+                foreach ($normalizedValues as $value) {
+                    $recommendationQuery->orWhereRaw(
+                        "EXISTS (
+                            SELECT 1
+                            FROM regexp_split_to_table(COALESCE(report_details.recommendation, ''), E'\\r?\\n') AS lines(line_text)
+                            WHERE BTRIM(line_text) = ?
+                        )",
+                        [$value]
+                    );
+                }
+            });
+        }
+
+
+
+        $conditionCodes = array_filter((array) $request->input('condition_codes', []));
+        if (!empty($conditionCodes)) {
+            $query->whereHas('condition', function ($q) use ($conditionCodes) {
+                $q->whereIn('code', $conditionCodes);
+            });
+        }
+        
+        $ordenValues = array_filter((array) $request->input('orden_values', []));
+        if (!empty($ordenValues)) {
+            $query->whereIn('orden', $ordenValues);
+        }
+
+        $avisoValues = array_filter((array) $request->input('aviso_values', []));
+        if (!empty($avisoValues)) {
+            $query->whereIn('aviso', $avisoValues);
+        }
+
+        $responsableNames = array_filter((array) $request->input('responsable_names', []));
+        if (!empty($responsableNames)) {
+            $query->whereHas('user', function ($q) use ($responsableNames) {
+                $q->whereIn('name', $responsableNames);
+            });
+        }
+
+        if ($request->filled('report_date_from')) {
+            $query->whereDate('created_at', '>=', $request->input('report_date_from'));
+        }
+
+        if ($request->filled('report_date_to')) {
+            $query->whereDate('created_at', '<=', $request->input('report_date_to'));
+        }
+
+        if ($request->filled('execution_date_from')) {
+            $query->whereDate('execution_date', '>=', $request->input('execution_date_from'));
+        }
+
+        if ($request->filled('execution_date_to')) {
+            $query->whereDate('execution_date', '<=', $request->input('execution_date_to'));
+        }
+
+        $conditionNames = array_filter((array) $request->input('condition_names', []));
+        if (!empty($conditionNames)) {
+            $query->whereHas('condition', function ($q) use ($conditionNames) {
+                $q->whereIn('name', $conditionNames);
+            });
+        }
+
+        $executionStatuses = array_filter((array) $request->input('execution_statuses', []));
+        if (!empty($executionStatuses)) {
+            $query->where(function ($statusQuery) use ($executionStatuses) {
+                $normalized = collect($executionStatuses)->map(fn ($v) => strtoupper(trim((string) $v)))->values();
+
+                if ($normalized->contains('REALIZADO')) {
+                    $statusQuery->orWhereHas('executionStatus', function ($q) {
+                        $q->where('name', 'REALIZADO');
+                    });
+                }
+
+                if ($normalized->contains('PENDIENTE')) {
+                    $statusQuery->orWhere(function ($q) {
+                        $q->whereNull('execution_status_id')
+                            ->orWhereHas('executionStatus', function ($statusQ) {
+                                $statusQ->where('name', '!=', 'REALIZADO');
+                            });
+                    });
+                }
+            });
+        }
+
+        $weeks = array_filter((array) $request->input('weeks', []), fn ($value) => $value !== null && $value !== '');
+        if (!empty($weeks)) {
+            $query->whereIn('week', $weeks);
+        }
+    }
+
+    public function general(Client $client, Request $request): View
+    {
+        $user = Auth::user();
+
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
+
+        abort_unless(
+            in_array($client->id, $allowedClientIds),
+            403,
+            'No autorizado para ver reportes de este cliente.'
+        );
+
+        $currentYear = now()->year;
+
+        $baseQuery = ReportDetail::query()
+            ->with([
+                'user',
+                'element.area.client',
+                'element.elementType',
+                'component',
+                'diagnostic',
+                'condition',
+                'executionStatus',
+            ])
+            ->where('year', $currentYear)
+            ->whereHas('element', function ($query) use ($client) {
+                $query->whereHas('area', function ($areaQuery) use ($client) {
+                    $areaQuery->where('client_id', $client->id);
+                });
+            });
+
+        $query = clone $baseQuery;
+        $this->applyFilters($query, $request);
+
+        $totalReportsGenerated = (clone $baseQuery)->count();
+        $totalReportsFiltered = (clone $query)->count();
+
+        $reports = $query
+            ->orderByDesc('week')
+            ->orderByDesc('created_at')
+            ->paginate(30)
+            ->withQueryString();
+
+        $optionsRows = (clone $baseQuery)
+            ->with([
+                'user:id,name',
+                'element:id,name,element_type_id',
+                'element.elementType:id,name',
+                'component:id,name',
+                'diagnostic:id,name',
+                'condition:id,name,code,color',
+                'executionStatus:id,name',
+            ])
+            ->orderByDesc('week')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $filterOptions = [
+            'element_type_names' => $optionsRows
+                ->map(fn ($row) => $row->element?->elementType?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'element_names' => $optionsRows
+                ->map(fn ($row) => $row->element?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'diagnostic_pairs' => $optionsRows
+                ->map(function ($row) {
+                    if (!$row->component || !$row->diagnostic) {
+                        return null;
+                    }
+
+                    return [
+                        'value' => $row->component->id . '|' . $row->diagnostic->id,
+                        'label' => $row->component->name . ' — ' . $row->diagnostic->name,
+                    ];
+                })
+                ->filter()
+                ->unique('value')
+                ->sortBy('label')
+                ->values(),
+
+            'recommendation_values' => $optionsRows
+                ->map(function ($row) {
+                    $value = trim((string) ($row->recommendation ?? ''));
+                    return $value !== '' ? $value : null;
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'condition_codes' => $optionsRows
+                ->map(fn ($row) => $row->condition?->code)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'orden_values' => $optionsRows
+                ->map(function ($row) {
+                    $value = trim((string) ($row->orden ?? ''));
+                    return $value !== '' ? $value : null;
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'aviso_values' => $optionsRows
+                ->map(function ($row) {
+                    $value = trim((string) ($row->aviso ?? ''));
+                    return $value !== '' ? $value : null;
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'responsable_names' => $optionsRows
+                ->map(fn ($row) => $row->user?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'condition_names' => $optionsRows
+                ->map(fn ($row) => $row->condition?->name)
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO']),
+
+            'weeks' => $optionsRows
+                ->map(fn ($row) => $row->week)
+                ->filter()
+                ->unique()
+                ->sortDesc()
+                ->values(),
+
+            'warehouse_ids' => collect(),
+        ];
+
+        $activeFilters = [
+            'element_type_names' => $request->input('element_type_names', []),
+            'element_names' => $request->input('element_names', []),
+            'diagnostic_pairs' => $request->input('diagnostic_pairs', []),
+            'recommendation_values' => $request->input('recommendation_values', []),
+            'condition_codes' => $request->input('condition_codes', []),
+            'orden_values' => $request->input('orden_values', []),
+            'aviso_values' => $request->input('aviso_values', []),
+            'responsable_names' => $request->input('responsable_names', []),
+            'condition_names' => $request->input('condition_names', []),
+            'execution_statuses' => $request->input('execution_statuses', []),
+            'weeks' => $request->input('weeks', []),
+            'report_date_from' => $request->input('report_date_from'),
+            'report_date_to' => $request->input('report_date_to'),
+            'execution_date_from' => $request->input('execution_date_from'),
+            'execution_date_to' => $request->input('execution_date_to'),
+        ];
+
+        return view('admin.reports.preventive.general', compact(
+            'client',
+            'currentYear',
+            'reports',
+            'filterOptions',
+            'activeFilters',
+            'totalReportsGenerated',
+            'totalReportsFiltered'
+        ));
+    }
+
+
 }

@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Reportes preventivos</title>
+    <title>Reporte preventivo general</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -18,36 +17,61 @@
 
             return $value !== null && $value !== '';
         };
+
+        $hasAnyActiveFilter =
+            collect($activeFilters)->contains(function ($value) {
+                if (is_array($value)) {
+                    return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+                }
+
+                return $value !== null && $value !== '';
+            });
     @endphp
 
     <div class="min-h-screen p-4">
         <div class="mx-auto max-w-[1800px] space-y-4">
 
-            @php
-                $hasAnyActiveFilter =
-                    collect($activeFilters)->contains(function ($value) {
-                        if (is_array($value)) {
-                            return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-                        }
-
-                        return $value !== null && $value !== '';
-                    });
-            @endphp
-
             <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                <div class="flex items-center justify-between gap-4">
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-                        Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }} {{ $currentYear }}
-                    </h1>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight text-slate-900">
+                            Reporte preventivo general Planta {{ $client->name }} {{ $currentYear }}
+                        </h1>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Visualización consolidada de todos los tipos de activos del cliente.
+                        </p>
+                    </div>
 
-                    @if($hasAnyActiveFilter)
-                        <a
-                            href="{{ route('admin.preventive-reports.show', [$client->id, $elementType->id]) }}"
-                            class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                        >
-                            Limpiar filtros
-                        </a>
-                    @endif
+                    <div class="flex flex-col items-stretch gap-3 lg:items-end">
+                        @if($hasAnyActiveFilter)
+                            <a
+                                href="{{ route('admin.preventive-reports.general', ['client' => $client->id]) }}"
+                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                                Limpiar filtros
+                            </a>
+                        @endif
+
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Total generados
+                                </div>
+                                <div class="mt-1 text-lg font-bold text-slate-900">
+                                    {{ number_format($totalReportsGenerated, 0, ',', '.') }}
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Total con filtros
+                                </div>
+                                <div class="mt-1 text-lg font-bold text-slate-900">
+                                    {{ number_format($totalReportsFiltered, 0, ',', '.') }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -60,10 +84,10 @@
                             <tr>
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
-                                        <span>Nombre del activo</span>
+                                        <span>Tipo de activo</span>
                                         <button type="button"
-                                            onclick="openFilterPopover(event, 'element_names')"
-                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            onclick="openFilterPopover(event, 'element_type_names')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -73,10 +97,10 @@
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
-                                        <span>ID almacén</span>
+                                        <span>Nombre del activo</span>
                                         <button type="button"
-                                            onclick="openFilterPopover(event, 'warehouse_ids')"
-                                            class="rounded p-1 transition hover:bg-slate-200 text-slate-400">
+                                            onclick="openFilterPopover(event, 'element_names')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -162,7 +186,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Fecha de reporte</span>
                                         <button type="button"
@@ -175,7 +199,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Fecha de ejecución</span>
                                         <button type="button"
@@ -188,7 +212,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Condición del activo</span>
                                         <button type="button"
@@ -201,7 +225,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Ejecución orden</span>
                                         <button type="button"
@@ -236,12 +260,12 @@
                                 @endphp
 
                                 <tr class="align-top hover:bg-slate-50">
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
-                                        {{ $report->element?->name ?? '—' }}
+                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                                        {{ $report->element?->elementType?->name ?? '—' }}
                                     </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600">
-                                        —
+                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
+                                        {{ $report->element?->name ?? '—' }}
                                     </td>
 
                                     <td class="px-3 py-3 text-sm text-slate-700">
@@ -284,7 +308,7 @@
                                         @endif
                                     </td>
 
-                                    <td class="px-3 py-3 text-sm text-slate-700" id="execution-date-{{ $report->id }}">
+                                    <td class="px-3 py-3 text-sm text-slate-700">
                                         @if($isDone && $report->execution_date)
                                             {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
                                         @else
@@ -306,18 +330,15 @@
                                     </td>
 
                                     <td class="px-3 py-3 text-sm">
-                                        <label
-                                            id="execution-badge-{{ $report->id }}"
-                                            class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                class="execution-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                data-id="{{ $report->id }}"
-                                                {{ $isDone ? 'checked' : '' }}
-                                            >
-                                            <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
-                                        </label>
+                                        @if($isDone)
+                                            <span class="inline-flex rounded-xl bg-green-100 px-3 py-2 text-xs font-semibold text-green-700">
+                                                REALIZADO
+                                            </span>
+                                        @else
+                                            <span class="inline-flex rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                PENDIENTE
+                                            </span>
+                                        @endif
                                     </td>
 
                                     <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
@@ -327,7 +348,7 @@
                             @empty
                                 <tr>
                                     <td colspan="13" class="px-3 py-10 text-center text-sm text-slate-500">
-                                        No hay reportes para este tipo de activo en el año actual.
+                                        No hay reportes para el cliente en el año actual.
                                     </td>
                                 </tr>
                             @endforelse
@@ -344,7 +365,6 @@
         </div>
     </div>
 
-    <!-- POPOVER DE FILTRO -->
     <div id="filterPopover" class="fixed z-50 hidden w-[340px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div class="border-b border-slate-200 px-4 py-3">
             <div class="flex items-center justify-between gap-3">
@@ -371,19 +391,18 @@
     </div>
 
     <script>
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
         const filterOptions = {
+            element_type_names: {
+                type: 'checklist',
+                title: 'Tipo de activo',
+                inputName: 'element_type_names',
+                options: @json($filterOptions['element_type_names']),
+            },
             element_names: {
                 type: 'checklist',
                 title: 'Nombre del activo',
                 inputName: 'element_names',
                 options: @json($filterOptions['element_names']),
-            },
-            warehouse_ids: {
-                type: 'empty',
-                title: 'ID almacén',
-                message: 'No hay valores disponibles todavía para esta columna.',
             },
             diagnostic_pairs: {
                 type: 'checklist_object',
@@ -495,10 +514,6 @@
 
             title.textContent = config.title;
             body.innerHTML = '';
-
-            if (config.type === 'empty') {
-                body.innerHTML = `<p class="text-sm text-slate-500">${config.message}</p>`;
-            }
 
             if (config.type === 'checklist') {
                 const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
@@ -658,55 +673,6 @@
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
         }
-
-        async function toggleExecution(checkbox) {
-            const reportId = checkbox.dataset.id;
-            const isChecked = checkbox.checked;
-
-            const badge = document.getElementById(`execution-badge-${reportId}`);
-            const dateCell = document.getElementById(`execution-date-${reportId}`);
-
-            try {
-                const response = await fetch(`/admin/preventive-reports/report-details/${reportId}/toggle-execution`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        is_checked: isChecked ? 1 : 0
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.message || 'No fue posible actualizar el estado.');
-                }
-
-                if (isChecked) {
-                    badge.classList.remove('bg-amber-100', 'text-amber-800');
-                    badge.classList.add('bg-green-100', 'text-green-700');
-                    badge.querySelector('span').textContent = 'REALIZADO';
-                    dateCell.textContent = data.execution_date ? data.execution_date.substring(0, 10) : '—';
-                } else {
-                    badge.classList.remove('bg-green-100', 'text-green-700');
-                    badge.classList.add('bg-amber-100', 'text-amber-800');
-                    badge.querySelector('span').textContent = 'PENDIENTE';
-                    dateCell.textContent = '—';
-                }
-            } catch (error) {
-                checkbox.checked = !isChecked;
-                alert(error.message);
-            }
-        }
-
-        document.querySelectorAll('.execution-checkbox').forEach(cb => {
-            cb.addEventListener('change', function () {
-                toggleExecution(this);
-            });
-        });
 
         document.addEventListener('click', function (event) {
             const popover = document.getElementById('filterPopover');

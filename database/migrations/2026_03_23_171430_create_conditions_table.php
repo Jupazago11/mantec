@@ -10,12 +10,22 @@ return new class extends Migration
     {
         Schema::create('conditions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('client_id')->constrained('clients')->cascadeOnDelete();
-            $table->string('code', 50);
-            $table->string('name', 100);
-            $table->string('description', 255)->nullable();
-            $table->integer('severity');
+
+            $table->foreignId('client_id')
+                ->constrained('clients')
+                ->cascadeOnDelete();
+
+            $table->string('code');
+            $table->string('name');
+            $table->text('description')->nullable();
+
+            $table->integer('severity')->default(0);
+
+
+            $table->string('color', 7)->nullable();
+
             $table->boolean('status')->default(true);
+
             $table->timestamps();
 
             $table->unique(['client_id', 'code']);

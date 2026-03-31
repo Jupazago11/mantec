@@ -13,9 +13,10 @@ class DashboardController extends Controller
         $user = auth()->user();
         $role = $user->role->key ?? null;
 
+
         return match ($role) {
             'superadmin' => view('admin.dashboard.superadmin'),
-            'admin_global' => view('admin.dashboard.admin'),
+            'admin_global' => $this->adminDashboard($user),
             'admin' => $this->adminDashboard($user),
             'admin_cliente' => view('admin.dashboard.admin_cliente'),
             'inspector' => view('admin.dashboard.inspector'),
@@ -46,6 +47,7 @@ class DashboardController extends Controller
             $client = $clients->get($elementType->client_id);
 
             return [
+                'mode' => 'single',
                 'client_id' => $client?->id,
                 'client_name' => $client?->name,
                 'element_type_id' => $elementType->id,
@@ -55,6 +57,19 @@ class DashboardController extends Controller
             ];
         })->values();
 
-        return view('admin.dashboard.admin', compact('reportModules'));
+        $generalReportModules = $clients->map(function ($client) use ($currentYear) {
+            return [
+                'mode' => 'general',
+                'client_id' => $client->id,
+                'client_name' => $client->name,
+                'title' => 'Reporte preventivo general Planta ' . $client->name . ' ' . $currentYear,
+                'year' => $currentYear,
+            ];
+        })->values();
+
+        return view('admin.dashboard.admin', compact(
+            'reportModules',
+            'generalReportModules'
+        ));
     }
 }

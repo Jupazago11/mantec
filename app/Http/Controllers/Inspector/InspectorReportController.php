@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Inspector;
 
 use App\Http\Controllers\Controller;
 use App\Models\Area;
+use App\Models\Client;
 use App\Models\Component;
 use App\Models\Condition;
 use App\Models\Element;
-use App\Models\ExecutionStatus;
 use App\Models\ReportDetail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,34 +21,87 @@ class InspectorReportController extends Controller
     {
         $user = Auth::user();
 
-        $inspectorClients = $user->clients()
+        $allowedClientIds = $user->clients()
             ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get();
+            ->pluck('clients.id');
 
-        $clientIds = $inspectorClients->pluck('id');
+        $specializedElementTypes = $user->allowedElementTypes()
+            ->whereIn('user_client_element_type.client_id', $allowedClientIds)
+            ->where('element_types.status', true)
+            ->get()
+            ->groupBy(fn ($item) => $item->pivot->client_id);
 
-        $assignedClient = $inspectorClients->count() === 1
-            ? $inspectorClients->first()
-            : null;
-
-        $areas = Area::with('client')
-            ->whereIn('client_id', $clientIds)
+        $assignedClients = Client::whereIn('id', $specializedElementTypes->keys())
             ->where('status', true)
             ->orderBy('name')
             ->get();
 
-        $conditions = Condition::whereIn('client_id', $clientIds)
-            ->where('status', true)
-            ->orderBy('code')
-            ->get();
+        $assignedClient = $assignedClients->count() === 1 ? $assignedClients->first() : null;
 
-        $executionStatuses = ExecutionStatus::where('status', true)
-            ->orderBy('name')
-            ->get();
+        $selectedClientId = null;
+        $selectedAreaId = null;
+        $selectedElementId = null;
+
+        $areas = collect();
+        $elements = collect();
+        $conditions = collect();
+        $allowedElementTypesForSelectedClient = collect();
+
+        if ($assignedClient) {
+            $selectedClientId = $assignedClient->id;
+        } else {
+            $sessionClientId = (int) session('inspector_last_client_id');
+
+            if ($sessionClientId && $assignedClients->pluck('id')->contains($sessionClientId)) {
+                $selectedClientId = $sessionClientId;
+            }
+        }
+
+        if ($selectedClientId) {
+            $allowedElementTypesForSelectedClient = $specializedElementTypes->get($selectedClientId, collect());
+
+            $areas = $this->allowedAreasQuery($user, $selectedClientId)
+                ->with('client')
+                ->orderBy('name')
+                ->get();
+
+            $conditions = Condition::where('client_id', $selectedClientId)
+                ->where('status', true)
+                ->orderBy('severity')
+                ->orderBy('name')
+                ->get();
+
+            $sessionAreaId = (int) session('inspector_last_area_id');
+
+            if ($sessionAreaId && $areas->pluck('id')->contains($sessionAreaId)) {
+                $selectedAreaId = $sessionAreaId;
+            }
+
+            if ($selectedAreaId) {
+                $allowedElementTypeIds = $this->allowedElementTypeIdsForClient($user, $selectedClientId);
+
+                $elements = Element::with('elementType')
+                    ->where('area_id', $selectedAreaId)
+                    ->where('status', true)
+                    ->whereIn('element_type_id', $allowedElementTypeIds)
+                    ->orderBy('name')
+                    ->get();
+
+                $sessionElementId = (int) session('inspector_last_element_id');
+
+                if ($sessionElementId && $elements->pluck('id')->contains($sessionElementId)) {
+                    $selectedElementId = $sessionElementId;
+                }
+            }
+        }
+
+        $specialtiesByClient = $specializedElementTypes->map(function ($group) {
+            return $group->pluck('name')->values();
+        });
 
         $recentReports = ReportDetail::with([
             'element.area.client',
+            'element.elementType',
             'component',
             'diagnostic',
             'condition',
@@ -56,32 +109,91 @@ class InspectorReportController extends Controller
         ])
             ->where('user_id', $user->id)
             ->where('created_at', '>=', now()->subHours(168))
+            ->whereHas('element', function ($query) use ($specializedElementTypes) {
+                $query->where(function ($elementQuery) use ($specializedElementTypes) {
+                    foreach ($specializedElementTypes as $clientId => $types) {
+                        $typeIds = $types->pluck('id')->toArray();
+
+                        $elementQuery->orWhere(function ($sub) use ($clientId, $typeIds) {
+                            $sub->whereIn('element_type_id', $typeIds)
+                                ->whereHas('area', function ($areaQuery) use ($clientId) {
+                                    $areaQuery->where('client_id', $clientId);
+                                });
+                        });
+                    }
+                });
+            })
             ->orderByDesc('created_at')
             ->get();
 
         return view('inspector.reports.index', compact(
-            'inspectorClients',
-            'areas',
-            'conditions',
+            'assignedClients',
             'assignedClient',
-            'executionStatuses',
-            'recentReports'
+            'areas',
+            'elements',
+            'conditions',
+            'recentReports',
+            'specializedElementTypes',
+            'specialtiesByClient',
+            'allowedElementTypesForSelectedClient',
+            'selectedClientId',
+            'selectedAreaId',
+            'selectedElementId'
         ));
+    }
+
+    public function getAreasByClient(Client $client): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userHasClientAccess($user, $client->id), 403);
+
+        $areas = $this->allowedAreasQuery($user, $client->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($areas);
+    }
+
+    public function getConditionsByClient(Client $client): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userHasClientAccess($user, $client->id), 403);
+
+        $conditions = Condition::where('client_id', $client->id)
+            ->where('status', true)
+            ->orderBy('severity')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'severity', 'color']);
+
+        return response()->json($conditions);
     }
 
     public function getElementsByArea(Area $area): JsonResponse
     {
         $user = Auth::user();
 
-        abort_unless(
-            $user->clients()->where('clients.id', $area->client_id)->exists(),
-            403
-        );
+        abort_unless($this->userHasClientAccess($user, $area->client_id), 403);
+
+        $allowedElementTypeIds = $this->allowedElementTypeIdsForClient($user, $area->client_id);
 
         $elements = $area->elements()
+            ->with('elementType')
             ->where('status', true)
+            ->whereIn('element_type_id', $allowedElementTypeIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'element_type_id']);
+            ->get()
+            ->map(function ($element) {
+                return [
+                    'id' => $element->id,
+                    'name' => $element->name,
+                    'code' => $element->code,
+                    'element_type_id' => $element->element_type_id,
+                    'element_type_name' => optional($element->elementType)->name,
+                ];
+            })
+            ->values();
 
         return response()->json($elements);
     }
@@ -90,13 +202,13 @@ class InspectorReportController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless(
-            $user->clients()->where('clients.id', $element->area->client_id)->exists(),
-            403
-        );
+        $element->loadMissing('area');
+
+        abort_unless($this->userCanAccessElement($user, $element), 403);
 
         $components = $element->components()
             ->where('components.status', true)
+            ->where('components.element_type_id', $element->element_type_id)
             ->orderBy('components.name')
             ->get([
                 'components.id',
@@ -108,12 +220,17 @@ class InspectorReportController extends Controller
         return response()->json($components);
     }
 
-    public function getDiagnosticsByComponent(Component $component): JsonResponse
+    public function getDiagnosticsByComponent(Request $request, Component $component): JsonResponse
     {
         $user = Auth::user();
 
+        $elementId = (int) $request->query('element_id');
+        $element = Element::findOrFail($elementId);
+
+        abort_unless($this->userCanAccessElement($user, $element), 403);
+
         abort_unless(
-            $user->clients()->where('clients.id', $component->client_id)->exists(),
+            $element->components()->where('components.id', $component->id)->exists(),
             403
         );
 
@@ -129,14 +246,11 @@ class InspectorReportController extends Controller
         return response()->json($diagnostics);
     }
 
-    public function getPendingDiagnostics(Request $request, Element $element): JsonResponse
+    public function getPendingDiagnostics(Element $element): JsonResponse
     {
         $user = Auth::user();
 
-        abort_unless(
-            $user->clients()->where('clients.id', $element->area->client_id)->exists(),
-            403
-        );
+        abort_unless($this->userCanAccessElement($user, $element), 403);
 
         $week = now()->weekOfYear;
         $year = now()->year;
@@ -147,6 +261,7 @@ class InspectorReportController extends Controller
                     ->orderBy('diagnostics.name');
             }])
             ->where('components.status', true)
+            ->where('components.element_type_id', $element->element_type_id)
             ->orderBy('components.name')
             ->get();
 
@@ -185,7 +300,7 @@ class InspectorReportController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'client_id' => ['nullable', 'exists:clients,id'],
+            'client_id' => ['required', 'exists:clients,id'],
             'area_id' => ['required', 'exists:areas,id'],
             'element_id' => ['required', 'exists:elements,id'],
             'component_id' => ['required', 'exists:components,id'],
@@ -196,24 +311,21 @@ class InspectorReportController extends Controller
 
         $user = Auth::user();
 
+        $client = Client::findOrFail($validated['client_id']);
         $area = Area::findOrFail($validated['area_id']);
         $element = Element::findOrFail($validated['element_id']);
         $component = Component::findOrFail($validated['component_id']);
         $condition = Condition::findOrFail($validated['condition_id']);
 
-        $now = now();
-        $currentWeek = $now->weekOfYear;
-        $currentYear = $now->year;
-
         abort_unless(
-            $user->clients()->where('clients.id', $area->client_id)->exists(),
+            $this->userHasClientAccess($user, $client->id),
             403,
-            'No tienes acceso a esta área.'
+            'No tienes acceso a este cliente.'
         );
 
-        if (!empty($validated['client_id']) && (int) $validated['client_id'] !== (int) $area->client_id) {
+        if ($area->client_id !== $client->id) {
             return back()
-                ->withErrors(['client_id' => 'El área no pertenece al cliente seleccionado.'])
+                ->withErrors(['area_id' => 'El área no pertenece al cliente seleccionado.'])
                 ->withInput();
         }
 
@@ -223,17 +335,11 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
-        if ($component->client_id !== $area->client_id) {
-            return back()
-                ->withErrors(['component_id' => 'El componente no pertenece al cliente del área seleccionada.'])
-                ->withInput();
-        }
-
-        if ($condition->client_id !== $area->client_id) {
-            return back()
-                ->withErrors(['condition_id' => 'La condición no pertenece al cliente del área seleccionada.'])
-                ->withInput();
-        }
+        abort_unless(
+            $this->userCanAccessElement($user, $element),
+            403,
+            'No tienes permiso para reportar este tipo de activo.'
+        );
 
         if (!$element->components()->where('components.id', $component->id)->exists()) {
             return back()
@@ -247,46 +353,46 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
-        /**
-         * NUEVA LÓGICA:
-         * Si existe un reporte del mismo usuario + activo + componente + diagnóstico
-         * dentro de las últimas 24 horas, se actualiza recommendation
-         * en vez de crear un nuevo registro.
-         */
-        $existingRecentReport = ReportDetail::where('user_id', $user->id)
-            ->where('element_id', $element->id)
+        if ($condition->client_id !== $client->id) {
+            return back()
+                ->withErrors(['condition_id' => 'La condición no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
+
+        $now = now();
+        $currentWeek = $now->weekOfYear;
+        $currentYear = $now->year;
+
+        $existingReport = ReportDetail::where('element_id', $element->id)
             ->where('component_id', $component->id)
             ->where('diagnostic_id', $validated['diagnostic_id'])
             ->where('created_at', '>=', now()->subHours(24))
-            ->orderByDesc('created_at')
+            ->latest('created_at')
             ->first();
 
-        if ($existingRecentReport) {
+        if ($existingReport) {
             $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
 
             if ($newRecommendation !== '') {
-                $currentRecommendation = trim((string) ($existingRecentReport->recommendation ?? ''));
+                $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
 
-                $existingRecentReport->update([
+                $existingReport->update([
+                    'condition_id' => $validated['condition_id'],
                     'recommendation' => $currentRecommendation !== ''
                         ? $currentRecommendation . PHP_EOL . $newRecommendation
                         : $newRecommendation,
-                    'condition_id' => $validated['condition_id'],
                 ]);
             } else {
-                $existingRecentReport->update([
+                $existingReport->update([
                     'condition_id' => $validated['condition_id'],
                 ]);
             }
 
+            $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
+
             return redirect()
                 ->route('inspector.reports.index')
-                ->with('success', 'El reporte existente fue complementado correctamente.')
-                ->with('form_state', [
-                    'client_id' => $area->client_id,
-                    'area_id' => $area->id,
-                    'element_id' => $element->id,
-                ]);
+                ->with('success', 'El reporte existente fue complementado correctamente.');
         }
 
         ReportDetail::create([
@@ -306,13 +412,54 @@ class InspectorReportController extends Controller
             'execution_date' => now()->toDateString(),
         ]);
 
+        $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
+
         return redirect()
             ->route('inspector.reports.index')
-            ->with('success', 'Reporte registrado correctamente.')
-            ->with('form_state', [
-                'client_id' => $area->client_id,
-                'area_id' => $area->id,
-                'element_id' => $element->id,
-            ]);
+            ->with('success', 'Reporte registrado correctamente.');
+    }
+
+    private function storeLastSelectionInSession(int $clientId, int $areaId, int $elementId): void
+    {
+        session([
+            'inspector_last_client_id' => $clientId,
+            'inspector_last_area_id' => $areaId,
+            'inspector_last_element_id' => $elementId,
+        ]);
+    }
+
+    private function userHasClientAccess($user, int $clientId): bool
+    {
+        return $user->clients()->where('clients.id', $clientId)->exists()
+            && $user->allowedElementTypesForClient($clientId)->exists();
+    }
+
+    private function allowedElementTypeIdsForClient($user, int $clientId): array
+    {
+        return $user->allowedElementTypesForClient($clientId)
+            ->where('element_types.status', true)
+            ->pluck('element_types.id')
+            ->toArray();
+    }
+
+    private function allowedAreasQuery($user, int $clientId)
+    {
+        $allowedElementTypeIds = $this->allowedElementTypeIdsForClient($user, $clientId);
+
+        return Area::query()
+            ->where('client_id', $clientId)
+            ->where('status', true)
+            ->whereHas('elements', function ($query) use ($allowedElementTypeIds) {
+                $query->where('status', true)
+                    ->whereIn('element_type_id', $allowedElementTypeIds);
+            });
+    }
+
+    private function userCanAccessElement($user, Element $element): bool
+    {
+        $element->loadMissing('area');
+
+        return $this->userHasClientAccess($user, $element->area->client_id)
+            && $user->hasElementTypeAccess($element->area->client_id, $element->element_type_id);
     }
 }

@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\AdminElementTypeController;
 use App\Http\Controllers\Admin\AdminDiagnosticController;
 use App\Http\Controllers\Admin\AdminComponentDiagnosticController;
 use App\Http\Controllers\Admin\AdminPreventiveReportController;
+use App\Http\Controllers\Admin\AdminElementController;
 
 use App\Http\Controllers\Inspector\InspectorReportController;
 use App\Http\Controllers\Admin\AdminConditionController;
@@ -93,8 +94,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/admin/users/{user}', [UserController::class, 'destroy'])->name('admin.users.destroy');
 
 
+    
+
     Route::get('/inspector/reports', [InspectorReportController::class, 'index'])->name('inspector.reports.index');
     Route::post('/inspector/reports', [InspectorReportController::class, 'store'])->name('inspector.reports.store');
+
+    Route::get('/inspector/clients/{client}/areas', [InspectorReportController::class, 'getAreasByClient'])->name('inspector.clients.areas');
+    Route::get('/inspector/clients/{client}/conditions', [InspectorReportController::class, 'getConditionsByClient'])->name('inspector.clients.conditions');
 
     Route::get('/inspector/areas/{area}/elements', [InspectorReportController::class, 'getElementsByArea'])->name('inspector.areas.elements');
     Route::get('/inspector/elements/{element}/components', [InspectorReportController::class, 'getComponentsByElement'])->name('inspector.elements.components');
@@ -107,6 +113,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/admin/managed-users/{user}', [AdminManagedUserController::class, 'update'])->name('admin.managed-users.update');
     Route::delete('/admin/managed-users/{user}', [AdminManagedUserController::class, 'destroy'])->name('admin.managed-users.destroy');
     Route::patch('/admin/managed-users/{user}/toggle-status', [AdminManagedUserController::class, 'toggleStatus'])->name('admin.managed-users.toggle-status');
+
 
     Route::get('/admin/managed-areas', [AdminAreaController::class, 'index'])->name('admin.managed-areas.index');
     Route::post('/admin/managed-areas', [AdminAreaController::class, 'store'])->name('admin.managed-areas.store');
@@ -145,6 +152,21 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/cd/element-types/{elementType}/components', [AdminComponentDiagnosticController::class, 'getComponents']);
     Route::get('/admin/cd/clients/{client}/diagnostics', [AdminComponentDiagnosticController::class, 'getDiagnostics']);
     Route::get('/admin/cd/components/{component}/assigned', [AdminComponentDiagnosticController::class, 'getAssigned']);
+
+   
+    Route::get('/admin/managed-elements', [AdminElementController::class, 'index'])->name('admin.managed-elements.index');
+    Route::post('/admin/managed-elements', [AdminElementController::class, 'store'])->name('admin.managed-elements.store');
+    Route::put('/admin/managed-elements/{element}', [AdminElementController::class, 'update'])->name('admin.managed-elements.update');
+    Route::post('/admin/managed-elements/{element}/components', [AdminElementController::class, 'syncComponents'])->name('admin.managed-elements.components.sync');
+    Route::delete('/admin/managed-elements/{element}', [AdminElementController::class, 'destroy'])->name('admin.managed-elements.destroy');
+    Route::patch('/admin/managed-elements/{element}/toggle-status', [AdminElementController::class, 'toggleStatus'])->name('admin.managed-elements.toggle-status');
+
+    Route::get('/admin/clients/{client}/areas', [AdminElementController::class, 'getAreasByClient'])->name('admin.clients.areas');
+    Route::get('/admin/clients/{client}/element-types', [AdminElementController::class, 'getElementTypesByClient'])->name('admin.clients.element-types');
+
+    //--
+    Route::get('/admin/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('admin.preventive-reports.general');
+
 
     Route::get(
     '/admin/preventive-reports/{client}/{elementType}',

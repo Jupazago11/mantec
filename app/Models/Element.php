@@ -7,11 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Element extends Model
 {
     protected $fillable = [
-        'name',
-        'code',
         'area_id',
         'element_type_id',
-        'warehouse_code',
+        'name',
+        'code',
         'status',
     ];
 
@@ -27,6 +26,18 @@ class Element extends Model
         return $this->belongsTo(Area::class);
     }
 
+    public function client()
+    {
+        return $this->hasOneThrough(
+            Client::class,
+            Area::class,
+            'id',
+            'id',
+            'area_id',
+            'client_id'
+        );
+    }
+
     public function elementType()
     {
         return $this->belongsTo(ElementType::class);
@@ -35,5 +46,15 @@ class Element extends Model
     public function components()
     {
         return $this->belongsToMany(Component::class, 'element_components');
+    }
+
+    public function reportDetails()
+    {
+        return $this->hasMany(ReportDetail::class);
+    }
+
+    public function hasDependencies(): bool
+    {
+        return $this->components()->exists() || $this->reportDetails()->exists();
     }
 }

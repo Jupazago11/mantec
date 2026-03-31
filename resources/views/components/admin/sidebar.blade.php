@@ -92,7 +92,9 @@
                         class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
                             Condiciones
                         </a>
+                        
                     </div>
+                    
                 @endif
 
                 @if($role === 'admin_global')
@@ -107,34 +109,57 @@
                 @endif
 
                 @if($role === 'admin')
-                    <a href="{{ route('admin.managed-users.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Usuarios
-                    </a>
-                    <a href="{{ route('admin.managed-areas.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Áreas
-                    </a>
-                    <a href="{{ route('admin.managed-element-types.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Tipos de activos - Plantilla
-                    </a>
-                    <a href="{{ route('admin.managed-diagnostics.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Diagnósticos
-                    </a>
-                    <a href="{{ route('admin.managed-conditions.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Condiciones
-                    </a>
-                    <a href="{{ route('admin.managed-components.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                        Componentes - Plantilla
-                    </a>
-                    <a href="{{ route('admin.component-diagnostics.index') }}"
-                    class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                        Componentes - Diagnósticos
-                    </a>
+                    <div class="space-y-1">
+                        <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Operación
+                        </p>
+
+                        <a href="{{ route('admin.managed-users.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Usuarios
+                        </a>
+
+                        <a href="{{ route('admin.managed-areas.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Áreas
+                        </a>
+
+                        <a href="{{ route('admin.managed-elements.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Activos
+                        </a>
+                    </div>
+
+                    <div class="mt-4 space-y-1">
+                        <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Configuración técnica
+                        </p>
+
+                        <a href="{{ route('admin.managed-element-types.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Tipos de activos - Plantilla
+                        </a>
+
+                        <a href="{{ route('admin.managed-components.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Componentes - Plantilla
+                        </a>
+
+                        <a href="{{ route('admin.managed-diagnostics.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Diagnósticos
+                        </a>
+
+                        <a href="{{ route('admin.component-diagnostics.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Componentes - Diagnósticos
+                        </a>
+
+                        <a href="{{ route('admin.managed-conditions.index') }}"
+                        class="flex items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
+                            Condiciones
+                        </a>
+                    </div>
                 @endif
 
                 @if($role === 'admin_cliente')

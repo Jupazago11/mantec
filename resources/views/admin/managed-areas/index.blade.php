@@ -4,6 +4,13 @@
 @section('header_title', 'Áreas')
 
 @section('content')
+    @php
+        $currentFilters = [
+            'client_id' => request('client_id'),
+            'page' => request('page'),
+        ];
+    @endphp
+
     <div class="space-y-8">
         <div>
             <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de áreas</h2>
@@ -29,16 +36,15 @@
             </div>
         @endif
 
-        <div class="grid gap-8 xl:grid-cols-3">
-            <!-- FORMULARIO -->
-            <div class="xl:col-span-1">
-                <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="grid gap-8 xl:grid-cols-12">
+            <div class="xl:col-span-3">
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nueva área</h3>
                     <p class="mt-1 text-sm text-slate-500">
                         Registra una nueva área para uno de tus clientes.
                     </p>
 
-                    <form method="POST" action="{{ route('admin.managed-areas.store') }}" class="mt-6 space-y-5">
+                    <form method="POST" action="{{ route('admin.managed-areas.store', $currentFilters) }}" class="mt-6 space-y-5">
                         @csrf
 
                         @if($singleClient)
@@ -93,49 +99,50 @@
                 </div>
             </div>
 
-            <!-- TABLA -->
-            <div class="xl:col-span-2">
+            <div class="xl:col-span-9">
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-6 py-4">
-                        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="border-b border-slate-200 px-5 py-4">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <h3 class="text-lg font-semibold text-slate-900">Listado de áreas</h3>
 
-                            <form method="GET" action="{{ route('admin.managed-areas.index') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                                <div>
-                                    <label for="filter_client_id" class="mb-2 block text-sm font-medium text-slate-700">
-                                        Filtrar por cliente
-                                    </label>
+                            @if(!$singleClient)
+                                <form method="GET" action="{{ route('admin.managed-areas.index') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                    <div>
+                                        <label for="filter_client_id" class="mb-2 block text-sm font-medium text-slate-700">
+                                            Filtrar por cliente
+                                        </label>
 
-                                    <select
-                                        name="client_id"
-                                        id="filter_client_id"
-                                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                                    >
-                                        <option value="">Todos</option>
-                                        @foreach($clients as $client)
-                                            <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>
-                                                {{ $client->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
+                                        <select
+                                            name="client_id"
+                                            id="filter_client_id"
+                                            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                        >
+                                            <option value="">Todos</option>
+                                            @foreach($clients as $client)
+                                                <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>
+                                                    {{ $client->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
 
-                                <div class="flex gap-2">
-                                    <button
-                                        type="submit"
-                                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                                    >
-                                        Filtrar
-                                    </button>
+                                    <div class="flex gap-2">
+                                        <button
+                                            type="submit"
+                                            class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                                        >
+                                            Filtrar
+                                        </button>
 
-                                    <a
-                                        href="{{ route('admin.managed-areas.index') }}"
-                                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                    >
-                                        Limpiar
-                                    </a>
-                                </div>
-                            </form>
+                                        <a
+                                            href="{{ route('admin.managed-areas.index') }}"
+                                            class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                                        >
+                                            Limpiar
+                                        </a>
+                                    </div>
+                                </form>
+                            @endif
                         </div>
                     </div>
 
@@ -143,22 +150,24 @@
                         <table class="min-w-full divide-y divide-slate-200">
                             <thead class="bg-slate-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Cliente
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    @if(!$singleClient)
+                                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                            Cliente
+                                        </th>
+                                    @endif
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Nombre
                                     </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Código
                                     </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Activos
                                     </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Estado
                                     </th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Acciones
                                     </th>
                                 </tr>
@@ -171,23 +180,25 @@
                                     @endphp
 
                                     <tr class="hover:bg-slate-50">
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                                            {{ $area->client?->name ?? '—' }}
-                                        </td>
+                                        @if(!$singleClient)
+                                            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                                                {{ $area->client?->name ?? '—' }}
+                                            </td>
+                                        @endif
 
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
                                             {{ $area->name }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-600">
                                             {{ $area->code ?: '—' }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
                                             {{ $area->elements_count }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
                                             @if($area->status)
                                                 <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
                                                     Activo
@@ -199,7 +210,7 @@
                                             @endif
                                         </td>
 
-                                        <td class="whitespace-nowrap px-6 py-4 text-right">
+                                        <td class="whitespace-nowrap px-5 py-3 text-right">
                                             <div class="flex justify-end gap-2">
                                                 <button
                                                     type="button"
@@ -207,7 +218,7 @@
                                                     data-name="{{ $area->name }}"
                                                     data-code="{{ $area->code }}"
                                                     data-client_id="{{ $area->client_id }}"
-                                                    data-action="{{ route('admin.managed-areas.update', $area) }}"
+                                                    data-action="{{ route('admin.managed-areas.update', array_merge(['area' => $area->id], $currentFilters)) }}"
                                                     onclick="openEditAreaModal(this)"
                                                 >
                                                     Editar
@@ -216,7 +227,7 @@
                                                 @if(!$hasDependencies)
                                                     <form
                                                         method="POST"
-                                                        action="{{ route('admin.managed-areas.destroy', $area) }}"
+                                                        action="{{ route('admin.managed-areas.destroy', array_merge(['area' => $area->id], $currentFilters)) }}"
                                                         onsubmit="return confirm('¿Seguro que deseas eliminar esta área?');"
                                                     >
                                                         @csrf
@@ -230,7 +241,7 @@
                                                         </button>
                                                     </form>
                                                 @else
-                                                    <form method="POST" action="{{ route('admin.managed-areas.toggle-status', $area) }}">
+                                                    <form method="POST" action="{{ route('admin.managed-areas.toggle-status', array_merge(['area' => $area->id], $currentFilters)) }}">
                                                         @csrf
                                                         @method('PATCH')
 
@@ -247,7 +258,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="{{ $singleClient ? 5 : 6 }}" class="px-5 py-10 text-center text-sm text-slate-500">
                                             No hay áreas registradas todavía.
                                         </td>
                                     </tr>
@@ -257,7 +268,7 @@
                     </div>
 
                     @if($areas->hasPages())
-                        <div class="border-t border-slate-200 px-6 py-4">
+                        <div class="border-t border-slate-200 px-5 py-4">
                             {{ $areas->links() }}
                         </div>
                     @endif
@@ -266,7 +277,6 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR -->
     <div id="editAreaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -318,6 +328,12 @@
                     label="Código"
                     id="edit_area_code"
                 />
+
+                @foreach($currentFilters as $filterKey => $filterValue)
+                    @if($filterValue !== null && $filterValue !== '')
+                        <input type="hidden" name="{{ $filterKey }}" value="{{ $filterValue }}">
+                    @endif
+                @endforeach
 
                 <div class="flex justify-end gap-3">
                     <button
