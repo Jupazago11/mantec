@@ -309,6 +309,7 @@ class InspectorReportController extends Controller
             'diagnostic_id' => ['required', 'exists:diagnostics,id'],
             'condition_id' => ['required', 'exists:conditions,id'],
             'recommendation' => ['nullable', 'string'],
+
             'attachments' => ['nullable', 'array', 'max:6'],
             'attachments.*' => [
                 'file',
@@ -316,6 +317,7 @@ class InspectorReportController extends Controller
                 'max:102400',
             ],
         ]);
+
 
         $user = Auth::user();
 
@@ -441,13 +443,29 @@ class InspectorReportController extends Controller
         foreach ($files as $index => $file) {
             $built = ReportFilePathBuilder::build($reportDetail->element, $file);
 
-            Storage::disk('r2')->put(
-                $built['path'],
-                file_get_contents($file->getRealPath()),
-                [
-                    'ContentType' => $file->getMimeType(),
-                ]
-            );
+            $stream = fopen($file->getRealPath(), 'r');
+
+            if ($stream === false) {
+                throw new \RuntimeException('No se pudo abrir el archivo temporal para subirlo.');
+            }
+
+            try {
+                Storage::disk('r2')->writeStream(
+                    $built['path'],
+                    $stream,
+                    [
+                        'ContentType' => $file->getMimeType(),
+                    ]
+                );
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+
+            if (!Storage::disk('r2')->exists($built['path'])) {
+                throw new \RuntimeException('El archivo no quedó almacenado en R2 después de la subida.');
+            }
 
             $mime = $file->getMimeType() ?: 'application/octet-stream';
             $fileType = str_starts_with($mime, 'video/') ? 'video' : 'image';
@@ -466,6 +484,7 @@ class InspectorReportController extends Controller
             ]);
         }
     }
+
 
     private function storeLastSelectionInSession(int $clientId, int $areaId, int $elementId): void
     {

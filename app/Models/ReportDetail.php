@@ -67,8 +67,4 @@ class ReportDetail extends Model
         return $this->belongsTo(ExecutionStatus::class, 'execution_status_id');
     }
 
-    public function files()
-    {
-        return $this->hasMany(\App\Models\ReportDetailFile::class);
-    }
 }

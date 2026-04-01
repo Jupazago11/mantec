@@ -29,7 +29,6 @@ class User extends Authenticatable
     {
         return [
             'status' => 'boolean',
-            'password' => 'hashed',
         ];
     }
 
