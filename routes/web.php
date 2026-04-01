@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\AreaController;
@@ -31,6 +32,16 @@ use App\Http\Controllers\Admin\AdminComponentController;
 Route::get('/', function () {
     return view('public.home');
 })->name('home');
+
+Route::get('/test-r2', function () {
+    $path = 'test/prueba.txt';
+
+    Storage::disk('r2')->put($path, 'Hola desde Laravel');
+
+    return Storage::disk('r2')->exists($path)
+        ? 'OK: archivo subido'
+        : 'ERROR: no se subió';
+});
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');

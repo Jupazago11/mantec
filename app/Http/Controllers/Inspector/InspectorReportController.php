@@ -13,7 +13,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use App\Support\ReportFilePathBuilder;
 
 class InspectorReportController extends Controller
 {
@@ -307,6 +309,12 @@ class InspectorReportController extends Controller
             'diagnostic_id' => ['required', 'exists:diagnostics,id'],
             'condition_id' => ['required', 'exists:conditions,id'],
             'recommendation' => ['nullable', 'string'],
+            'attachments' => ['nullable', 'array', 'max:6'],
+            'attachments.*' => [
+                'file',
+                'mimetypes:image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm',
+                'max:102400',
+            ],
         ]);
 
         $user = Auth::user();
@@ -359,9 +367,8 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
-        $now = now();
-        $currentWeek = $now->weekOfYear;
-        $currentYear = $now->year;
+        $currentWeek = now()->weekOfYear;
+        $currentYear = now()->year;
 
         $existingReport = ReportDetail::where('element_id', $element->id)
             ->where('component_id', $component->id)
@@ -388,6 +395,11 @@ class InspectorReportController extends Controller
                 ]);
             }
 
+            if ($request->hasFile('attachments')) {
+                $existingReport->loadMissing('element');
+                $this->storeAttachments($existingReport, $request->file('attachments'), $user->id);
+            }
+
             $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
 
             return redirect()
@@ -395,7 +407,7 @@ class InspectorReportController extends Controller
                 ->with('success', 'El reporte existente fue complementado correctamente.');
         }
 
-        ReportDetail::create([
+        $reportDetail = ReportDetail::create([
             'report_id' => null,
             'user_id' => $user->id,
             'element_id' => $element->id,
@@ -412,11 +424,47 @@ class InspectorReportController extends Controller
             'execution_date' => now()->toDateString(),
         ]);
 
+        if ($request->hasFile('attachments')) {
+            $reportDetail->loadMissing('element');
+            $this->storeAttachments($reportDetail, $request->file('attachments'), $user->id);
+        }
+
         $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
 
         return redirect()
             ->route('inspector.reports.index')
             ->with('success', 'Reporte registrado correctamente.');
+    }
+
+    private function storeAttachments(ReportDetail $reportDetail, array $files, int $uploadedBy): void
+    {
+        foreach ($files as $index => $file) {
+            $built = ReportFilePathBuilder::build($reportDetail->element, $file);
+
+            Storage::disk('r2')->put(
+                $built['path'],
+                file_get_contents($file->getRealPath()),
+                [
+                    'ContentType' => $file->getMimeType(),
+                ]
+            );
+
+            $mime = $file->getMimeType() ?: 'application/octet-stream';
+            $fileType = str_starts_with($mime, 'video/') ? 'video' : 'image';
+
+            $reportDetail->files()->create([
+                'uploaded_by' => $uploadedBy,
+                'disk' => 'r2',
+                'path' => $built['path'],
+                'original_name' => $file->getClientOriginalName(),
+                'stored_name' => $built['stored_name'],
+                'mime_type' => $mime,
+                'extension' => $built['extension'],
+                'file_type' => $fileType,
+                'size_bytes' => $file->getSize() ?: 0,
+                'sort_order' => $index,
+            ]);
+        }
     }
 
     private function storeLastSelectionInSession(int $clientId, int $areaId, int $elementId): void

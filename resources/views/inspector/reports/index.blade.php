@@ -44,7 +44,10 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-slate-900">Nuevo reporte</h3>
 
-                <form method="POST" action="{{ route('inspector.reports.store') }}" class="mt-6 space-y-5">
+                <form method="POST"
+                      action="{{ route('inspector.reports.store') }}"
+                      enctype="multipart/form-data"
+                      class="mt-6 space-y-5">
                     @csrf
 
                     <div class="grid gap-5 md:grid-cols-2">
@@ -171,6 +174,20 @@
                             class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             placeholder="Describe la acción recomendada"
                         >{{ old('recommendation') }}</textarea>
+                    </div>
+
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-slate-700">Subir archivos</label>
+                        <input
+                            type="file"
+                            name="attachments[]"
+                            multiple
+                            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                        >
+                        <p class="mt-2 text-xs text-slate-500">
+                            Puedes subir varias fotos y videos del hallazgo.
+                        </p>
                     </div>
 
                     <button
