@@ -563,5 +563,19 @@ class AdminPreventiveReportController extends Controller
         ));
     }
 
+    public function evidence($id)
+    {
+        $report = ReportDetail::with([
+            'element',
+            'component',
+            'diagnostic',
+            'condition',
+            'files'
+        ])->findOrFail($id);
+
+        return view('admin.preventive-reports.evidence', compact('report'));
+    }
+
+
 
 }

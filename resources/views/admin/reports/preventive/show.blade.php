@@ -114,7 +114,6 @@
                                     Evidencia
                                 </th>
 
-
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Condición</span>
@@ -265,49 +264,21 @@
                                     </td>
 
                                     <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        @php
-                                            $imageFiles = $report->files->where('file_type', 'image')->values();
-                                            $videoFiles = $report->files->where('file_type', 'video')->values();
-
-                                            $imageUrls = $imageFiles->map(fn ($file) => route('admin.report-evidence.open', $file->id))->values();
-                                            $videoUrls = $videoFiles->map(fn ($file) => route('admin.report-evidence.open', $file->id))->values();
-                                        @endphp
-
-                                        @if($imageFiles->isEmpty() && $videoFiles->isEmpty())
-                                            <span class="text-slate-400">—</span>
+                                        @if($report->files->count() > 0)
+                                            <a
+                                                href="{{ route('admin.preventive-reports.evidence', $report) }}"
+                                                target="_blank"
+                                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                                title="Ver evidencia"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
+                                                </svg>
+                                            </a>
                                         @else
-                                            <div class="flex flex-wrap items-center gap-3">
-                                                @if($imageFiles->isNotEmpty())
-                                                    <button
-                                                        type="button"
-                                                        onclick='openEvidenceTabs(@json($imageUrls))'
-                                                        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                        title="Abrir {{ $imageFiles->count() }} evidencia(s) de imagen"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2ZM8.5 9.5A1.5 1.5 0 1 1 8.5 6a1.5 1.5 0 0 1 0 3.5ZM5 17l4.5-4.5 3 3L16.5 11 19 17H5Z"/>
-                                                        </svg>
-                                                        <span>x{{ $imageFiles->count() }}</span>
-                                                    </button>
-                                                @endif
-
-                                                @if($videoFiles->isNotEmpty())
-                                                    <button
-                                                        type="button"
-                                                        onclick='openEvidenceTabs(@json($videoUrls))'
-                                                        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                        title="Abrir {{ $videoFiles->count() }} evidencia(s) de video"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M17 10.5V7a2 2 0 0 0-2-2H5A2 2 0 0 0 3 7v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5l4 4v-11l-4 4Z"/>
-                                                        </svg>
-                                                        <span>x{{ $videoFiles->count() }}</span>
-                                                    </button>
-                                                @endif
-                                            </div>
+                                            <span class="text-slate-400">—</span>
                                         @endif
                                     </td>
-
 
                                     <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
                                         {{ $report->condition?->code ?? '—' }}
@@ -394,7 +365,6 @@
         </div>
     </div>
 
-    <!-- POPOVER DE FILTRO -->
     <div id="filterPopover" class="fixed z-50 hidden w-[340px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div class="border-b border-slate-200 px-4 py-3">
             <div class="flex items-center justify-between gap-3">
@@ -767,17 +737,6 @@
                 closeFilterPopover();
             }
         });
-
-        function openEvidenceTabs(urls) {
-            if (!Array.isArray(urls) || urls.length === 0) return;
-
-            urls.forEach((url, index) => {
-                setTimeout(() => {
-                    window.open(url, '_blank', 'noopener');
-                }, index * 120);
-            });
-        }
-
     </script>
 </body>
 </html>

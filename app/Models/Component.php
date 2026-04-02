@@ -37,8 +37,14 @@ class Component extends Model
 
     public function diagnostics()
     {
-        return $this->belongsToMany(Diagnostic::class, 'component_diagnostics');
+        return $this->belongsToMany(
+            \App\Models\Diagnostic::class,
+            'component_diagnostics',
+            'component_id',
+            'diagnostic_id'
+        )->withTimestamps();
     }
+
 
     public function elements()
     {

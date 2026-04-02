@@ -9,9 +9,6 @@
     <div class="flex items-start justify-between gap-4">
         <div>
             <h2 class="text-3xl font-bold tracking-tight text-slate-900">Registro de reportes</h2>
-            <p class="mt-2 text-slate-600">
-                El inspector solo puede reportar sobre los tipos de activo autorizados para su especialidad.
-            </p>
         </div>
 
         <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right shadow-sm">
@@ -384,6 +381,9 @@ async function loadDiagnostics() {
         diagnosticSelect.innerHTML += `<option value="${diagnostic.id}">${diagnostic.name}</option>`;
     });
 }
+
+
+
 
 async function loadPending() {
     if (!elementSelect.value) {

@@ -1,10 +1,20 @@
-<header class="border-b border-slate-200 bg-white">
+<header class="sticky top-0 z-40 border-b border-slate-200 bg-white">
     <div class="flex items-center justify-between px-6 py-4 md:px-8">
-        <div>
-            <p class="text-sm text-slate-500">Sistema de Gestión de Inspecciones</p>
-            <h1 class="text-lg font-semibold text-slate-900">
-                @yield('header_title', 'Dashboard')
-            </h1>
+        <div class="flex items-center gap-3">
+            <button
+                type="button"
+                class="text-slate-600 lg:hidden"
+                @click="sidebarOpen = true"
+            >
+                ☰
+            </button>
+
+            <div>
+                <p class="text-sm text-slate-500">Sistema de Gestión de Inspecciones</p>
+                <h1 class="text-lg font-semibold text-slate-900">
+                    @yield('header_title', 'Dashboard')
+                </h1>
+            </div>
         </div>
 
         <div class="flex items-center gap-4">

@@ -192,13 +192,11 @@ Route::middleware('auth')->group(function () {
 
     //--
     Route::get('/admin/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('admin.preventive-reports.general');
-
-
     Route::get('/admin/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])->name('admin.preventive-reports.show');
-
     Route::patch('/admin/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('admin.preventive-reports.toggle-execution');
-
     Route::get('/admin/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('admin.report-evidence.open');
+    Route::get('admin/preventive-reports/report-details/{reportDetail}/evidence',[\App\Http\Controllers\Admin\AdminPreventiveReportController::class, 'evidence'])->name('admin.preventive-reports.evidence');
+
 
 
 });
