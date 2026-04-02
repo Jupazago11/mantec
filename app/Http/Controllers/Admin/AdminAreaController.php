@@ -4,10 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Area;
-use App\Models\Client;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -15,137 +13,294 @@ class AdminAreaController extends Controller
 {
     public function index(Request $request): View
     {
-        $authUser = Auth::user();
+        $user = auth()->user();
 
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
-
-        $clients = Client::whereIn('id', $allowedClientIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $clients = $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
-        $selectedClientId = $request->filled('client_id') ? (int) $request->client_id : null;
+        $showClientColumn = $clients->count() > 1;
 
-        $areasQuery = Area::with('client')
-            ->whereIn('client_id', $allowedClientIds)
-            ->withCount('elements');
+        $selectedClientIds = $showClientColumn
+            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            : ($singleClient ? [(string) $singleClient->id] : []);
 
-        if ($selectedClientId && in_array($selectedClientId, $allowedClientIds)) {
-            $areasQuery->where('client_id', $selectedClientId);
+        $selectedNames = collect($request->input('names', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
+        $selectedCodes = collect($request->input('codes', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
+        $selectedStatuses = collect($request->input('statuses', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
+        $baseQuery = Area::query()
+            ->with('client')
+            ->withCount('elements')
+            ->whereIn('client_id', $clients->pluck('id'));
+
+        if (!empty($selectedClientIds)) {
+            $baseQuery->whereIn('client_id', $selectedClientIds);
         }
 
-        $areas = $areasQuery
-            ->orderByDesc('id')
-            ->paginate(6)
+        if (!empty($selectedNames)) {
+            $baseQuery->whereIn('name', $selectedNames);
+        }
+
+        if (!empty($selectedCodes)) {
+            $baseQuery->whereIn('code', $selectedCodes);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $baseQuery->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
+        }
+
+        $areas = (clone $baseQuery)
+            ->orderBy('client_id')
+            ->orderBy('name')
+            ->paginate(8)
             ->withQueryString();
 
-        return view('admin.managed-areas.index', compact(
-            'clients',
-            'singleClient',
-            'areas',
-            'selectedClientId'
-        ));
+        $allAreas = Area::query()
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->orderBy('name')
+            ->get(['id', 'client_id', 'name', 'code']);
+
+        $clientFilterOptions = $showClientColumn
+            ? $clients->map(fn ($client) => [
+                'value' => (string) $client->id,
+                'label' => $client->name,
+            ])->values()
+            : collect();
+
+        $nameFilterOptions = $allAreas->pluck('name')
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $codeFilterOptions = $allAreas->pluck('code')
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $statusFilterOptions = collect([
+            ['value' => '1', 'label' => 'Activo'],
+            ['value' => '0', 'label' => 'Inactivo'],
+        ]);
+
+        $filterOptions = [
+            'client_ids' => $clientFilterOptions,
+            'names' => $nameFilterOptions,
+            'codes' => $codeFilterOptions,
+            'statuses' => $statusFilterOptions,
+        ];
+
+        $activeFilters = [
+            'client_ids' => $selectedClientIds,
+            'names' => $selectedNames,
+            'codes' => $selectedCodes,
+            'statuses' => $selectedStatuses,
+        ];
+
+        return view('admin.managed-areas.index', [
+            'clients' => $clients,
+            'singleClient' => $singleClient,
+            'showClientColumn' => $showClientColumn,
+            'areas' => $areas,
+            'filterOptions' => $filterOptions,
+            'activeFilters' => $activeFilters,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
+
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'code' => ['nullable', 'string', 'max:50'],
-            'client_id' => ['required', Rule::in($allowedClientIds)],
+            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('areas', 'name')->where(function ($query) use ($request) {
+                    return $query->where('client_id', $request->input('client_id'));
+                }),
+            ],
+            'code' => ['nullable', 'string', 'max:255'],
+        ], [
+            'name.unique' => 'Ya existe un área con ese nombre para este cliente.',
         ]);
 
+        $code = trim((string) ($validated['code'] ?? ''));
+
+        if ($code !== '') {
+            $codeExists = Area::query()
+                ->where('client_id', $validated['client_id'])
+                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
+                ->exists();
+
+            if ($codeExists) {
+                return back()
+                    ->withErrors(['code' => 'Ya existe un área con ese código para este cliente.'])
+                    ->withInput();
+            }
+        }
+
         Area::create([
-            'name' => $validated['name'],
-            'code' => $validated['code'] ?? null,
             'client_id' => $validated['client_id'],
+            'name' => trim($validated['name']),
+            'code' => $code !== '' ? $code : null,
             'status' => true,
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index', $this->filterQuery($request))
+            ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
             ->with('success', 'Área creada correctamente.');
     }
 
     public function update(Request $request, Area $area): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfAreaOutsideScope($area, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
+
+        abort_unless(in_array($area->client_id, $allowedClientIds), 403);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'code' => ['nullable', 'string', 'max:50'],
-            'client_id' => ['required', Rule::in($allowedClientIds)],
+            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('areas', 'name')
+                    ->ignore($area->id)
+                    ->where(function ($query) use ($request) {
+                        return $query->where('client_id', $request->input('client_id'));
+                    }),
+            ],
+            'code' => ['nullable', 'string', 'max:255'],
+        ], [
+            'name.unique' => 'Ya existe un área con ese nombre para este cliente.',
         ]);
 
+        $code = trim((string) ($validated['code'] ?? ''));
+
+        if ($code !== '') {
+            $codeExists = Area::query()
+                ->where('id', '!=', $area->id)
+                ->where('client_id', $validated['client_id'])
+                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
+                ->exists();
+
+            if ($codeExists) {
+                return back()
+                    ->withErrors(['code' => 'Ya existe un área con ese código para este cliente.'])
+                    ->withInput();
+            }
+        }
+
         $area->update([
-            'name' => $validated['name'],
-            'code' => $validated['code'] ?? null,
             'client_id' => $validated['client_id'],
+            'name' => trim($validated['name']),
+            'code' => $code !== '' ? $code : null,
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index', $this->filterQuery($request))
+            ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
             ->with('success', 'Área actualizada correctamente.');
     }
 
     public function destroy(Request $request, Area $area): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfAreaOutsideScope($area, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
-        if ($area->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-areas.index', $this->filterQuery($request))
-                ->with('success', 'El área tiene registros asociados y no puede eliminarse.');
-        }
+        abort_unless(in_array($area->client_id, $allowedClientIds), 403);
 
         $area->delete();
 
         return redirect()
-            ->route('admin.managed-areas.index', $this->filterQuery($request))
+            ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
             ->with('success', 'Área eliminada correctamente.');
     }
 
     public function toggleStatus(Request $request, Area $area): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfAreaOutsideScope($area, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
-        if (!$area->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-areas.index', $this->filterQuery($request))
-                ->with('success', 'Esta área no tiene dependencias. Puedes eliminarla si lo deseas.');
-        }
+        abort_unless(in_array($area->client_id, $allowedClientIds), 403);
 
         $area->update([
             'status' => !$area->status,
         ]);
 
         return redirect()
-            ->route('admin.managed-areas.index', $this->filterQuery($request))
+            ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
             ->with('success', 'Estado del área actualizado correctamente.');
     }
 
-    private function abortIfAreaOutsideScope(Area $area, array $allowedClientIds): void
+    private function buildRedirectQuery(Request $request): array
     {
-        if (!in_array($area->client_id, $allowedClientIds)) {
-            abort(403, 'No autorizado para gestionar esta área.');
-        }
-    }
+        $query = [];
 
-    private function filterQuery(Request $request): array
-    {
-        return $request->only(['client_id', 'page']);
+        foreach ((array) $request->input('redirect_client_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['client_ids'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_names', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['names'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_codes', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['codes'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_statuses', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['statuses'][] = $value;
+            }
+        }
+
+        if ($request->filled('redirect_page')) {
+            $query['page'] = $request->input('redirect_page');
+        }
+
+        return $query;
     }
 }

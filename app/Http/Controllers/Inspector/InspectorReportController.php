@@ -108,6 +108,7 @@ class InspectorReportController extends Controller
             'diagnostic',
             'condition',
             'executionStatus',
+            'files:id,report_detail_id,file_type,disk,path,original_name',
         ])
             ->where('user_id', $user->id)
             ->where('created_at', '>=', now()->subHours(168))

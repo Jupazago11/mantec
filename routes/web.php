@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminDiagnosticController;
 use App\Http\Controllers\Admin\AdminComponentDiagnosticController;
 use App\Http\Controllers\Admin\AdminPreventiveReportController;
 use App\Http\Controllers\Admin\AdminElementController;
+use App\Http\Controllers\Admin\AdminReportEvidenceController;
 
 use App\Http\Controllers\Inspector\InspectorReportController;
 use App\Http\Controllers\Admin\AdminConditionController;
@@ -42,6 +43,20 @@ Route::get('/test-r2', function () {
         ? 'OK: archivo subido'
         : 'ERROR: no se subió';
 });
+
+
+
+Route::get('/php-upload-check', function () {
+    return response()->json([
+        'loaded_php_ini' => php_ini_loaded_file(),
+        'file_uploads' => ini_get('file_uploads'),
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'max_file_uploads' => ini_get('max_file_uploads'),
+        'memory_limit' => ini_get('memory_limit'),
+    ]);
+});
+
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
@@ -179,13 +194,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('admin.preventive-reports.general');
 
 
-    Route::get(
-    '/admin/preventive-reports/{client}/{elementType}',
-    [AdminPreventiveReportController::class, 'show'])->name('admin.preventive-reports.show');
+    Route::get('/admin/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])->name('admin.preventive-reports.show');
 
-    Route::patch(
-    '/admin/preventive-reports/report-details/{reportDetail}/toggle-execution',
-    [AdminPreventiveReportController::class, 'toggleExecution']
-    )->name('admin.preventive-reports.toggle-execution');
+    Route::patch('/admin/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('admin.preventive-reports.toggle-execution');
+
+    Route::get('/admin/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('admin.report-evidence.open');
+
 
 });

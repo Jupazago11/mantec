@@ -111,6 +111,11 @@
                                 </th>
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Evidencia
+                                </th>
+
+
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Condición</span>
                                         <button type="button"
@@ -260,6 +265,51 @@
                                     </td>
 
                                     <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                                        @php
+                                            $imageFiles = $report->files->where('file_type', 'image')->values();
+                                            $videoFiles = $report->files->where('file_type', 'video')->values();
+
+                                            $imageUrls = $imageFiles->map(fn ($file) => route('admin.report-evidence.open', $file->id))->values();
+                                            $videoUrls = $videoFiles->map(fn ($file) => route('admin.report-evidence.open', $file->id))->values();
+                                        @endphp
+
+                                        @if($imageFiles->isEmpty() && $videoFiles->isEmpty())
+                                            <span class="text-slate-400">—</span>
+                                        @else
+                                            <div class="flex flex-wrap items-center gap-3">
+                                                @if($imageFiles->isNotEmpty())
+                                                    <button
+                                                        type="button"
+                                                        onclick='openEvidenceTabs(@json($imageUrls))'
+                                                        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                        title="Abrir {{ $imageFiles->count() }} evidencia(s) de imagen"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2ZM8.5 9.5A1.5 1.5 0 1 1 8.5 6a1.5 1.5 0 0 1 0 3.5ZM5 17l4.5-4.5 3 3L16.5 11 19 17H5Z"/>
+                                                        </svg>
+                                                        <span>x{{ $imageFiles->count() }}</span>
+                                                    </button>
+                                                @endif
+
+                                                @if($videoFiles->isNotEmpty())
+                                                    <button
+                                                        type="button"
+                                                        onclick='openEvidenceTabs(@json($videoUrls))'
+                                                        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                        title="Abrir {{ $videoFiles->count() }} evidencia(s) de video"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M17 10.5V7a2 2 0 0 0-2-2H5A2 2 0 0 0 3 7v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5l4 4v-11l-4 4Z"/>
+                                                        </svg>
+                                                        <span>x{{ $videoFiles->count() }}</span>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </td>
+
+
+                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
                                         {{ $report->condition?->code ?? '—' }}
                                     </td>
 
@@ -326,7 +376,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="px-3 py-10 text-center text-sm text-slate-500">
+                                    <td colspan="14" class="px-3 py-10 text-center text-sm text-slate-500">
                                         No hay reportes para este tipo de activo en el año actual.
                                     </td>
                                 </tr>
@@ -717,6 +767,17 @@
                 closeFilterPopover();
             }
         });
+
+        function openEvidenceTabs(urls) {
+            if (!Array.isArray(urls) || urls.length === 0) return;
+
+            urls.forEach((url, index) => {
+                setTimeout(() => {
+                    window.open(url, '_blank', 'noopener');
+                }, index * 120);
+            });
+        }
+
     </script>
 </body>
 </html>

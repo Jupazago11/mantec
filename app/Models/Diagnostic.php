@@ -9,17 +9,12 @@ class Diagnostic extends Model
     protected $fillable = [
         'client_id',
         'name',
-        'code',
-        'description',
         'status',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'status' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'status' => 'boolean',
+    ];
 
     public function client()
     {
@@ -34,10 +29,5 @@ class Diagnostic extends Model
     public function reportDetails()
     {
         return $this->hasMany(ReportDetail::class);
-    }
-
-    public function hasDependencies(): bool
-    {
-        return $this->components()->exists() || $this->reportDetails()->exists();
     }
 }

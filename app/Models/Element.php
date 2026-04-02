@@ -11,31 +11,17 @@ class Element extends Model
         'element_type_id',
         'name',
         'code',
+        'warehouse_code',
         'status',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'status' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'status' => 'boolean',
+    ];
 
     public function area()
     {
         return $this->belongsTo(Area::class);
-    }
-
-    public function client()
-    {
-        return $this->hasOneThrough(
-            Client::class,
-            Area::class,
-            'id',
-            'id',
-            'area_id',
-            'client_id'
-        );
     }
 
     public function elementType()
@@ -51,10 +37,5 @@ class Element extends Model
     public function reportDetails()
     {
         return $this->hasMany(ReportDetail::class);
-    }
-
-    public function hasDependencies(): bool
-    {
-        return $this->components()->exists() || $this->reportDetails()->exists();
     }
 }

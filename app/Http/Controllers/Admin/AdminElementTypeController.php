@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Client;
 use App\Models\ElementType;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -15,148 +13,198 @@ class AdminElementTypeController extends Controller
 {
     public function index(Request $request): View
     {
-        $authUser = Auth::user();
+        $user = auth()->user();
 
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
-
-        $clients = Client::whereIn('id', $allowedClientIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $clients = $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
-        $selectedClientId = $request->filled('client_id') ? (int) $request->client_id : null;
+        $showClientColumn = $clients->count() > 1;
 
-        $elementTypesQuery = ElementType::with('client')
-            ->whereIn('client_id', $allowedClientIds)
-            ->withCount(['components', 'elements']);
+        $selectedClientIds = $showClientColumn
+            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            : ($singleClient ? [(string) $singleClient->id] : []);
 
-        if ($selectedClientId && in_array($selectedClientId, $allowedClientIds)) {
-            $elementTypesQuery->where('client_id', $selectedClientId);
+        $selectedNames = collect($request->input('names', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
+        $baseQuery = ElementType::query()
+            ->with('client')
+            ->whereIn('client_id', $clients->pluck('id'));
+
+        if (!empty($selectedClientIds)) {
+            $baseQuery->whereIn('client_id', $selectedClientIds);
         }
 
-        $elementTypes = $elementTypesQuery
-            ->orderByDesc('id')
-            ->paginate(10)
+        if (!empty($selectedNames)) {
+            $baseQuery->whereIn('name', $selectedNames);
+        }
+
+        $elementTypes = (clone $baseQuery)
+            ->orderBy('client_id')
+            ->orderBy('name')
+            ->paginate(8)
             ->withQueryString();
 
-        return view('admin.managed-element-types.index', compact(
-            'clients',
-            'singleClient',
-            'selectedClientId',
-            'elementTypes'
-        ));
+        $clientFilterOptions = $showClientColumn
+            ? $clients->map(fn ($client) => [
+                'value' => (string) $client->id,
+                'label' => $client->name,
+            ])->values()
+            : collect();
+
+        $nameFilterOptions = ElementType::query()
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->pluck('name')
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $filterOptions = [
+            'client_ids' => $clientFilterOptions,
+            'names' => $nameFilterOptions,
+        ];
+
+        $activeFilters = [
+            'client_ids' => $selectedClientIds,
+            'names' => $selectedNames,
+        ];
+
+        return view('admin.managed-element-types.index', [
+            'clients' => $clients,
+            'singleClient' => $singleClient,
+            'showClientColumn' => $showClientColumn,
+            'elementTypes' => $elementTypes,
+            'filterOptions' => $filterOptions,
+            'activeFilters' => $activeFilters,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
+
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
         $validated = $request->validate([
-            'client_id' => ['required', Rule::in($allowedClientIds)],
+            'client_id' => [
+                'required',
+                'integer',
+                Rule::in($allowedClientIds),
+            ],
             'name' => [
                 'required',
                 'string',
-                'max:100',
+                'max:255',
                 Rule::unique('element_types', 'name')->where(function ($query) use ($request) {
-                    return $query->where('client_id', $request->client_id);
+                    return $query->where('client_id', $request->input('client_id'));
                 }),
             ],
-            'description' => ['nullable', 'string', 'max:255'],
+        ], [
+            'name.unique' => 'Ya existe un tipo de activo con ese nombre para este cliente.',
         ]);
 
         ElementType::create([
             'client_id' => $validated['client_id'],
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
+            'name' => trim($validated['name']),
             'status' => true,
         ]);
 
         return redirect()
-            ->route('admin.managed-element-types.index')
+            ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
             ->with('success', 'Tipo de activo creado correctamente.');
     }
 
     public function update(Request $request, ElementType $elementType): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfElementTypeOutsideScope($elementType, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
+
+        abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
 
         $validated = $request->validate([
-            'client_id' => ['required', Rule::in($allowedClientIds)],
+            'client_id' => [
+                'required',
+                'integer',
+                Rule::in($allowedClientIds),
+            ],
             'name' => [
                 'required',
                 'string',
-                'max:100',
+                'max:255',
                 Rule::unique('element_types', 'name')
                     ->ignore($elementType->id)
                     ->where(function ($query) use ($request) {
-                        return $query->where('client_id', $request->client_id);
+                        return $query->where('client_id', $request->input('client_id'));
                     }),
             ],
-            'description' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', 'boolean'],
+        ], [
+            'name.unique' => 'Ya existe un tipo de activo con ese nombre para este cliente.',
         ]);
 
         $elementType->update([
             'client_id' => $validated['client_id'],
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
+            'name' => trim($validated['name']),
+            'status' => (bool) $validated['status'],
         ]);
 
         return redirect()
-            ->route('admin.managed-element-types.index')
+            ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
             ->with('success', 'Tipo de activo actualizado correctamente.');
     }
 
-    public function destroy(ElementType $elementType): RedirectResponse
+    public function destroy(Request $request, ElementType $elementType): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfElementTypeOutsideScope($elementType, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
-        if ($elementType->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-element-types.index')
-                ->with('success', 'El tipo de activo tiene registros asociados y no puede eliminarse.');
-        }
+        abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
 
         $elementType->delete();
 
         return redirect()
-            ->route('admin.managed-element-types.index')
+            ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
             ->with('success', 'Tipo de activo eliminado correctamente.');
     }
 
-    public function toggleStatus(ElementType $elementType): RedirectResponse
+    private function buildRedirectQuery(Request $request): array
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $query = [];
 
-        $this->abortIfElementTypeOutsideScope($elementType, $allowedClientIds);
-
-        if (!$elementType->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-element-types.index')
-                ->with('success', 'Este tipo de activo no tiene dependencias. Puedes eliminarlo si lo deseas.');
+        foreach ((array) $request->input('redirect_client_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['client_ids'][] = $value;
+            }
         }
 
-        $elementType->update([
-            'status' => !$elementType->status,
-        ]);
-
-        return redirect()
-            ->route('admin.managed-element-types.index')
-            ->with('success', 'Estado del tipo de activo actualizado correctamente.');
-    }
-
-    private function abortIfElementTypeOutsideScope(ElementType $elementType, array $allowedClientIds): void
-    {
-        if (!in_array($elementType->client_id, $allowedClientIds)) {
-            abort(403, 'No autorizado para gestionar este tipo de activo.');
+        foreach ((array) $request->input('redirect_names', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['names'][] = $value;
+            }
         }
+
+        if ($request->filled('redirect_page')) {
+            $query['page'] = $request->input('redirect_page');
+        }
+
+        return $query;
     }
 }

@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class AuthController extends Controller
@@ -26,7 +27,7 @@ class AuthController extends Controller
             ->where('status', true)
             ->first();
 
-        if (!$user || $user->password !== $credentials['password']) {
+        if (!$user || !Hash::check($credentials['password'], $user->password)) {
             return back()
                 ->withErrors(['login' => 'Credenciales incorrectas.'])
                 ->withInput($request->only('username'));

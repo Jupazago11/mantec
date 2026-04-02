@@ -6,10 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Component;
 use App\Models\ElementType;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -17,198 +15,289 @@ class AdminComponentController extends Controller
 {
     public function index(Request $request): View
     {
-        $authUser = Auth::user();
+        $user = auth()->user();
 
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
-
-        $clients = Client::whereIn('id', $allowedClientIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $clients = $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
-        $selectedClientId = $request->filled('client_id') ? (int) $request->client_id : null;
+        $showClientColumn = $clients->count() > 1;
 
-        $componentsQuery = Component::with(['client', 'elementType'])
-            ->whereIn('client_id', $allowedClientIds)
-            ->withCount(['elements', 'diagnostics', 'reportDetails']);
+        $selectedClientIds = $showClientColumn
+            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            : ($singleClient ? [(string) $singleClient->id] : []);
 
-        if ($selectedClientId && in_array($selectedClientId, $allowedClientIds)) {
-            $componentsQuery->where('client_id', $selectedClientId);
+        $selectedElementTypeIds = collect($request->input('element_type_ids', []))
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+        $selectedComponentNames = collect($request->input('component_names', []))
+            ->filter()
+            ->map(fn ($name) => (string) $name)
+            ->values()
+            ->all();
+
+        $baseQuery = Component::query()
+            ->with(['client', 'elementType'])
+            ->withCount(['elements', 'diagnostics', 'reportDetails'])
+            ->whereIn('client_id', $clients->pluck('id'));
+
+        if (!empty($selectedClientIds)) {
+            $baseQuery->whereIn('client_id', $selectedClientIds);
         }
 
-        $components = $componentsQuery
-            ->orderByDesc('id')
-            ->paginate(10)
+        if (!empty($selectedElementTypeIds)) {
+            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
+        }
+
+        if (!empty($selectedComponentNames)) {
+            $baseQuery->whereIn('name', $selectedComponentNames);
+        }
+
+        $components = (clone $baseQuery)
+            ->orderBy('client_id')
+            ->orderBy('element_type_id')
+            ->orderBy('name')
+            ->paginate(8)
             ->withQueryString();
 
-        $elementTypes = ElementType::whereIn('client_id', $allowedClientIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $filterOptionsQuery = Component::query()
+            ->with(['client:id,name', 'elementType:id,name'])
+            ->whereIn('client_id', $clients->pluck('id'));
 
-        return view('admin.managed-components.index', compact(
-            'clients',
-            'singleClient',
-            'selectedClientId',
-            'components',
-            'elementTypes'
-        ));
-    }
+        $clientFilterOptions = $showClientColumn
+            ? $clients->map(fn ($client) => [
+                'value' => (string) $client->id,
+                'label' => $client->name,
+            ])->values()
+            : collect();
 
-    public function getElementTypesByClient(Client $client): JsonResponse
-    {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $elementTypeFilterOptions = (clone $filterOptionsQuery)
+            ->get()
+            ->map(function ($component) {
+                return [
+                    'value' => (string) $component->element_type_id,
+                    'label' => $component->elementType?->name ?? '—',
+                ];
+            })
+            ->unique('value')
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
 
-        abort_unless(in_array($client->id, $allowedClientIds), 403);
+        $componentNameFilterOptions = (clone $filterOptionsQuery)
+            ->get()
+            ->pluck('name')
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
 
-        $elementTypes = ElementType::where('client_id', $client->id)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $filterOptions = [
+            'client_ids' => $clientFilterOptions,
+            'element_type_ids' => $elementTypeFilterOptions,
+            'component_names' => $componentNameFilterOptions,
+        ];
 
-        return response()->json($elementTypes);
+        $activeFilters = [
+            'client_ids' => $selectedClientIds,
+            'element_type_ids' => $selectedElementTypeIds,
+            'component_names' => $selectedComponentNames,
+        ];
+
+        $createElementTypes = collect();
+        if ($singleClient) {
+            $createElementTypes = ElementType::query()
+                ->where('client_id', $singleClient->id)
+                ->where('status', true)
+                ->orderBy('name')
+                ->get();
+        }
+
+        return view('admin.managed-components.index', [
+            'clients' => $clients,
+            'singleClient' => $singleClient,
+            'showClientColumn' => $showClientColumn,
+            'components' => $components,
+            'filterOptions' => $filterOptions,
+            'activeFilters' => $activeFilters,
+            'createElementTypes' => $createElementTypes,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
+
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
         $validated = $request->validate([
-            'client_id' => ['required', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:120'],
+            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+            'name' => ['required', 'string', 'max:255'],
             'is_default' => ['required', 'boolean'],
         ]);
 
-        $elementType = ElementType::findOrFail($validated['element_type_id']);
+        $elementTypeBelongs = ElementType::query()
+            ->where('id', $validated['element_type_id'])
+            ->where('client_id', $validated['client_id'])
+            ->exists();
 
-        if ($elementType->client_id != $validated['client_id']) {
+        if (!$elementTypeBelongs) {
             return back()
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
                 ->withInput();
         }
 
-        $exists = Component::where('client_id', $validated['client_id'])
+        $exists = Component::query()
+            ->where('client_id', $validated['client_id'])
             ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($validated['name'])])
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
         if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un componente con ese nombre para este cliente y tipo de activo.'])
+                ->withErrors(['name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.'])
                 ->withInput();
         }
 
         Component::create([
             'client_id' => $validated['client_id'],
             'element_type_id' => $validated['element_type_id'],
-            'name' => $validated['name'],
-            'code' => null,
-            'is_required' => false,
-            'is_default' => $validated['is_default'],
+            'name' => trim($validated['name']),
+            'is_default' => (bool) $validated['is_default'],
             'status' => true,
         ]);
 
         return redirect()
-            ->route('admin.managed-components.index')
+            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Componente creado correctamente.');
     }
 
     public function update(Request $request, Component $component): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfComponentOutsideScope($component, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
+
+        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
 
         $validated = $request->validate([
-            'client_id' => ['required', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:120'],
+            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+            'name' => ['required', 'string', 'max:255'],
             'is_default' => ['required', 'boolean'],
         ]);
 
-        $elementType = ElementType::findOrFail($validated['element_type_id']);
+        $elementTypeBelongs = ElementType::query()
+            ->where('id', $validated['element_type_id'])
+            ->where('client_id', $validated['client_id'])
+            ->exists();
 
-        if ($elementType->client_id != $validated['client_id']) {
+        if (!$elementTypeBelongs) {
             return back()
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
                 ->withInput();
         }
 
-        $exists = Component::where('client_id', $validated['client_id'])
+        $exists = Component::query()
+            ->where('id', '!=', $component->id)
+            ->where('client_id', $validated['client_id'])
             ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($validated['name'])])
-            ->where('id', '<>', $component->id)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
         if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un componente con ese nombre para este cliente y tipo de activo.'])
+                ->withErrors(['name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.'])
                 ->withInput();
         }
 
         $component->update([
             'client_id' => $validated['client_id'],
             'element_type_id' => $validated['element_type_id'],
-            'name' => $validated['name'],
-            'is_default' => $validated['is_default'],
+            'name' => trim($validated['name']),
+            'is_default' => (bool) $validated['is_default'],
         ]);
 
         return redirect()
-            ->route('admin.managed-components.index')
+            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Componente actualizado correctamente.');
     }
 
-    public function destroy(Component $component): RedirectResponse
+    public function destroy(Request $request, Component $component): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfComponentOutsideScope($component, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
-        if ($component->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-components.index')
-                ->with('success', 'El componente tiene registros asociados y no puede eliminarse.');
-        }
+        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
 
         $component->delete();
 
         return redirect()
-            ->route('admin.managed-components.index')
+            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Componente eliminado correctamente.');
     }
 
-    public function toggleStatus(Component $component): RedirectResponse
+    public function toggleStatus(Request $request, Component $component): RedirectResponse
     {
-        $authUser = Auth::user();
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
+        $user = auth()->user();
 
-        $this->abortIfComponentOutsideScope($component, $allowedClientIds);
+        $allowedClientIds = $user->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->toArray();
 
-        if (!$component->hasDependencies()) {
-            return redirect()
-                ->route('admin.managed-components.index')
-                ->with('success', 'Este componente no tiene dependencias. Puedes eliminarlo si lo deseas.');
-        }
+        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
 
         $component->update([
             'status' => !$component->status,
         ]);
 
         return redirect()
-            ->route('admin.managed-components.index')
+            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Estado del componente actualizado correctamente.');
     }
 
-    private function abortIfComponentOutsideScope(Component $component, array $allowedClientIds): void
+    private function buildRedirectQuery(Request $request): array
     {
-        if (!in_array($component->client_id, $allowedClientIds)) {
-            abort(403, 'No autorizado para gestionar este componente.');
+        $query = [];
+
+        foreach ((array) $request->input('redirect_client_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['client_ids'][] = $value;
+            }
         }
+
+        foreach ((array) $request->input('redirect_element_type_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['element_type_ids'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_component_names', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['component_names'][] = $value;
+            }
+        }
+
+        if ($request->filled('redirect_page')) {
+            $query['page'] = $request->input('redirect_page');
+        }
+
+        return $query;
     }
 }

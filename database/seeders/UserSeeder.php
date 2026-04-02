@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\Role;
+use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
@@ -14,27 +15,31 @@ class UserSeeder extends Seeder
         $adminRole = Role::where('key', 'admin_global')->first();
 
         if ($superadminRole) {
-            User::create([
-                'name' => 'Super Administrador',
-                'document' => '10000001',
-                'username' => 'superadmin',
-                'email' => 'superadmin@mantec.local',
-                'password' => '123456',
-                'role_id' => $superadminRole->id,
-                'status' => true,
-            ]);
+            User::updateOrCreate(
+                ['username' => 'superadmin'],
+                [
+                    'name' => 'Super Administrador',
+                    'document' => '10000001',
+                    'email' => 'superadmin@mantec.local',
+                    'password' => Hash::make('123456'),
+                    'role_id' => $superadminRole->id,
+                    'status' => true,
+                ]
+            );
         }
 
         if ($adminRole) {
-            User::create([
-                'name' => 'Administrador Global',
-                'document' => '10000002',
-                'username' => 'admin_global',
-                'email' => 'admin@mantec.local',
-                'password' => '123456',
-                'role_id' => $adminRole->id,
-                'status' => true,
-            ]);
+            User::updateOrCreate(
+                ['username' => 'admin_global'],
+                [
+                    'name' => 'Administrador Global',
+                    'document' => '10000002',
+                    'email' => 'admin@mantec.local',
+                    'password' => Hash::make('123456'),
+                    'role_id' => $adminRole->id,
+                    'status' => true,
+                ]
+            );
         }
     }
 }
