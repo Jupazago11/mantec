@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Condition;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,18 +14,17 @@ class AdminConditionController extends Controller
 {
     public function index(Request $request): View
     {
-        $user = auth()->user();
-
-        $clients = $user->clients()
-            ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get(['clients.id', 'clients.name']);
+        $clients = $this->getScopedClients();
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
         $selectedClientIds = $showClientColumn
-            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            ? collect($request->input('client_ids', []))
+                ->filter()
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
         $selectedCodes = collect($request->input('codes', []))
@@ -34,6 +34,12 @@ class AdminConditionController extends Controller
             ->all();
 
         $selectedNames = collect($request->input('names', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
+        $selectedStatuses = collect($request->input('statuses', []))
             ->filter()
             ->map(fn ($value) => (string) $value)
             ->values()
@@ -54,6 +60,10 @@ class AdminConditionController extends Controller
 
         if (!empty($selectedNames)) {
             $baseQuery->whereIn('name', $selectedNames);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
         }
 
         $conditions = (clone $baseQuery)
@@ -90,16 +100,23 @@ class AdminConditionController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
+        $statusFilterOptions = collect([
+            ['value' => '1', 'label' => 'Activo'],
+            ['value' => '0', 'label' => 'Inactivo'],
+        ]);
+
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
             'codes' => $codeFilterOptions,
             'names' => $nameFilterOptions,
+            'statuses' => $statusFilterOptions,
         ];
 
         $activeFilters = [
             'client_ids' => $selectedClientIds,
             'codes' => $selectedCodes,
             'names' => $selectedNames,
+            'statuses' => $selectedStatuses,
         ];
 
         return view('admin.managed-conditions.index', [
@@ -114,12 +131,7 @@ class AdminConditionController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
@@ -140,7 +152,7 @@ class AdminConditionController extends Controller
                 }),
             ],
             'description' => ['nullable', 'string'],
-            'severity' => ['required', 'integer', 'min:1'],
+            'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
             'code.unique' => 'Ya existe una condición con ese código para este cliente.',
@@ -164,12 +176,7 @@ class AdminConditionController extends Controller
 
     public function update(Request $request, Condition $condition): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
 
@@ -196,7 +203,7 @@ class AdminConditionController extends Controller
                     }),
             ],
             'description' => ['nullable', 'string'],
-            'severity' => ['required', 'integer', 'min:1'],
+            'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
             'code.unique' => 'Ya existe una condición con ese código para este cliente.',
@@ -220,14 +227,19 @@ class AdminConditionController extends Controller
 
     public function destroy(Request $request, Condition $condition): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+
+        $condition->loadCount('reportDetails');
+
+        $hasDependencies = ($condition->report_details_count ?? 0) > 0;
+
+        if ($hasDependencies) {
+            return redirect()
+                ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Esta condición no se puede eliminar porque ya tiene uso. Solo puedes inactivarla.');
+        }
 
         $condition->delete();
 
@@ -238,14 +250,19 @@ class AdminConditionController extends Controller
 
     public function toggleStatus(Request $request, Condition $condition): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+
+        $condition->loadCount('reportDetails');
+
+        $hasDependencies = ($condition->report_details_count ?? 0) > 0;
+
+        if (!$hasDependencies) {
+            return redirect()
+                ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Esta condición no tiene dependencias. Puedes eliminarla si lo deseas.');
+        }
 
         $condition->update([
             'status' => !$condition->status,
@@ -254,6 +271,24 @@ class AdminConditionController extends Controller
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
             ->with('success', 'Estado de la condición actualizado correctamente.');
+    }
+
+    private function getScopedClients()
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        return $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
     }
 
     private function buildRedirectQuery(Request $request): array
@@ -275,6 +310,12 @@ class AdminConditionController extends Controller
         foreach ((array) $request->input('redirect_names', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['names'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_statuses', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['statuses'][] = $value;
             }
         }
 

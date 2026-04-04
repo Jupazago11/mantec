@@ -29,14 +29,29 @@ class AdminManagedUserController extends Controller
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
+        $assignableRoleKeys = [
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
+        $visibleRoleKeys = [
+            'admin',
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
         $assignableRoles = Role::query()
-            ->whereIn('key', ['admin_cliente', 'inspector'])
+            ->whereIn('key', $assignableRoleKeys)
             ->where('status', true)
             ->orderBy('name')
             ->get();
 
         $visibleRoles = Role::query()
-            ->whereIn('key', ['admin', 'admin_cliente', 'inspector'])
+            ->whereIn('key', $visibleRoleKeys)
             ->where('status', true)
             ->orderBy('name')
             ->get();
@@ -49,7 +64,11 @@ class AdminManagedUserController extends Controller
             ->groupBy('client_id');
 
         $selectedClientIds = $showClientColumn
-            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            ? collect($request->input('client_ids', []))
+                ->filter()
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
         $selectedNames = collect($request->input('names', []))
@@ -70,6 +89,8 @@ class AdminManagedUserController extends Controller
             ->values()
             ->all();
 
+        $authUserClientIds = $authUser->clients()->pluck('clients.id');
+
         $baseQuery = User::query()
             ->with([
                 'role',
@@ -81,8 +102,8 @@ class AdminManagedUserController extends Controller
                     $subQuery->whereIn('clients.id', $clientIds);
                 })->orWhere('id', $authUser->id);
             })
-            ->whereHas('role', function ($query) {
-                $query->whereIn('key', ['admin', 'admin_cliente', 'inspector']);
+            ->whereHas('role', function ($query) use ($visibleRoleKeys) {
+                $query->whereIn('key', $visibleRoleKeys);
             });
 
         if (!empty($selectedClientIds)) {
@@ -178,8 +199,22 @@ class AdminManagedUserController extends Controller
             ->pluck('clients.id')
             ->all();
 
+        $assignableRoleKeys = [
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
+        $specializedRoleKeys = [
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
         $assignableRoleIds = Role::query()
-            ->whereIn('key', ['admin_cliente', 'inspector'])
+            ->whereIn('key', $assignableRoleKeys)
             ->pluck('id')
             ->all();
 
@@ -195,7 +230,16 @@ class AdminManagedUserController extends Controller
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
-        $clientIds = collect($validated['clients'])->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $clientIds = collect($validated['clients'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (in_array($role->key, $specializedRoleKeys, true)) {
+            $this->validateSpecialties($clientIds, $validated['element_type_permissions'] ?? []);
+        }
 
         DB::transaction(function () use ($validated, $role, $clientIds) {
             $user = User::create([
@@ -251,8 +295,22 @@ class AdminManagedUserController extends Controller
             ->pluck('clients.id')
             ->all();
 
+        $assignableRoleKeys = [
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
+        $specializedRoleKeys = [
+            'admin_cliente',
+            'inspector',
+            'observador',
+            'observador_cliente',
+        ];
+
         $assignableRoleIds = Role::query()
-            ->whereIn('key', ['admin_cliente', 'inspector'])
+            ->whereIn('key', $assignableRoleKeys)
             ->pluck('id')
             ->all();
 
@@ -268,7 +326,16 @@ class AdminManagedUserController extends Controller
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
-        $clientIds = collect($validated['clients'])->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $clientIds = collect($validated['clients'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (in_array($role->key, $specializedRoleKeys, true)) {
+            $this->validateSpecialties($clientIds, $validated['element_type_permissions'] ?? []);
+        }
 
         DB::transaction(function () use ($user, $validated, $role, $clientIds) {
             $payload = [
@@ -319,13 +386,38 @@ class AdminManagedUserController extends Controller
         abort(403, 'La eliminación de usuarios no está permitida en este módulo.');
     }
 
+    private function validateSpecialties(array $clientIds, array $permissions): void
+    {
+        $hasAtLeastOne = false;
+
+        foreach ($clientIds as $clientId) {
+            $elementTypeIds = collect($permissions[$clientId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!empty($elementTypeIds)) {
+                $hasAtLeastOne = true;
+                break;
+            }
+        }
+
+        if (!$hasAtLeastOne) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'element_type_permissions' => 'Debes asignar al menos una especialidad para los clientes seleccionados.',
+            ]);
+        }
+    }
+
     private function syncElementTypePermissions(User $user, string $roleKey, array $clientIds, array $permissions): void
     {
         DB::table('user_client_element_type')
             ->where('user_id', $user->id)
             ->delete();
 
-        if (!in_array($roleKey, ['admin_cliente', 'inspector'], true)) {
+        if (!in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true)) {
             return;
         }
 
@@ -377,7 +469,7 @@ class AdminManagedUserController extends Controller
 
         $targetRoleKey = $targetUser->role?->key;
 
-        if (!in_array($targetRoleKey, ['admin_cliente', 'inspector'], true)) {
+        if (!in_array($targetRoleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true)) {
             return false;
         }
 

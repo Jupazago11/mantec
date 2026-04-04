@@ -40,6 +40,18 @@ class RolesSeeder extends Seeder
                 'description' => 'Registro y consulta de inspecciones',
                 'status' => true,
             ],
+            [
+                'name' => 'Observador',
+                'key' => 'observador',
+                'description' => 'Consulta de inspecciones',
+                'status' => true,
+            ],
+            [
+                'name' => 'Observador Cliente',
+                'key' => 'observador_cliente',
+                'description' => 'Consulta de inspecciones',
+                'status' => true,
+            ],
         ];
 
         foreach ($roles as $role) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Area;
+use App\Models\Client;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,27 +14,20 @@ class AdminAreaController extends Controller
 {
     public function index(Request $request): View
     {
-        $user = auth()->user();
+        $clients = $this->getScopedClients();
 
-        $clients = $user->clients()
-            ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get(['clients.id', 'clients.name']);
-
-        $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
+        $singleClient = $clients->count() === 1 ? $clients->first() : null;
 
         $selectedClientIds = $showClientColumn
-            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            ? collect($request->input('client_ids', []))
+                ->filter()
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
-        $selectedNames = collect($request->input('names', []))
-            ->filter()
-            ->map(fn ($value) => (string) $value)
-            ->values()
-            ->all();
-
-        $selectedCodes = collect($request->input('codes', []))
+        $selectedAreaNames = collect($request->input('area_names', []))
             ->filter()
             ->map(fn ($value) => (string) $value)
             ->values()
@@ -47,23 +41,19 @@ class AdminAreaController extends Controller
 
         $baseQuery = Area::query()
             ->with('client')
-            ->withCount('elements')
+            ->withCount(['elements'])
             ->whereIn('client_id', $clients->pluck('id'));
 
         if (!empty($selectedClientIds)) {
             $baseQuery->whereIn('client_id', $selectedClientIds);
         }
 
-        if (!empty($selectedNames)) {
-            $baseQuery->whereIn('name', $selectedNames);
-        }
-
-        if (!empty($selectedCodes)) {
-            $baseQuery->whereIn('code', $selectedCodes);
+        if (!empty($selectedAreaNames)) {
+            $baseQuery->whereIn('name', $selectedAreaNames);
         }
 
         if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
+            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
         }
 
         $areas = (clone $baseQuery)
@@ -72,10 +62,11 @@ class AdminAreaController extends Controller
             ->paginate(8)
             ->withQueryString();
 
-        $allAreas = Area::query()
+        $allAreasForFilters = Area::query()
+            ->with('client:id,name')
             ->whereIn('client_id', $clients->pluck('id'))
             ->orderBy('name')
-            ->get(['id', 'client_id', 'name', 'code']);
+            ->get();
 
         $clientFilterOptions = $showClientColumn
             ? $clients->map(fn ($client) => [
@@ -84,13 +75,7 @@ class AdminAreaController extends Controller
             ])->values()
             : collect();
 
-        $nameFilterOptions = $allAreas->pluck('name')
-            ->filter()
-            ->unique()
-            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
-            ->values();
-
-        $codeFilterOptions = $allAreas->pluck('code')
+        $areaNameFilterOptions = $allAreasForFilters->pluck('name')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
@@ -103,23 +88,21 @@ class AdminAreaController extends Controller
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
-            'names' => $nameFilterOptions,
-            'codes' => $codeFilterOptions,
+            'area_names' => $areaNameFilterOptions,
             'statuses' => $statusFilterOptions,
         ];
 
         $activeFilters = [
             'client_ids' => $selectedClientIds,
-            'names' => $selectedNames,
-            'codes' => $selectedCodes,
+            'area_names' => $selectedAreaNames,
             'statuses' => $selectedStatuses,
         ];
 
         return view('admin.managed-areas.index', [
-            'clients' => $clients,
-            'singleClient' => $singleClient,
-            'showClientColumn' => $showClientColumn,
             'areas' => $areas,
+            'clients' => $clients,
+            'showClientColumn' => $showClientColumn,
+            'singleClient' => $singleClient,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
         ]);
@@ -127,47 +110,32 @@ class AdminAreaController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $clients = $this->getScopedClients();
+        $allowedClientIds = $clients->pluck('id')->toArray();
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('areas', 'name')->where(function ($query) use ($request) {
-                    return $query->where('client_id', $request->input('client_id'));
-                }),
-            ],
-            'code' => ['nullable', 'string', 'max:255'],
-        ], [
-            'name.unique' => 'Ya existe un área con ese nombre para este cliente.',
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $code = trim((string) ($validated['code'] ?? ''));
+        $exists = Area::query()
+            ->where('client_id', $validated['client_id'])
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+            ->exists();
 
-        if ($code !== '') {
-            $codeExists = Area::query()
-                ->where('client_id', $validated['client_id'])
-                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
-                ->exists();
-
-            if ($codeExists) {
-                return back()
-                    ->withErrors(['code' => 'Ya existe un área con ese código para este cliente.'])
-                    ->withInput();
-            }
+        if ($exists) {
+            return back()
+                ->withErrors([
+                    'name' => 'Ya existe un área con ese nombre para el cliente seleccionado.',
+                ])
+                ->withInput();
         }
 
         Area::create([
             'client_id' => $validated['client_id'],
             'name' => trim($validated['name']),
-            'code' => $code !== '' ? $code : null,
+            'code' => $validated['code'] ? trim($validated['code']) : null,
             'status' => true,
         ]);
 
@@ -178,52 +146,35 @@ class AdminAreaController extends Controller
 
     public function update(Request $request, Area $area): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $clients = $this->getScopedClients();
+        $allowedClientIds = $clients->pluck('id')->toArray();
 
         abort_unless(in_array($area->client_id, $allowedClientIds), 403);
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('areas', 'name')
-                    ->ignore($area->id)
-                    ->where(function ($query) use ($request) {
-                        return $query->where('client_id', $request->input('client_id'));
-                    }),
-            ],
-            'code' => ['nullable', 'string', 'max:255'],
-        ], [
-            'name.unique' => 'Ya existe un área con ese nombre para este cliente.',
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $code = trim((string) ($validated['code'] ?? ''));
+        $exists = Area::query()
+            ->where('id', '!=', $area->id)
+            ->where('client_id', $validated['client_id'])
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+            ->exists();
 
-        if ($code !== '') {
-            $codeExists = Area::query()
-                ->where('id', '!=', $area->id)
-                ->where('client_id', $validated['client_id'])
-                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
-                ->exists();
-
-            if ($codeExists) {
-                return back()
-                    ->withErrors(['code' => 'Ya existe un área con ese código para este cliente.'])
-                    ->withInput();
-            }
+        if ($exists) {
+            return back()
+                ->withErrors([
+                    'name' => 'Ya existe un área con ese nombre para el cliente seleccionado.',
+                ])
+                ->withInput();
         }
 
         $area->update([
             'client_id' => $validated['client_id'],
             'name' => trim($validated['name']),
-            'code' => $code !== '' ? $code : null,
+            'code' => $validated['code'] ? trim($validated['code']) : null,
         ]);
 
         return redirect()
@@ -233,14 +184,15 @@ class AdminAreaController extends Controller
 
     public function destroy(Request $request, Area $area): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($area->client_id, $allowedClientIds), 403);
+
+        if ($area->elements()->exists()) {
+            return redirect()
+                ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
+                ->with('error', 'El área tiene activos asociados. No puede eliminarse; solo puede inactivarse.');
+        }
 
         $area->delete();
 
@@ -251,14 +203,15 @@ class AdminAreaController extends Controller
 
     public function toggleStatus(Request $request, Area $area): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($area->client_id, $allowedClientIds), 403);
+
+        if (!$area->elements()->exists()) {
+            return redirect()
+                ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Esta área no tiene dependencias. Puedes eliminarla si lo deseas.');
+        }
 
         $area->update([
             'status' => !$area->status,
@@ -267,6 +220,24 @@ class AdminAreaController extends Controller
         return redirect()
             ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
             ->with('success', 'Estado del área actualizado correctamente.');
+    }
+
+    private function getScopedClients()
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        return $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
     }
 
     private function buildRedirectQuery(Request $request): array
@@ -279,21 +250,9 @@ class AdminAreaController extends Controller
             }
         }
 
-        foreach ((array) $request->input('redirect_names', []) as $value) {
+        foreach ((array) $request->input('redirect_area_names', []) as $value) {
             if ($value !== null && $value !== '') {
-                $query['names'][] = $value;
-            }
-        }
-
-        foreach ((array) $request->input('redirect_codes', []) as $value) {
-            if ($value !== null && $value !== '') {
-                $query['codes'][] = $value;
-            }
-        }
-
-        foreach ((array) $request->input('redirect_statuses', []) as $value) {
-            if ($value !== null && $value !== '') {
-                $query['statuses'][] = $value;
+                $query['area_names'][] = $value;
             }
         }
 

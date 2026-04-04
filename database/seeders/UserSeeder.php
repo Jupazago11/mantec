@@ -18,7 +18,7 @@ class UserSeeder extends Seeder
             User::updateOrCreate(
                 ['username' => 'superadmin'],
                 [
-                    'name' => 'Super Administrador',
+                    'name' => 'Desarrollador',
                     'document' => '10000001',
                     'email' => 'superadmin@mantec.local',
                     'password' => Hash::make('123456'),
@@ -33,9 +33,9 @@ class UserSeeder extends Seeder
                 ['username' => 'admin_global'],
                 [
                     'name' => 'Administrador Global',
-                    'document' => '10000002',
-                    'email' => 'admin@mantec.local',
-                    'password' => Hash::make('123456'),
+                    'document' => '1037977046',
+                    'email' => 'jupazago11@gmail.com',
+                    'password' => Hash::make('159875321'),
                     'role_id' => $adminRole->id,
                     'status' => true,
                 ]

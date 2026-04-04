@@ -15,16 +15,6 @@ class ClientSeeder extends Seeder
                 'obs' => 'Cliente base de pruebas',
                 'status' => true,
             ],
-            [
-                'name' => 'ARGOS',
-                'obs' => 'Cliente base de pruebas',
-                'status' => true,
-            ],
-            [
-                'name' => 'CALINA',
-                'obs' => 'Cliente base de pruebas',
-                'status' => true,
-            ],
         ];
 
         foreach ($clients as $client) {

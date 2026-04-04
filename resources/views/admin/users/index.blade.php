@@ -8,13 +8,19 @@
         <div>
             <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de usuarios</h2>
             <p class="mt-2 text-slate-600">
-                Crea y administra administradores, administradores cliente e inspectores.
+                Crea y administra administradores, administradores cliente, inspectores, observadores y observadores cliente.
             </p>
         </div>
 
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {{ session('success') }}
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ session('error') }}
             </div>
         @endif
 
@@ -30,7 +36,6 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-3">
-            <!-- FORMULARIO -->
             <div class="xl:col-span-1">
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo usuario</h3>
@@ -76,7 +81,7 @@
                             name="role_id"
                             label="Rol"
                             id="create_role_id"
-                            onchange="toggleCreateClients()"
+                            onchange="handleCreateRoleChange()"
                         >
                             <option value="">Seleccione un rol</option>
                             @foreach($roles as $role)
@@ -102,11 +107,43 @@
                                             type="checkbox"
                                             name="clients[]"
                                             value="{{ $client->id }}"
-                                            class="rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                            class="create-client-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
                                             @checked(collect(old('clients', []))->contains($client->id))
+                                            onchange="toggleCreateSpecialties()"
                                         >
                                         {{ $client->name }}
                                     </label>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div id="create_specialties_wrapper" class="hidden">
+                            <label class="mb-2 block text-sm font-medium text-slate-700">
+                                Especialidades por cliente
+                            </label>
+
+                            <div class="space-y-4 rounded-xl border border-slate-300 p-4">
+                                @foreach($clients as $client)
+                                    <div class="create-client-specialties-block hidden" data-client-id="{{ $client->id }}">
+                                        <p class="mb-2 text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+
+                                        <div class="grid gap-2">
+                                            @forelse(($elementTypesByClient[$client->id] ?? collect()) as $elementType)
+                                                <label class="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="element_type_permissions[{{ $client->id }}][]"
+                                                        value="{{ $elementType->id }}"
+                                                        class="rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                        @checked(collect(old("element_type_permissions.$client->id", []))->contains($elementType->id))
+                                                    >
+                                                    {{ $elementType->name }}
+                                                </label>
+                                            @empty
+                                                <p class="text-sm text-slate-500">No hay especialidades para este cliente.</p>
+                                            @endforelse
+                                        </div>
+                                    </div>
                                 @endforeach
                             </div>
                         </div>
@@ -126,7 +163,6 @@
                 </div>
             </div>
 
-            <!-- TABLA -->
             <div class="xl:col-span-2">
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
@@ -150,6 +186,9 @@
                                         Clientes
                                     </th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        Especialidades
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Estado
                                     </th>
                                     <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -160,6 +199,11 @@
 
                             <tbody class="divide-y divide-slate-200 bg-white">
                                 @forelse($users as $user)
+                                    @php
+                                        $specializedMap = $user->allowedElementTypes
+                                            ->groupBy(fn($item) => $item->pivot->client_id);
+                                    @endphp
+
                                     <tr class="hover:bg-slate-50">
                                         <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
                                             {{ $user->name }}
@@ -176,6 +220,26 @@
                                         <td class="px-6 py-4 text-sm text-slate-600">
                                             @if($user->clients->isNotEmpty())
                                                 {{ $user->clients->pluck('name')->implode(', ') }}
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+
+                                        <td class="px-6 py-4 text-sm text-slate-600">
+                                            @if($specializedMap->isNotEmpty())
+                                                <div class="space-y-1">
+                                                    @foreach($user->clients as $client)
+                                                        @php
+                                                            $types = $specializedMap->get($client->id, collect());
+                                                        @endphp
+                                                        @if($types->isNotEmpty())
+                                                            <div>
+                                                                <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
+                                                                {{ $types->pluck('name')->implode(', ') }}
+                                                            </div>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
                                             @else
                                                 —
                                             @endif
@@ -205,7 +269,12 @@
                                                     data-email="{{ $user->email }}"
                                                     data-role_id="{{ $user->role_id }}"
                                                     data-status="{{ $user->status ? 1 : 0 }}"
-                                                    data-clients='@json($user->clients->pluck("id"))'
+                                                    data-clients='@json($user->clients->pluck("id")->map(fn($id) => (int) $id)->values())'
+                                                    data-permissions='@json(
+                                                        $user->allowedElementTypes
+                                                            ->groupBy(fn ($item) => $item->pivot->client_id)
+                                                            ->map(fn ($group) => $group->pluck("id")->map(fn($id) => (int) $id)->values())
+                                                    )'
                                                     data-action="{{ route('admin.users.update', $user) }}"
                                                     onclick="openEditUserModal(this)"
                                                 >
@@ -232,7 +301,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="7" class="px-6 py-10 text-center text-sm text-slate-500">
                                             No hay usuarios registrados todavía.
                                         </td>
                                     </tr>
@@ -240,13 +309,17 @@
                             </tbody>
                         </table>
                     </div>
+
+                    @if(method_exists($users, 'links'))
+                        <div class="border-t border-slate-200 px-6 py-4">
+                            {{ $users->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 
-
-    <!-- MODAL EDITAR -->
     <div id="editUserModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -301,7 +374,7 @@
                     name="role_id"
                     label="Rol"
                     id="edit_user_role_id"
-                    onchange="toggleEditClients()"
+                    onchange="handleEditRoleChange()"
                 >
                     @foreach($roles as $role)
                         <option value="{{ $role->id }}" data-role-key="{{ $role->key }}">
@@ -323,9 +396,41 @@
                                     name="clients[]"
                                     value="{{ $client->id }}"
                                     class="edit-client-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                    onchange="toggleEditSpecialties()"
                                 >
                                 {{ $client->name }}
                             </label>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div id="edit_specialties_wrapper" class="hidden">
+                    <label class="mb-2 block text-sm font-medium text-slate-700">
+                        Especialidades por cliente
+                    </label>
+
+                    <div class="space-y-4 rounded-xl border border-slate-300 p-4">
+                        @foreach($clients as $client)
+                            <div class="edit-client-specialties-block hidden" data-client-id="{{ $client->id }}">
+                                <p class="mb-2 text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+
+                                <div class="grid gap-2">
+                                    @forelse(($elementTypesByClient[$client->id] ?? collect()) as $elementType)
+                                        <label class="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="element_type_permissions[{{ $client->id }}][]"
+                                                value="{{ $elementType->id }}"
+                                                class="edit-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                data-client-id="{{ $client->id }}"
+                                            >
+                                            {{ $elementType->name }}
+                                        </label>
+                                    @empty
+                                        <p class="text-sm text-slate-500">No hay especialidades para este cliente.</p>
+                                    @endforelse
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                 </div>
@@ -356,17 +461,25 @@
     </div>
 
     <script>
-        function roleRequiresClients(selectId) {
+        function getRoleKey(selectId) {
             const select = document.getElementById(selectId);
             const option = select.options[select.selectedIndex];
-            const roleKey = option?.dataset?.roleKey || '';
-            return ['admin', 'admin_cliente', 'inspector'].includes(roleKey);
+            return option?.dataset?.roleKey || '';
+        }
+
+        function roleRequiresClients(roleKey) {
+            return ['admin', 'admin_cliente', 'inspector', 'observador', 'observador_cliente'].includes(roleKey);
+        }
+
+        function roleRequiresSpecialties(roleKey) {
+            return ['admin_cliente', 'inspector', 'observador', 'observador_cliente'].includes(roleKey);
         }
 
         function toggleCreateClients() {
             const wrapper = document.getElementById('create_clients_wrapper');
+            const roleKey = getRoleKey('create_role_id');
 
-            if (roleRequiresClients('create_role_id')) {
+            if (roleRequiresClients(roleKey)) {
                 wrapper.classList.remove('hidden');
             } else {
                 wrapper.classList.add('hidden');
@@ -376,13 +489,72 @@
 
         function toggleEditClients() {
             const wrapper = document.getElementById('edit_clients_wrapper');
+            const roleKey = getRoleKey('edit_user_role_id');
 
-            if (roleRequiresClients('edit_user_role_id')) {
+            if (roleRequiresClients(roleKey)) {
                 wrapper.classList.remove('hidden');
             } else {
                 wrapper.classList.add('hidden');
                 wrapper.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
             }
+        }
+
+        function toggleCreateSpecialties() {
+            const wrapper = document.getElementById('create_specialties_wrapper');
+            const roleKey = getRoleKey('create_role_id');
+            const selectedClientIds = Array.from(document.querySelectorAll('.create-client-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (roleRequiresSpecialties(roleKey)) {
+                wrapper.classList.remove('hidden');
+            } else {
+                wrapper.classList.add('hidden');
+            }
+
+            document.querySelectorAll('.create-client-specialties-block').forEach(block => {
+                const clientId = parseInt(block.dataset.clientId);
+                const visible = roleRequiresSpecialties(roleKey) && selectedClientIds.includes(clientId);
+
+                block.classList.toggle('hidden', !visible);
+
+                if (!visible) {
+                    block.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                }
+            });
+        }
+
+        function toggleEditSpecialties() {
+            const wrapper = document.getElementById('edit_specialties_wrapper');
+            const roleKey = getRoleKey('edit_user_role_id');
+            const selectedClientIds = Array.from(document.querySelectorAll('.edit-client-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (roleRequiresSpecialties(roleKey)) {
+                wrapper.classList.remove('hidden');
+            } else {
+                wrapper.classList.add('hidden');
+            }
+
+            document.querySelectorAll('.edit-client-specialties-block').forEach(block => {
+                const clientId = parseInt(block.dataset.clientId);
+                const visible = roleRequiresSpecialties(roleKey) && selectedClientIds.includes(clientId);
+
+                block.classList.toggle('hidden', !visible);
+
+                if (!visible) {
+                    block.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                }
+            });
+        }
+
+        function handleCreateRoleChange() {
+            toggleCreateClients();
+            toggleCreateSpecialties();
+        }
+
+        function handleEditRoleChange() {
+            toggleEditClients();
+            toggleEditSpecialties();
         }
 
         function openEditUserModal(btn) {
@@ -394,6 +566,7 @@
                 role_id: btn.dataset.role_id,
                 status: btn.dataset.status,
                 clients: JSON.parse(btn.dataset.clients || '[]'),
+                permissions: JSON.parse(btn.dataset.permissions || '{}'),
                 action: btn.dataset.action,
             };
 
@@ -410,7 +583,24 @@
                 cb.checked = data.clients.includes(parseInt(cb.value));
             });
 
+            document.querySelectorAll('.edit-element-type-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            Object.entries(data.permissions || {}).forEach(([clientId, elementTypeIds]) => {
+                elementTypeIds.forEach(elementTypeId => {
+                    const checkbox = document.querySelector(
+                        `.edit-element-type-checkbox[data-client-id="${clientId}"][value="${elementTypeId}"]`
+                    );
+
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            });
+
             toggleEditClients();
+            toggleEditSpecialties();
 
             const modal = document.getElementById('editUserModal');
             modal.classList.remove('hidden');
@@ -424,7 +614,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            toggleCreateClients();
+            handleCreateRoleChange();
         });
     </script>
 @endsection

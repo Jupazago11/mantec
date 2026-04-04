@@ -8,6 +8,7 @@ use App\Models\Component;
 use App\Models\Diagnostic;
 use App\Models\ElementType;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -16,14 +17,7 @@ class AdminComponentDiagnosticController extends Controller
 {
     public function index(): View
     {
-        $authUser = Auth::user();
-
-        $allowedClientIds = $authUser->clients()->pluck('clients.id')->toArray();
-
-        $clients = Client::whereIn('id', $allowedClientIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get();
+        $clients = $this->getScopedClients();
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
 
@@ -37,8 +31,10 @@ class AdminComponentDiagnosticController extends Controller
     {
         $this->authorizeClient($client->id);
 
-        $data = ElementType::where('client_id', $client->id)
+        $data = ElementType::query()
+            ->where('client_id', $client->id)
             ->where('status', true)
+            ->orderBy('name')
             ->get(['id', 'name']);
 
         return response()->json($data);
@@ -48,8 +44,10 @@ class AdminComponentDiagnosticController extends Controller
     {
         $this->authorizeClient($elementType->client_id);
 
-        $data = Component::where('element_type_id', $elementType->id)
+        $data = Component::query()
+            ->where('element_type_id', $elementType->id)
             ->where('status', true)
+            ->orderBy('name')
             ->get(['id', 'name']);
 
         return response()->json($data);
@@ -59,8 +57,10 @@ class AdminComponentDiagnosticController extends Controller
     {
         $this->authorizeClient($client->id);
 
-        $data = Diagnostic::where('client_id', $client->id)
+        $data = Diagnostic::query()
+            ->where('client_id', $client->id)
             ->where('status', true)
+            ->orderBy('name')
             ->get(['id', 'name']);
 
         return response()->json($data);
@@ -75,21 +75,55 @@ class AdminComponentDiagnosticController extends Controller
         );
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $component = Component::findOrFail($request->component_id);
+        $validated = $request->validate([
+            'component_id' => ['required', 'integer', 'exists:components,id'],
+            'diagnostics' => ['nullable', 'array'],
+            'diagnostics.*' => ['integer', 'exists:diagnostics,id'],
+        ]);
 
+        $component = Component::query()->findOrFail($validated['component_id']);
         $this->authorizeClient($component->client_id);
 
-        $component->diagnostics()->sync($request->diagnostics ?? []);
+        $diagnosticIds = collect($validated['diagnostics'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $validDiagnosticIds = Diagnostic::query()
+            ->where('client_id', $component->client_id)
+            ->whereIn('id', $diagnosticIds)
+            ->pluck('id')
+            ->all();
+
+        $component->diagnostics()->sync($validDiagnosticIds);
 
         return back()->with('success', 'Diagnósticos asignados correctamente.');
     }
-
-    private function authorizeClient($clientId)
+    private function getScopedClients()
     {
-        $allowed = Auth::user()->clients()->pluck('clients.id')->toArray();
+        $user = Auth::user();
+        $roleKey = $user->role?->key;
 
-        abort_unless(in_array($clientId, $allowed), 403);
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        return $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
+    }
+
+    private function authorizeClient(int $clientId): void
+    {
+        $allowed = $this->getScopedClients()->pluck('id')->map(fn ($id) => (int) $id)->toArray();
+
+        abort_unless(in_array((int) $clientId, $allowed, true), 403);
     }
 }

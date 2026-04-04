@@ -10,40 +10,60 @@ class BeltDiagnosticSeeder extends Seeder
 {
     public function run(): void
     {
-        $client = Client::where('name', 'CORONA')->firstOrFail();
+        $client = Client::query()
+            ->where('name', 'CORONA')
+            ->firstOrFail();
 
         $diagnostics = [
             [
-                'name' => 'Mal estado',
-                'description' => 'Componente en condición deficiente o deteriorada.',
+                'name' => 'Estado',
+                'description' => 'Inspección general del estado del componente.',
             ],
             [
-                'name' => 'Fuga de aceite',
-                'description' => 'Presencia de fuga de aceite en el componente.',
+                'name' => 'Empalme',
+                'description' => 'Revisión de la condición del empalme de la banda.',
             ],
             [
-                'name' => 'Condición de seguridad',
-                'description' => 'Hallazgo relacionado con condición de seguridad.',
+                'name' => 'Alineacion',
+                'description' => 'Verificación de alineación del componente o sistema.',
             ],
             [
-                'name' => 'Material acumulado',
-                'description' => 'Presencia de acumulación de material.',
+                'name' => 'Temperatura',
+                'description' => 'Verificación de temperatura de operación.',
+            ],
+            [
+                'name' => 'Pantalla de sacrificio',
+                'description' => 'Inspección de desgaste o condición de la pantalla de sacrificio.',
+            ],
+            [
+                'name' => 'Lamina de sacrificio',
+                'description' => 'Inspección de desgaste o condición de la lámina de sacrificio.',
+            ],
+            [
+                'name' => 'Recubrimiento',
+                'description' => 'Inspección del recubrimiento del componente.',
+            ],
+            [
+                'name' => 'Rodamientos',
+                'description' => 'Inspección del estado y funcionamiento de los rodamientos.',
+            ],
+            [
+                'name' => 'Aseo',
+                'description' => 'Verificación de limpieza y orden del componente o zona.',
             ],
         ];
 
         foreach ($diagnostics as $item) {
-            $exists = Diagnostic::where('client_id', $client->id)
-                ->where('name', $item['name'])
-                ->exists();
-
-            if (!$exists) {
-                Diagnostic::create([
+            Diagnostic::updateOrCreate(
+                [
                     'client_id' => $client->id,
-                    'name' => $item['name'],
+                    'name' => trim($item['name']),
+                ],
+                [
                     'description' => $item['description'],
                     'status' => true,
-                ]);
-            }
+                ]
+            );
         }
     }
 }

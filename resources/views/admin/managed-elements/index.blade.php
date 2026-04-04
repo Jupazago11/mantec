@@ -38,6 +38,12 @@
             </div>
         @endif
 
+        @if(session('error'))
+            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ session('error') }}
+            </div>
+        @endif
+
         @if ($errors->any())
             <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <div class="font-semibold">Hay errores en el formulario.</div>
@@ -50,6 +56,7 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+<!-- FORMULARIO -->
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo activo</h3>
@@ -78,7 +85,9 @@
                                         </label>
                                     @endforeach
                                 </div>
+
                                 <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id') }}">
+
                                 @error('client_id')
                                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                                 @enderror
@@ -118,6 +127,7 @@
                                     </option>
                                 @endforeach
                             </select>
+
                             @error('area_id')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
@@ -136,12 +146,12 @@
                                     </option>
                                 @endforeach
                             </select>
+
                             @error('element_type_id')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-
-                        <div>
+<div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
                             <input
                                 type="text"
@@ -197,6 +207,7 @@
                             @enderror
                         </div>
 
+                        {{-- Mantener filtros --}}
                         @foreach(($activeFilters['client_ids'] ?? []) as $value)
                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                         @endforeach
@@ -226,7 +237,7 @@
                     </form>
                 </div>
             </div>
-
+<!-- LISTADO -->
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
@@ -356,40 +367,45 @@
                                 </tr>
                             </thead>
 
+
                             <tbody class="divide-y divide-slate-200 bg-white">
                                 @forelse($elements as $element)
+                                    @php
+                                        $hasDependencies = (($element->components_count ?? 0) + ($element->report_details_count ?? 0)) > 0;
+                                    @endphp
+
                                     <tr class="hover:bg-slate-50">
                                         @if($showClientColumn)
-                                            <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                            <td class="px-4 py-3 text-sm text-slate-700">
                                                 {{ $element->area?->client?->name ?? '—' }}
                                             </td>
                                         @endif
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                        <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->area?->name ?? '—' }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                        <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->elementType?->name ?? '—' }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-900">
+                                        <td class="px-4 py-3 text-sm font-medium text-slate-900">
                                             {{ $element->name }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                        <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->warehouse_code ?: '—' }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                        <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->components_count ?? 0 }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                        <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->report_details_count ?? 0 }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm">
+                                        <td class="px-4 py-3 text-sm">
                                             @if($element->status)
                                                 <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
                                                     Activo
@@ -401,9 +417,9 @@
                                             @endif
                                         </td>
 
-                                        <td class="whitespace-nowrap px-4 py-3 text-right">
+                                        <td class="px-4 py-3 text-right">
                                             <div class="flex justify-end gap-2">
-                                                <button
+<button
                                                     type="button"
                                                     onclick="openComponentsModal(
                                                         '{{ $element->id }}',
@@ -435,41 +451,38 @@
                                                     Editar
                                                 </button>
 
-                                                <form
-                                                    method="POST"
-                                                    action="{{ route('admin.managed-elements.destroy', $element) }}"
-                                                    onsubmit="return confirm('¿Seguro que deseas eliminar este activo?');"
-                                                >
-                                                    @csrf
-                                                    @method('DELETE')
-
-                                                    @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['area_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_area_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['names'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['warehouse_codes'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_warehouse_codes[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    <input type="hidden" name="redirect_page" value="{{ $elements->currentPage() }}">
-
-                                                    <button
-                                                        type="submit"
-                                                        class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                                                @if(!$hasDependencies)
+                                                    <form
+                                                        method="POST"
+                                                        action="{{ route('admin.managed-elements.destroy', $element) }}"
+                                                        onsubmit="return confirm('¿Seguro que deseas eliminar este activo?');"
                                                     >
-                                                        Eliminar
-                                                    </button>
-                                                </form>
+                                                        @csrf
+                                                        @method('DELETE')
+
+                                                        <button
+                                                            type="submit"
+                                                            class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <form
+                                                        method="POST"
+                                                        action="{{ route('admin.managed-elements.toggle-status', $element) }}"
+                                                    >
+                                                        @csrf
+                                                        @method('PATCH')
+
+                                                        <button
+                                                            type="submit"
+                                                            class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $element->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
+                                                        >
+                                                            {{ $element->status ? 'Inactivar' : 'Activar' }}
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
@@ -493,8 +506,7 @@
             </div>
         </div>
     </div>
-
-    {{-- MODAL EDITAR --}}
+{{-- MODAL EDITAR --}}
     <div id="editElementModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -544,7 +556,7 @@
                         class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                     >
                         @foreach($areas as $area)
-                            <option value="{{ $area->id }}">
+                            <option value="{{ $area->id }}" data-client-id="{{ $area->client_id }}">
                                 @if($showClientColumn)
                                     {{ $area->client?->name }} - {{ $area->name }}
                                 @else
@@ -563,7 +575,7 @@
                         class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                     >
                         @foreach($elementTypes as $elementType)
-                            <option value="{{ $elementType->id }}">
+                            <option value="{{ $elementType->id }}" data-client-id="{{ $elementType->client_id }}">
                                 {{ $elementType->name }}
                             </option>
                         @endforeach
@@ -652,7 +664,12 @@
                     <label class="mb-2 block text-sm font-medium text-slate-700">Componentes disponibles</label>
                     <div id="componentsChecklist" class="grid max-h-[420px] gap-3 overflow-y-auto rounded-xl border border-slate-200 p-4 md:grid-cols-2">
                         @forelse($components as $component)
-                            <label class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+                            <label
+                                class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700"
+                                data-component-item
+                                data-client-id="{{ $component->client_id }}"
+                                data-element-type-id="{{ $component->element_type_id }}"
+                            >
                                 <input
                                     type="checkbox"
                                     name="component_ids[]"
@@ -863,7 +880,6 @@
 
             const renderList = () => {
                 const term = search.value.toLowerCase().trim();
-
                 let items = config.options;
 
                 if (objectMode) {
@@ -902,7 +918,6 @@
 
         function clearCurrentFilter() {
             if (!currentPopoverKey) return;
-
             const config = filterOptions[currentPopoverKey];
             activeFilters[config.inputName] = [];
             submitFilters();
@@ -910,7 +925,6 @@
 
         function applyCurrentFilter() {
             if (!currentPopoverKey) return;
-
             const config = filterOptions[currentPopoverKey];
             const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
                 .map(cb => cb.value);
@@ -933,6 +947,29 @@
                 .replaceAll("'", '&#039;');
         }
 
+        function filterCreateAreasByClient(clientId) {
+            const select = document.getElementById('create_area_id');
+            if (!select) return;
+
+            const currentValue = select.value;
+
+            Array.from(select.options).forEach(option => {
+                if (!option.value) {
+                    option.hidden = false;
+                    return;
+                }
+
+                option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
+            });
+
+            if (currentValue) {
+                const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
+                if (selectedOption && selectedOption.hidden) {
+                    select.value = '';
+                }
+            }
+        }
+
         function handleSingleClientSelection(checkbox) {
             const all = document.querySelectorAll('.client-single-checkbox');
             all.forEach(item => {
@@ -943,10 +980,26 @@
 
             const clientId = checkbox.checked ? checkbox.value : '';
             document.getElementById('selected_client_id').value = clientId;
+            filterCreateAreasByClient(clientId);
+        }
 
-            const areaSelect = document.getElementById('create_area_id');
-            if (areaSelect) {
-                areaSelect.value = '';
+        function filterEditFieldsByArea(areaId) {
+            const areaSelect = document.getElementById('edit_element_area_id');
+            const typeSelect = document.getElementById('edit_element_type_id');
+            if (!areaSelect || !typeSelect) return;
+
+            const selectedAreaOption = areaSelect.querySelector(`option[value="${areaId}"]`);
+            const clientId = selectedAreaOption?.dataset.clientId ?? '';
+
+            Array.from(typeSelect.options).forEach(option => {
+                option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
+            });
+
+            if (typeSelect.value) {
+                const selectedType = typeSelect.querySelector(`option[value="${typeSelect.value}"]`);
+                if (selectedType && selectedType.hidden) {
+                    typeSelect.value = '';
+                }
             }
         }
 
@@ -956,6 +1009,7 @@
             document.getElementById('edit_element_code').value = code ?? '';
             document.getElementById('edit_element_warehouse_code').value = warehouseCode ?? '';
             document.getElementById('edit_element_area_id').value = areaId ?? '';
+            filterEditFieldsByArea(areaId);
             document.getElementById('edit_element_type_id').value = elementTypeId ?? '';
             document.getElementById('edit_element_status').value = status ?? '1';
 
@@ -995,22 +1049,52 @@
 
         document.addEventListener('click', function (event) {
             const popover = document.getElementById('filterPopover');
+            const editModal = document.getElementById('editElementModal');
+            const componentsModal = document.getElementById('componentsModal');
 
-            if (popover.classList.contains('hidden')) return;
+            if (!popover.classList.contains('hidden')) {
+                if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+                    closeFilterPopover();
+                }
+            }
 
-            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+            if (editModal.classList.contains('flex') && event.target === editModal) {
+                closeEditElementModal();
+            }
+
+            if (componentsModal.classList.contains('flex') && event.target === componentsModal) {
+                closeComponentsModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
                 closeFilterPopover();
+                closeEditElementModal();
+                closeComponentsModal();
             }
         });
 
         document.addEventListener('DOMContentLoaded', function () {
             const selectedClient = document.getElementById('selected_client_id');
+            const editAreaSelect = document.getElementById('edit_element_area_id');
 
             if (selectedClient && selectedClient.value) {
                 document.querySelectorAll('.client-single-checkbox').forEach(cb => {
                     cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
                 });
+
+                filterCreateAreasByClient(selectedClient.value);
+            } else {
+                filterCreateAreasByClient('');
+            }
+
+            if (editAreaSelect) {
+                editAreaSelect.addEventListener('change', function () {
+                    filterEditFieldsByArea(this.value);
+                });
             }
         });
     </script>
 @endsection
+

@@ -75,9 +75,7 @@
                         <label class="text-sm font-medium text-slate-700">
                             Contraseña
                         </label>
-                        <a href="#" class="text-sm font-medium text-[#d94d33] hover:underline">
-                            ¿Olvidaste?
-                        </a>
+
                     </div>
 
                     <input
@@ -86,13 +84,6 @@
                         placeholder="123456"
                         class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                     >
-                </div>
-
-                <div class="flex items-center justify-between">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]">
-                        Recordarme
-                    </label>
                 </div>
 
                 <button

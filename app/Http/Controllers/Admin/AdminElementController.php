@@ -17,41 +17,36 @@ class AdminElementController extends Controller
 {
     public function index(Request $request): View
     {
-        $user = auth()->user();
+        $clients = $this->getScopedClients();
 
-        $clients = $user->clients()
-            ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get(['clients.id', 'clients.name']);
-
-        $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
-        $allowedClientIds = $clients->pluck('id');
+        $singleClient = $clients->count() === 1 ? $clients->first() : null;
 
         $areas = Area::query()
             ->with('client')
-            ->whereIn('client_id', $allowedClientIds)
+            ->whereIn('client_id', $clients->pluck('id'))
             ->where('status', true)
-            ->orderBy('client_id')
             ->orderBy('name')
             ->get();
 
         $elementTypes = ElementType::query()
-            ->whereIn('client_id', $allowedClientIds)
+            ->whereIn('client_id', $clients->pluck('id'))
             ->where('status', true)
-            ->orderBy('client_id')
             ->orderBy('name')
             ->get();
 
         $components = Component::query()
-            ->whereIn('client_id', $allowedClientIds)
+            ->whereIn('client_id', $clients->pluck('id'))
             ->where('status', true)
-            ->orderBy('client_id')
             ->orderBy('name')
             ->get();
 
         $selectedClientIds = $showClientColumn
-            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            ? collect($request->input('client_ids', []))
+                ->filter()
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
         $selectedAreaIds = collect($request->input('area_ids', []))
@@ -68,31 +63,27 @@ class AdminElementController extends Controller
 
         $selectedNames = collect($request->input('names', []))
             ->filter()
-            ->map(fn ($value) => (string) $value)
+            ->map(fn ($name) => (string) $name)
             ->values()
             ->all();
 
         $selectedWarehouseCodes = collect($request->input('warehouse_codes', []))
             ->filter()
-            ->map(fn ($value) => (string) $value)
+            ->map(fn ($code) => (string) $code)
             ->values()
             ->all();
 
         $selectedStatuses = collect($request->input('statuses', []))
-            ->filter()
-            ->map(fn ($value) => (string) $value)
+            ->filter(fn ($status) => $status !== null && $status !== '')
+            ->map(fn ($status) => (string) $status)
             ->values()
             ->all();
 
         $baseQuery = Element::query()
-            ->with([
-                'area.client',
-                'elementType',
-                'components',
-            ])
+            ->with(['area.client', 'elementType', 'components'])
             ->withCount(['components', 'reportDetails'])
-            ->whereHas('area', function ($query) use ($allowedClientIds) {
-                $query->whereIn('client_id', $allowedClientIds);
+            ->whereHas('area', function ($query) use ($clients) {
+                $query->whereIn('client_id', $clients->pluck('id'));
             });
 
         if (!empty($selectedClientIds)) {
@@ -118,73 +109,63 @@ class AdminElementController extends Controller
         }
 
         if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
+            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
         }
 
         $elements = (clone $baseQuery)
-            ->orderBy('area_id')
-            ->orderBy('element_type_id')
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
 
-        $allElements = Element::query()
-            ->with(['area.client', 'elementType'])
-            ->whereHas('area', function ($query) use ($allowedClientIds) {
-                $query->whereIn('client_id', $allowedClientIds);
-            })
-            ->orderBy('name')
-            ->get();
-
-        $clientFilterOptions = $showClientColumn
+        $filterClientOptions = $showClientColumn
             ? $clients->map(fn ($client) => [
                 'value' => (string) $client->id,
                 'label' => $client->name,
             ])->values()
             : collect();
 
-        $areaFilterOptions = $areas
-            ->map(fn ($area) => [
-                'value' => (string) $area->id,
-                'label' => ($showClientColumn ? ($area->client?->name . ' - ') : '') . $area->name,
-            ])
-            ->values();
+        $filterAreaOptions = $areas->map(fn ($area) => [
+            'value' => (string) $area->id,
+            'label' => $showClientColumn ? (($area->client?->name ?? '—') . ' - ' . $area->name) : $area->name,
+        ])->values();
 
-        $elementTypeFilterOptions = $elementTypes
-            ->map(fn ($type) => [
-                'value' => (string) $type->id,
-                'label' => $type->name,
-            ])
-            ->unique('value')
-            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
-            ->values();
+        $filterElementTypeOptions = $elementTypes->map(fn ($type) => [
+            'value' => (string) $type->id,
+            'label' => $type->name,
+        ])->values();
 
-        $nameFilterOptions = $allElements
+        $filterNameOptions = Element::query()
+            ->whereHas('area', function ($query) use ($clients) {
+                $query->whereIn('client_id', $clients->pluck('id'));
+            })
             ->pluck('name')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $warehouseCodeFilterOptions = $allElements
+        $filterWarehouseOptions = Element::query()
+            ->whereHas('area', function ($query) use ($clients) {
+                $query->whereIn('client_id', $clients->pluck('id'));
+            })
             ->pluck('warehouse_code')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $statusFilterOptions = collect([
+        $filterStatusOptions = collect([
             ['value' => '1', 'label' => 'Activo'],
             ['value' => '0', 'label' => 'Inactivo'],
         ]);
 
         $filterOptions = [
-            'client_ids' => $clientFilterOptions,
-            'area_ids' => $areaFilterOptions,
-            'element_type_ids' => $elementTypeFilterOptions,
-            'names' => $nameFilterOptions,
-            'warehouse_codes' => $warehouseCodeFilterOptions,
-            'statuses' => $statusFilterOptions,
+            'client_ids' => $filterClientOptions,
+            'area_ids' => $filterAreaOptions,
+            'element_type_ids' => $filterElementTypeOptions,
+            'names' => $filterNameOptions,
+            'warehouse_codes' => $filterWarehouseOptions,
+            'statuses' => $filterStatusOptions,
         ];
 
         $activeFilters = [
@@ -199,24 +180,19 @@ class AdminElementController extends Controller
         return view('admin.managed-elements.index', [
             'clients' => $clients,
             'singleClient' => $singleClient,
-            'showClientColumn' => $showClientColumn,
             'areas' => $areas,
             'elementTypes' => $elementTypes,
             'components' => $components,
             'elements' => $elements,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
+            'showClientColumn' => $showClientColumn,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
@@ -242,58 +218,24 @@ class AdminElementController extends Controller
                 ->withInput();
         }
 
-        $nameExists = Element::query()
-            ->whereHas('area', function ($query) use ($validated) {
-                $query->where('client_id', $validated['client_id']);
-            })
+        $exists = Element::query()
+            ->where('area_id', $validated['area_id'])
+            ->where('element_type_id', $validated['element_type_id'])
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
-        if ($nameExists) {
+        if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un activo con ese nombre en este cliente.'])
+                ->withErrors(['name' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.'])
                 ->withInput();
-        }
-
-        $code = trim((string) ($validated['code'] ?? ''));
-        $warehouseCode = trim((string) ($validated['warehouse_code'] ?? ''));
-
-        if ($code !== '') {
-            $codeExists = Element::query()
-                ->whereHas('area', function ($query) use ($validated) {
-                    $query->where('client_id', $validated['client_id']);
-                })
-                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
-                ->exists();
-
-            if ($codeExists) {
-                return back()
-                    ->withErrors(['code' => 'Ya existe un activo con ese código en este cliente.'])
-                    ->withInput();
-            }
-        }
-
-        if ($warehouseCode !== '') {
-            $warehouseCodeExists = Element::query()
-                ->whereHas('area', function ($query) use ($validated) {
-                    $query->where('client_id', $validated['client_id']);
-                })
-                ->whereRaw('LOWER(warehouse_code) = ?', [mb_strtolower($warehouseCode)])
-                ->exists();
-
-            if ($warehouseCodeExists) {
-                return back()
-                    ->withErrors(['warehouse_code' => 'Ya existe un activo con ese código de almacén en este cliente.'])
-                    ->withInput();
-            }
         }
 
         Element::create([
             'area_id' => $validated['area_id'],
             'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
-            'code' => $code !== '' ? $code : null,
-            'warehouse_code' => $warehouseCode !== '' ? $warehouseCode : null,
+            'code' => $validated['code'] ? trim($validated['code']) : null,
+            'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
             'status' => (bool) $validated['status'],
         ]);
 
@@ -304,14 +246,10 @@ class AdminElementController extends Controller
 
     public function update(Request $request, Element $element): RedirectResponse
     {
-        $user = auth()->user();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
-
-        abort_unless(in_array(optional($element->area)->client_id, $allowedClientIds), 403);
+        $element->loadMissing('area');
+        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
 
         $validated = $request->validate([
             'area_id' => ['required', 'integer', 'exists:areas,id'],
@@ -323,72 +261,34 @@ class AdminElementController extends Controller
         ]);
 
         $area = Area::findOrFail($validated['area_id']);
-        $clientId = (int) $area->client_id;
-
-        abort_unless(in_array($clientId, $allowedClientIds), 403);
+        abort_unless(in_array($area->client_id, $allowedClientIds), 403);
 
         $elementType = ElementType::findOrFail($validated['element_type_id']);
-        if ((int) $elementType->client_id !== $clientId) {
+        if ((int) $elementType->client_id !== (int) $area->client_id) {
             return back()
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente del área seleccionada.'])
                 ->withInput();
         }
 
-        $nameExists = Element::query()
+        $exists = Element::query()
             ->where('id', '!=', $element->id)
-            ->whereHas('area', function ($query) use ($clientId) {
-                $query->where('client_id', $clientId);
-            })
+            ->where('area_id', $validated['area_id'])
+            ->where('element_type_id', $validated['element_type_id'])
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
-        if ($nameExists) {
+        if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un activo con ese nombre en este cliente.'])
+                ->withErrors(['name' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.'])
                 ->withInput();
-        }
-
-        $code = trim((string) ($validated['code'] ?? ''));
-        $warehouseCode = trim((string) ($validated['warehouse_code'] ?? ''));
-
-        if ($code !== '') {
-            $codeExists = Element::query()
-                ->where('id', '!=', $element->id)
-                ->whereHas('area', function ($query) use ($clientId) {
-                    $query->where('client_id', $clientId);
-                })
-                ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
-                ->exists();
-
-            if ($codeExists) {
-                return back()
-                    ->withErrors(['code' => 'Ya existe un activo con ese código en este cliente.'])
-                    ->withInput();
-            }
-        }
-
-        if ($warehouseCode !== '') {
-            $warehouseCodeExists = Element::query()
-                ->where('id', '!=', $element->id)
-                ->whereHas('area', function ($query) use ($clientId) {
-                    $query->where('client_id', $clientId);
-                })
-                ->whereRaw('LOWER(warehouse_code) = ?', [mb_strtolower($warehouseCode)])
-                ->exists();
-
-            if ($warehouseCodeExists) {
-                return back()
-                    ->withErrors(['warehouse_code' => 'Ya existe un activo con ese código de almacén en este cliente.'])
-                    ->withInput();
-            }
         }
 
         $element->update([
             'area_id' => $validated['area_id'],
             'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
-            'code' => $code !== '' ? $code : null,
-            'warehouse_code' => $warehouseCode !== '' ? $warehouseCode : null,
+            'code' => $validated['code'] ? trim($validated['code']) : null,
+            'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
             'status' => (bool) $validated['status'],
         ]);
 
@@ -397,22 +297,110 @@ class AdminElementController extends Controller
             ->with('success', 'Activo actualizado correctamente.');
     }
 
-    public function destroy(Request $request, Element $element): RedirectResponse
+public function destroy(Request $request, Element $element): RedirectResponse
     {
-        $user = auth()->user();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $element->loadMissing('area');
+        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
 
-        abort_unless(in_array(optional($element->area)->client_id, $allowedClientIds), 403);
+        $element->loadCount(['components', 'reportDetails']);
+
+        $hasDependencies = (($element->components_count ?? 0) + ($element->report_details_count ?? 0)) > 0;
+
+        if ($hasDependencies) {
+            return redirect()
+                ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Este activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
+        }
 
         $element->delete();
 
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
             ->with('success', 'Activo eliminado correctamente.');
+    }
+
+    public function toggleStatus(Request $request, Element $element): RedirectResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        $element->loadMissing('area');
+        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
+
+        $element->loadCount(['components', 'reportDetails']);
+
+        $hasDependencies = (($element->components_count ?? 0) + ($element->report_details_count ?? 0)) > 0;
+
+        if (!$hasDependencies) {
+            return redirect()
+                ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Este activo no tiene dependencias. Puedes eliminarlo si lo deseas.');
+        }
+
+        $element->update([
+            'status' => !$element->status,
+        ]);
+
+        return redirect()
+            ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
+            ->with('success', 'Estado del activo actualizado correctamente.');
+    }
+
+    public function syncComponents(Request $request, Element $element): RedirectResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        $element->loadMissing('area');
+        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
+
+        $validated = $request->validate([
+            'component_ids' => ['nullable', 'array'],
+            'component_ids.*' => ['integer', 'exists:components,id'],
+        ]);
+
+        $componentIds = collect($validated['component_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (!empty($componentIds)) {
+            $validCount = Component::query()
+                ->whereIn('id', $componentIds)
+                ->where('client_id', $element->area->client_id)
+                ->where('element_type_id', $element->element_type_id)
+                ->count();
+
+            if ($validCount !== count($componentIds)) {
+                return back()->withErrors([
+                    'component_ids' => 'Uno o más componentes no pertenecen al cliente o al tipo de activo del elemento.',
+                ]);
+            }
+        }
+
+        $element->components()->sync($componentIds);
+
+        return redirect()
+            ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
+            ->with('success', 'Componentes del activo actualizados correctamente.');
+    }
+
+    private function getScopedClients()
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        return $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
     }
 
     private function buildRedirectQuery(Request $request): array
@@ -461,38 +449,4 @@ class AdminElementController extends Controller
 
         return $query;
     }
-
-    public function syncComponents(Request $request, Element $element): RedirectResponse
-    {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
-
-        abort_unless(in_array(optional($element->area)->client_id, $allowedClientIds), 403);
-
-        $validated = $request->validate([
-            'component_ids' => ['nullable', 'array'],
-            'component_ids.*' => ['integer', 'exists:components,id'],
-        ]);
-
-        $componentIds = collect($validated['component_ids'] ?? [])
-            ->map(fn ($id) => (int) $id)
-            ->values();
-
-        $validComponentIds = Component::query()
-            ->whereIn('id', $componentIds)
-            ->where('client_id', optional($element->area)->client_id)
-            ->pluck('id')
-            ->toArray();
-
-        $element->components()->sync($validComponentIds);
-
-        return redirect()
-            ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Componentes actualizados correctamente.');
-    }
-
 }

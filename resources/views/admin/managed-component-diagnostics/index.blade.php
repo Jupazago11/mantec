@@ -1,5 +1,4 @@
 @extends('layouts.admin')
-
 @section('title', 'Componentes - Diagnósticos')
 @section('header_title', 'Componentes - Diagnósticos')
 
@@ -29,16 +28,15 @@
             </div>
         @endif
 
-        <div class="grid gap-8 xl:grid-cols-3">
-            <!-- FORMULARIO -->
-            <div class="xl:col-span-1">
+        <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nueva asignación</h3>
                     <p class="mt-1 text-sm text-slate-500">
                         Selecciona cliente, tipo de activo y componente para asignar sus diagnósticos.
                     </p>
 
-                    <form method="POST" action="{{ route('admin.component-diagnostics.store') }}" class="mt-6 space-y-5">
+                    <form method="POST" action="{{ route('admin.managed-component-diagnostics.store') }}" class="mt-6 space-y-5">
                         @csrf
 
                         @if($singleClient)
@@ -111,11 +109,10 @@
                     </form>
                 </div>
             </div>
-
-            <!-- PANEL INFORMATIVO -->
-            <div class="xl:col-span-2">
+<div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Cómo funciona esta asignación</h3>
+
                     <p class="mt-2 text-sm text-slate-600">
                         Este módulo define los diagnósticos válidos para cada componente. Luego, en la operación,
                         el inspector solo podrá diligenciar diagnósticos que realmente estén asignados al componente
@@ -152,48 +149,106 @@
             </div>
         </div>
     </div>
+<script>
+    function resetSelect(selectId, placeholder) {
+        const select = document.getElementById(selectId);
 
-    <script>
-        function resetSelect(selectId, placeholder) {
-            const select = document.getElementById(selectId);
-            select.innerHTML = `<option value="">${placeholder}</option>`;
+        if (!select) return;
+
+        select.innerHTML = `<option value="">${placeholder}</option>`;
+    }
+
+    function resetDiagnostics(message = 'Selecciona primero un cliente para cargar los diagnósticos.') {
+        const container = document.getElementById('diagnostics_list');
+
+        if (!container) return;
+
+        container.innerHTML = `
+            <p class="text-sm text-slate-500">${message}</p>
+        `;
+    }
+
+    function getClientId() {
+        return document.getElementById('client_id')?.value ?? '';
+    }
+
+    function getElementTypeId() {
+        return document.getElementById('element_type_id')?.value ?? '';
+    }
+
+    function getComponentId() {
+        return document.getElementById('component_id')?.value ?? '';
+    }
+
+    function markSingleClientCheckbox(selectedValue) {
+        document.querySelectorAll('.client-single-checkbox').forEach(checkbox => {
+            checkbox.checked = String(checkbox.value) === String(selectedValue);
+        });
+    }
+
+    async function fetchJson(url) {
+        const response = await fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
         }
 
-        function resetDiagnostics(message = 'Selecciona primero un cliente para cargar los diagnósticos.') {
-            document.getElementById('diagnostics_list').innerHTML = `
-                <p class="text-sm text-slate-500">${message}</p>
-            `;
+        return await response.json();
+    }
+
+    async function selectClient(checkbox) {
+        document.querySelectorAll('.client-single-checkbox').forEach(item => {
+            if (item !== checkbox) {
+                item.checked = false;
+            }
+        });
+
+        const clientId = checkbox.checked ? checkbox.value : '';
+        const clientInput = document.getElementById('client_id');
+
+        if (clientInput) {
+            clientInput.value = clientId;
         }
 
-        async function selectClient(cb) {
-            document.querySelectorAll('.client-single-checkbox').forEach(x => x.checked = false);
-            cb.checked = true;
+        resetSelect('element_type_id', 'Seleccione un tipo de activo');
+        resetSelect('component_id', 'Seleccione un componente');
 
-            document.getElementById('client_id').value = cb.value;
+        if (!clientId) {
+            resetDiagnostics();
+            return;
+        }
 
-            resetSelect('element_type_id', 'Seleccione un tipo de activo');
-            resetSelect('component_id', 'Seleccione un componente');
-            resetDiagnostics('Cargando diagnósticos...');
+        resetDiagnostics('Cargando diagnósticos...');
 
+        try {
             await loadTypes();
             await loadDiagnostics();
+        } catch (error) {
+            console.error(error);
+            resetDiagnostics('Ocurrió un error al cargar la información.');
+        }
+    }
+
+    async function loadTypes() {
+        const clientId = getClientId();
+
+        resetSelect('element_type_id', 'Seleccione un tipo de activo');
+        resetSelect('component_id', 'Seleccione un componente');
+
+        if (!clientId) {
+            resetDiagnostics();
+            return;
         }
 
-        async function loadTypes() {
-            const client = document.getElementById('client_id').value;
+        const select = document.getElementById('element_type_id');
 
-            resetSelect('element_type_id', 'Seleccione un tipo de activo');
-            resetSelect('component_id', 'Seleccione un componente');
-
-            if (!client) {
-                resetDiagnostics();
-                return;
-            }
-
-            const res = await fetch(`/admin/cd/clients/${client}/element-types`);
-            const data = await res.json();
-
-            const select = document.getElementById('element_type_id');
+        try {
+            const data = await fetchJson(`/admin/cd/clients/${clientId}/element-types`);
 
             data.forEach(item => {
                 const option = document.createElement('option');
@@ -205,21 +260,28 @@
             if (data.length === 0) {
                 resetDiagnostics('Este cliente no tiene tipos de activo disponibles.');
             }
+        } catch (error) {
+            console.error(error);
+            resetDiagnostics('No fue posible cargar los tipos de activo.');
+        }
+    }
+
+    async function loadComponents() {
+        const elementTypeId = getElementTypeId();
+
+        resetSelect('component_id', 'Seleccione un componente');
+
+        if (!elementTypeId) {
+            document.querySelectorAll('[name="diagnostics[]"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            return;
         }
 
-        async function loadComponents() {
-            const type = document.getElementById('element_type_id').value;
+        const select = document.getElementById('component_id');
 
-            resetSelect('component_id', 'Seleccione un componente');
-
-            if (!type) {
-                return;
-            }
-
-            const res = await fetch(`/admin/cd/element-types/${type}/components`);
-            const data = await res.json();
-
-            const select = document.getElementById('component_id');
+        try {
+            const data = await fetchJson(`/admin/cd/element-types/${elementTypeId}/components`);
 
             data.forEach(item => {
                 const option = document.createElement('option');
@@ -230,23 +292,29 @@
 
             if (data.length === 0) {
                 resetDiagnostics('Este tipo de activo no tiene componentes disponibles.');
-            } else {
-                await loadAssigned();
-            }
-        }
-
-        async function loadDiagnostics() {
-            const client = document.getElementById('client_id').value;
-
-            if (!client) {
-                resetDiagnostics();
                 return;
             }
 
-            const res = await fetch(`/admin/cd/clients/${client}/diagnostics`);
-            const data = await res.json();
+            await loadAssigned();
+        } catch (error) {
+            console.error(error);
+            resetDiagnostics('No fue posible cargar los componentes.');
+        }
+    }
 
-            const container = document.getElementById('diagnostics_list');
+    async function loadDiagnostics() {
+        const clientId = getClientId();
+
+        if (!clientId) {
+            resetDiagnostics();
+            return;
+        }
+
+        const container = document.getElementById('diagnostics_list');
+
+        try {
+            const data = await fetchJson(`/admin/cd/clients/${clientId}/diagnostics`);
+
             container.innerHTML = '';
 
             if (data.length === 0) {
@@ -267,33 +335,80 @@
                     </label>
                 `;
             });
+        } catch (error) {
+            console.error(error);
+            resetDiagnostics('No fue posible cargar los diagnósticos.');
         }
+    }
 
-        async function loadAssigned() {
-            const component = document.getElementById('component_id').value;
+    async function loadAssigned() {
+        const componentId = getComponentId();
 
-            if (!component) {
-                document.querySelectorAll('[name="diagnostics[]"]').forEach(cb => cb.checked = false);
-                return;
-            }
-
-            const res = await fetch(`/admin/cd/components/${component}/assigned`);
-            const data = await res.json();
-
-            document.querySelectorAll('[name="diagnostics[]"]').forEach(cb => {
-                cb.checked = data.includes(parseInt(cb.value));
+        if (!componentId) {
+            document.querySelectorAll('[name="diagnostics[]"]').forEach(checkbox => {
+                checkbox.checked = false;
             });
+            return;
         }
 
-        document.getElementById('element_type_id').addEventListener('change', loadComponents);
-        document.getElementById('component_id').addEventListener('change', loadAssigned);
+        try {
+            const data = await fetchJson(`/admin/cd/components/${componentId}/assigned`);
+
+            document.querySelectorAll('[name="diagnostics[]"]').forEach(checkbox => {
+                checkbox.checked = data.includes(parseInt(checkbox.value));
+            });
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        const elementTypeSelect = document.getElementById('element_type_id');
+        const componentSelect = document.getElementById('component_id');
+
+        if (elementTypeSelect) {
+            elementTypeSelect.addEventListener('change', loadComponents);
+        }
+
+        if (componentSelect) {
+            componentSelect.addEventListener('change', loadAssigned);
+        }
 
         @if($singleClient)
-            document.addEventListener('DOMContentLoaded', async () => {
-                document.getElementById('client_id').value = {{ $singleClient->id }};
+            const clientInput = document.getElementById('client_id');
+
+            if (clientInput) {
+                clientInput.value = '{{ $singleClient->id }}';
+            }
+
+            try {
                 await loadTypes();
                 await loadDiagnostics();
-            });
+            } catch (error) {
+                console.error(error);
+                resetDiagnostics('Ocurrió un error al cargar la información.');
+            }
+        @else
+            const currentClientId = getClientId();
+
+            if (currentClientId) {
+                markSingleClientCheckbox(currentClientId);
+
+                try {
+                    await loadTypes();
+                    await loadDiagnostics();
+                } catch (error) {
+                    console.error(error);
+                    resetDiagnostics('Ocurrió un error al cargar la información.');
+                }
+            }
         @endif
-    </script>
+    });
+</script>
 @endsection
+
+
+        
+        
+        
+        

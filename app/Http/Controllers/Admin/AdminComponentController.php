@@ -15,18 +15,17 @@ class AdminComponentController extends Controller
 {
     public function index(Request $request): View
     {
-        $user = auth()->user();
-
-        $clients = $user->clients()
-            ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get(['clients.id', 'clients.name']);
+        $clients = $this->getScopedClients();
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
         $selectedClientIds = $showClientColumn
-            ? collect($request->input('client_ids', []))->filter()->map(fn ($id) => (string) $id)->values()->all()
+            ? collect($request->input('client_ids', []))
+                ->filter()
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
         $selectedElementTypeIds = collect($request->input('element_type_ids', []))
@@ -38,6 +37,12 @@ class AdminComponentController extends Controller
         $selectedComponentNames = collect($request->input('component_names', []))
             ->filter()
             ->map(fn ($name) => (string) $name)
+            ->values()
+            ->all();
+
+        $selectedStatuses = collect($request->input('statuses', []))
+            ->filter()
+            ->map(fn ($status) => (string) $status)
             ->values()
             ->all();
 
@@ -56,6 +61,10 @@ class AdminComponentController extends Controller
 
         if (!empty($selectedComponentNames)) {
             $baseQuery->whereIn('name', $selectedComponentNames);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
         }
 
         $components = (clone $baseQuery)
@@ -96,25 +105,33 @@ class AdminComponentController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
+        $statusFilterOptions = collect([
+            ['value' => '1', 'label' => 'Activo'],
+            ['value' => '0', 'label' => 'Inactivo'],
+        ]);
+
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
             'element_type_ids' => $elementTypeFilterOptions,
             'component_names' => $componentNameFilterOptions,
+            'statuses' => $statusFilterOptions,
         ];
 
         $activeFilters = [
             'client_ids' => $selectedClientIds,
             'element_type_ids' => $selectedElementTypeIds,
             'component_names' => $selectedComponentNames,
+            'statuses' => $selectedStatuses,
         ];
 
         $createElementTypes = collect();
+
         if ($singleClient) {
             $createElementTypes = ElementType::query()
                 ->where('client_id', $singleClient->id)
                 ->where('status', true)
                 ->orderBy('name')
-                ->get();
+                ->get(['id', 'name', 'client_id']);
         }
 
         return view('admin.managed-components.index', [
@@ -130,12 +147,7 @@ class AdminComponentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
@@ -151,7 +163,9 @@ class AdminComponentController extends Controller
 
         if (!$elementTypeBelongs) {
             return back()
-                ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
+                ->withErrors([
+                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                ])
                 ->withInput();
         }
 
@@ -163,7 +177,9 @@ class AdminComponentController extends Controller
 
         if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.'])
+                ->withErrors([
+                    'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+                ])
                 ->withInput();
         }
 
@@ -182,12 +198,7 @@ class AdminComponentController extends Controller
 
     public function update(Request $request, Component $component): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($component->client_id, $allowedClientIds), 403);
 
@@ -205,7 +216,9 @@ class AdminComponentController extends Controller
 
         if (!$elementTypeBelongs) {
             return back()
-                ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
+                ->withErrors([
+                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                ])
                 ->withInput();
         }
 
@@ -218,7 +231,9 @@ class AdminComponentController extends Controller
 
         if ($exists) {
             return back()
-                ->withErrors(['name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.'])
+                ->withErrors([
+                    'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+                ])
                 ->withInput();
         }
 
@@ -233,17 +248,21 @@ class AdminComponentController extends Controller
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Componente actualizado correctamente.');
     }
-
-    public function destroy(Request $request, Component $component): RedirectResponse
+public function destroy(Request $request, Component $component): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($component->client_id, $allowedClientIds), 403);
+
+        $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+        $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
+
+        if ($hasDependencies) {
+            return redirect()
+                ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Este componente no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
+        }
 
         $component->delete();
 
@@ -254,14 +273,19 @@ class AdminComponentController extends Controller
 
     public function toggleStatus(Request $request, Component $component): RedirectResponse
     {
-        $user = auth()->user();
-
-        $allowedClientIds = $user->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->toArray();
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($component->client_id, $allowedClientIds), 403);
+
+        $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+        $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
+
+        if (!$hasDependencies) {
+            return redirect()
+                ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+                ->with('error', 'Este componente no tiene dependencias. Puedes eliminarlo si lo deseas.');
+        }
 
         $component->update([
             'status' => !$component->status,
@@ -270,6 +294,39 @@ class AdminComponentController extends Controller
         return redirect()
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Estado del componente actualizado correctamente.');
+    }
+
+    public function getElementTypesByClient(Client $client)
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(in_array($client->id, $allowedClientIds), 403);
+
+        return response()->json(
+            ElementType::query()
+                ->where('client_id', $client->id)
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+        );
+    }
+
+    private function getScopedClients()
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        return $user->clients()
+            ->where('clients.status', true)
+            ->orderBy('clients.name')
+            ->get(['clients.id', 'clients.name']);
     }
 
     private function buildRedirectQuery(Request $request): array
@@ -291,6 +348,12 @@ class AdminComponentController extends Controller
         foreach ((array) $request->input('redirect_component_names', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['component_names'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_statuses', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['statuses'][] = $value;
             }
         }
 

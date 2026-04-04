@@ -28,13 +28,19 @@
     <div>
         <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de usuarios</h2>
         <p class="mt-2 text-slate-600">
-            Crea y administra administradores cliente e inspectores. Los administradores empresa solo quedan en modo lectura.
+            Crea y administra administradores cliente, inspectores, observadores y observadores cliente. Los administradores empresa solo quedan en modo lectura.
         </p>
     </div>
 
     @if(session('success'))
         <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {{ session('success') }}
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ session('error') }}
         </div>
     @endif
 
@@ -262,7 +268,7 @@
 
                                     $isSelf = (int) $user->id === (int) $authUserId;
                                     $isProtectedAdmin = !$isSelf && $roleKey === 'admin';
-                                    $canManage = in_array($roleKey, ['admin_cliente', 'inspector'], true);
+                                    $canManage = in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true);
                                 @endphp
 
                                 <tr class="hover:bg-slate-50">
@@ -288,7 +294,7 @@
                                     @endif
 
                                     <td class="px-5 py-3 text-sm text-slate-700">
-                                        @if(in_array($roleKey, ['inspector', 'admin_cliente']) && $specializedMap->isNotEmpty())
+                                        @if(in_array($roleKey, ['inspector', 'admin_cliente', 'observador', 'observador_cliente']) && $specializedMap->isNotEmpty())
                                             <div class="space-y-1">
                                                 @foreach($user->clients as $client)
                                                     @php
@@ -600,7 +606,7 @@
     }
 
     function roleUsesSpecialization(roleKey) {
-        return ['inspector', 'admin_cliente'].includes(roleKey);
+        return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
     }
 
     function toggleSpecializedPermissions(prefix) {

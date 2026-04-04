@@ -2,35 +2,41 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Area;
 use App\Models\Client;
+use Illuminate\Database\Seeder;
 
 class AreaSeeder extends Seeder
 {
     public function run(): void
     {
-        $corona = Client::where('name', 'CORONA')->firstOrFail();
+        $client = Client::query()
+            ->where('name', 'CORONA')
+            ->firstOrFail();
 
         $areas = [
-            'TRITURACION',
-            'PREHOMO',
-            'APILADO ADITIVOS',
-            'RECLAMADOR ADITIVOS',
-            'APILADO CARBON',
-            'MOLINO CARBON',
-            'MOLINO CRUDO',
-            'MOLINO CEMENTO',
-            'ALTERNOS',
+            ['code' => 'TRI', 'name' => 'TRITURACION'],
+            ['code' => 'PRH', 'name' => 'PREHOMO'],
+            ['code' => 'APA', 'name' => 'APILADO ADITIVOS'],
+            ['code' => 'REA', 'name' => 'RECLAMADOR ADITIVOS'],
+            ['code' => 'APC', 'name' => 'APILADO CARBON'],
+            ['code' => 'MCA', 'name' => 'MOLINO CARBON'],
+            ['code' => 'MCR', 'name' => 'MOLINO CRUDO'],
+            ['code' => 'MCE', 'name' => 'MOLINO CEMENTO'],
+            ['code' => 'ALT', 'name' => 'ALTERNOS'],
         ];
 
-        foreach ($areas as $area) {
-            Area::create([
-                'name' => $area,
-                'code' => null,
-                'client_id' => $corona->id,
-                'status' => true,
-            ]);
+        foreach ($areas as $areaData) {
+            Area::updateOrCreate(
+                [
+                    'client_id' => $client->id,
+                    'name' => $areaData['name'],
+                ],
+                [
+                    'code' => $areaData['code'],
+                    'status' => true,
+                ]
+            );
         }
     }
 }

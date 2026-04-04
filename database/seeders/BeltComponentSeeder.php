@@ -11,53 +11,54 @@ class BeltComponentSeeder extends Seeder
 {
     public function run(): void
     {
-        $clientName = 'CORONA';
+        $client = Client::query()
+            ->where('name', 'CORONA')
+            ->firstOrFail();
 
-        $client = Client::where('name', $clientName)->firstOrFail();
-
-        $elementType = ElementType::where('client_id', $client->id)
+        $elementType = ElementType::query()
+            ->where('client_id', $client->id)
             ->where('name', 'Banda transportadora')
             ->firstOrFail();
 
         $components = [
             'Banda',
-            'Cama de impacto',
-            'Chumaceras y rodamientos',
-            'Sistema de descarga',
-            'Motorreductor',
+            'Chute de descarga',
+            'Encausadores',
             'Guardilla',
+            'Cama de impacto',
+            'Rodillos de carga',
+            'Rodillos de retorno',
+            'Rodillos laterales',
+            'Tambor de cola',
+            'Tambor de inflexion',
+            'Tambor de contra pesa',
+            'Tambor snub',
+            'Tambor motriz',
+            'Motorreductor',
+            'Material acumulado',
+            'Condicion de seguridad',
+            'Cubiertas',
+            'Otros',
             'Limpiador primario',
             'Limpiador secundario',
             'Limpiador tipo arado',
             'Limpiador transversal',
-            'Rodillos de carga',
-            'Rodillos de retorno',
-            'Rodillos laterales',
-            'Tambor cola',
-            'Tambor contra pesa',
-            'Tambor de inflexión',
-            'Tambor motriz',
-            'Tambor snub',
-            'General',
         ];
 
         foreach ($components as $name) {
-            $exists = Component::where('client_id', $client->id)
-                ->where('element_type_id', $elementType->id)
-                ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-                ->exists();
-
-            if (!$exists) {
-                Component::create([
+            Component::updateOrCreate(
+                [
                     'client_id' => $client->id,
                     'element_type_id' => $elementType->id,
-                    'name' => $name,
+                    'name' => trim($name),
+                ],
+                [
                     'code' => null,
                     'is_required' => false,
                     'is_default' => false,
                     'status' => true,
-                ]);
-            }
+                ]
+            );
         }
     }
 }

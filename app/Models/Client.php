@@ -57,4 +57,15 @@ class Client extends Model
             ->withPivot('user_id')
             ->withTimestamps();
     }
+
+    public function hasDependencies(): bool
+    {
+        return $this->areas()->exists()
+            || $this->users()->exists()
+            || $this->elementTypes()->exists()
+            || $this->components()->exists()
+            || $this->diagnostics()->exists()
+            || $this->conditions()->exists();
+    }
+
 }

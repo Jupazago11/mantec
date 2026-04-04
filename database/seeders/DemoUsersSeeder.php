@@ -15,7 +15,7 @@ class DemoUsersSeeder extends Seeder
         $roles = Role::pluck('id', 'key');
 
         $corona = Client::where('name', 'CORONA')->firstOrFail();
-        $argos = Client::where('name', 'ARGOS')->firstOrFail();
+        //$argos = Client::where('name', 'ARGOS')->firstOrFail();
 
         /*
         |--------------------------------------------------------------------------
@@ -23,23 +23,24 @@ class DemoUsersSeeder extends Seeder
         |--------------------------------------------------------------------------
         */
         $adminEmpresa = User::updateOrCreate(
-            ['username' => 'admin.empresa'],
+            ['username' => 'luis.montoya'],
             [
-                'name' => 'Admin Empresa',
-                'document' => '1000',
-                'email' => 'admin.empresa@mantec.local',
+                'name' => 'Luis Montoya',
+                'document' => '1037977052',
+                'email' => 'lui@gmail.com',
                 'password' => Hash::make('123456'),
                 'role_id' => $roles['admin'],
                 'status' => true,
             ]
         );
-        $adminEmpresa->clients()->sync([$corona->id, $argos->id]);
+        $adminEmpresa->clients()->sync([$corona->id]);
 
         /*
         |--------------------------------------------------------------------------
         | ADMIN CLIENTE CORONA (2)
         |--------------------------------------------------------------------------
         */
+        /*
         $adminClienteCorona1 = User::updateOrCreate(
             ['username' => 'admin.corona1'],
             [
@@ -52,58 +53,15 @@ class DemoUsersSeeder extends Seeder
             ]
         );
 
-        $adminClienteCorona2 = User::updateOrCreate(
-            ['username' => 'admin.corona2'],
-            [
-                'name' => 'Admin Cliente Corona 2',
-                'document' => '2002',
-                'email' => 'adminc2.corona@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['admin_cliente'],
-                'status' => true,
-            ]
-        );
-
         $adminClienteCorona1->clients()->sync([$corona->id]);
-        $adminClienteCorona2->clients()->sync([$corona->id]);
+
 
         /*
         |--------------------------------------------------------------------------
-        | ADMIN CLIENTE ARGOS (2)
+        | INSPECTORES CORONA (1)
         |--------------------------------------------------------------------------
         */
-        $adminClienteArgos1 = User::updateOrCreate(
-            ['username' => 'admin.argos1'],
-            [
-                'name' => 'Admin Cliente Argos 1',
-                'document' => '2003',
-                'email' => 'adminc1.argos@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['admin_cliente'],
-                'status' => true,
-            ]
-        );
-
-        $adminClienteArgos2 = User::updateOrCreate(
-            ['username' => 'admin.argos2'],
-            [
-                'name' => 'Admin Cliente Argos 2',
-                'document' => '2004',
-                'email' => 'adminc2.argos@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['admin_cliente'],
-                'status' => true,
-            ]
-        );
-
-        $adminClienteArgos1->clients()->sync([$argos->id]);
-        $adminClienteArgos2->clients()->sync([$argos->id]);
-
         /*
-        |--------------------------------------------------------------------------
-        | INSPECTORES CORONA (2)
-        |--------------------------------------------------------------------------
-        */
         $inspectorCorona1 = User::updateOrCreate(
             ['username' => 'ins.corona1'],
             [
@@ -116,51 +74,7 @@ class DemoUsersSeeder extends Seeder
             ]
         );
 
-        $inspectorCorona2 = User::updateOrCreate(
-            ['username' => 'ins.corona2'],
-            [
-                'name' => 'Inspector Corona 2',
-                'document' => '3002',
-                'email' => 'insp.corona@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['inspector'],
-                'status' => true,
-            ]
-        );
-
         $inspectorCorona1->clients()->sync([$corona->id]);
-        $inspectorCorona2->clients()->sync([$corona->id]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | INSPECTORES ARGOS (2)
-        |--------------------------------------------------------------------------
         */
-        $inspectorArgos1 = User::updateOrCreate(
-            ['username' => 'ins.argos1'],
-            [
-                'name' => 'Inspector Argos 1',
-                'document' => '3003',
-                'email' => 'insp1.argos@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['inspector'],
-                'status' => true,
-            ]
-        );
-
-        $inspectorArgos2 = User::updateOrCreate(
-            ['username' => 'ins.argos2'],
-            [
-                'name' => 'Inspector Argos 2',
-                'document' => '3004',
-                'email' => 'insp2.argos@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['inspector'],
-                'status' => true,
-            ]
-        );
-
-        $inspectorArgos1->clients()->sync([$argos->id]);
-        $inspectorArgos2->clients()->sync([$argos->id]);
     }
 }
