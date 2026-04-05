@@ -249,14 +249,6 @@ class InspectorReportController extends Controller
         return response()->json($diagnostics);
     }
 
-
-
-
-
-
-
-
-
     public function getPendingDiagnostics(Element $element): JsonResponse
     {
         $user = Auth::user();
@@ -318,6 +310,8 @@ class InspectorReportController extends Controller
             'diagnostic_id' => ['required', 'exists:diagnostics,id'],
             'condition_id' => ['required', 'exists:conditions,id'],
             'recommendation' => ['nullable', 'string'],
+            'is_belt_change' => ['nullable', 'in:0,1'],
+
 
             'attachments' => ['nullable', 'array', 'max:6'],
             'attachments.*' => [
@@ -334,6 +328,7 @@ class InspectorReportController extends Controller
         $area = Area::findOrFail($validated['area_id']);
         $element = Element::findOrFail($validated['element_id']);
         $component = Component::findOrFail($validated['component_id']);
+        $diagnostic = \App\Models\Diagnostic::findOrFail($validated['diagnostic_id']);
         $condition = Condition::findOrFail($validated['condition_id']);
 
         abort_unless(
@@ -372,6 +367,21 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
+        $isBeltEstado =
+            mb_strtolower(trim((string) $component->name)) === 'banda' &&
+            mb_strtolower(trim((string) $diagnostic->name)) === 'estado';
+
+        if ($isBeltEstado && !array_key_exists('is_belt_change', $validated)) {
+            return back()
+                ->withErrors(['is_belt_change' => 'Debes indicar si hubo cambio de banda.'])
+                ->withInput();
+        }
+
+        $isBeltChangeValue = $isBeltEstado
+            ? (isset($validated['is_belt_change']) ? (bool) ((int) $validated['is_belt_change']) : null)
+            : null;
+
+
         if ($condition->client_id !== $client->id) {
             return back()
                 ->withErrors(['condition_id' => 'La condición no pertenece al cliente seleccionado.'])
@@ -391,20 +401,24 @@ class InspectorReportController extends Controller
         if ($existingReport) {
             $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
 
+            $updateData = [
+                'condition_id' => $validated['condition_id'],
+            ];
+
+            if ($isBeltEstado) {
+                $updateData['is_belt_change'] = $isBeltChangeValue;
+            }
+
             if ($newRecommendation !== '') {
                 $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
 
-                $existingReport->update([
-                    'condition_id' => $validated['condition_id'],
-                    'recommendation' => $currentRecommendation !== ''
-                        ? $currentRecommendation . PHP_EOL . $newRecommendation
-                        : $newRecommendation,
-                ]);
-            } else {
-                $existingReport->update([
-                    'condition_id' => $validated['condition_id'],
-                ]);
+                $updateData['recommendation'] = $currentRecommendation !== ''
+                    ? $currentRecommendation . PHP_EOL . $newRecommendation
+                    : $newRecommendation;
             }
+
+            $existingReport->update($updateData);
+
 
             if ($request->hasFile('attachments')) {
                 $existingReport->loadMissing('element');
@@ -429,6 +443,7 @@ class InspectorReportController extends Controller
             'condition_id' => $validated['condition_id'],
             'observation' => null,
             'recommendation' => $validated['recommendation'] ?? null,
+            'is_belt_change' => $isBeltChangeValue,
             'orden' => null,
             'aviso' => null,
             'execution_status_id' => null,

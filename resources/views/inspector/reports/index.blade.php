@@ -146,21 +146,35 @@
                             </select>
                         </div>
 
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Condición</label>
-                            <select
-                                name="condition_id"
-                                id="condition_id"
-                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                            >
-                                <option value="">Seleccione una condición</option>
-                                @foreach($conditions as $condition)
-                                    <option value="{{ $condition->id }}">
-                                        {{ $condition->code }}
-                                    </option>
-                                @endforeach
-                            </select>
+                        <div id="belt-change-wrapper" class="hidden md:col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-slate-700">¿Cambio de banda?</label>
+
+                            <div class="flex gap-6 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3">
+                                <label class="flex items-center gap-2 text-sm text-slate-700">
+                                    <input
+                                        type="radio"
+                                        name="is_belt_change"
+                                        value="1"
+                                        class="border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                        {{ old('is_belt_change') === '1' ? 'checked' : '' }}
+                                    >
+                                    <span>Sí</span>
+                                </label>
+
+                                <label class="flex items-center gap-2 text-sm text-slate-700">
+                                    <input
+                                        type="radio"
+                                        name="is_belt_change"
+                                        value="0"
+                                        class="border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                        {{ old('is_belt_change') === '0' ? 'checked' : '' }}
+                                    >
+                                    <span>No</span>
+                                </label>
+                            </div>
+
                         </div>
+
                     </div>
 
                     <div>
@@ -266,12 +280,14 @@ const componentSelect = document.getElementById('component_id');
 const diagnosticSelect = document.getElementById('diagnostic_id');
 const conditionSelect = document.getElementById('condition_id');
 const specialtyBox = document.getElementById('specialty_box');
+const beltChangeWrapper = document.getElementById('belt-change-wrapper');
 
 const specialtiesByClient = @json($specialtiesByClient);
 const selectedAreaId = @json($selectedAreaId);
 const selectedElementId = @json($selectedElementId);
 
 function resetSelect(select, placeholder) {
+    if (!select) return;
     select.innerHTML = `<option value="">${placeholder}</option>`;
 }
 
@@ -279,12 +295,41 @@ function updateSpecialtyBox() {
     const clientId = clientSelect ? clientSelect.value : '';
 
     if (!clientId) {
-        specialtyBox.innerHTML = 'Selecciona un cliente.';
+        if (specialtyBox) {
+            specialtyBox.innerHTML = 'Selecciona un cliente.';
+        }
         return;
     }
 
     const specialties = specialtiesByClient[clientId] || [];
-    specialtyBox.innerHTML = specialties.length ? specialties.join(', ') : 'Sin especialidad asignada.';
+
+    if (specialtyBox) {
+        specialtyBox.innerHTML = specialties.length
+            ? specialties.join(', ')
+            : 'Sin especialidad asignada.';
+    }
+}
+
+function updateBeltChangeVisibility() {
+    if (!beltChangeWrapper || !componentSelect || !diagnosticSelect) return;
+
+    const selectedComponentText =
+        componentSelect.options[componentSelect.selectedIndex]?.text?.trim()?.toLowerCase() ?? '';
+
+    const selectedDiagnosticText =
+        diagnosticSelect.options[diagnosticSelect.selectedIndex]?.text?.trim()?.toLowerCase() ?? '';
+
+    const shouldShow =
+        selectedComponentText === 'banda' &&
+        selectedDiagnosticText === 'estado';
+
+    beltChangeWrapper.classList.toggle('hidden', !shouldShow);
+
+    if (!shouldShow) {
+        document.querySelectorAll('input[name="is_belt_change"]').forEach(input => {
+            input.checked = false;
+        });
+    }
 }
 
 async function loadAreas(preserveAreaId = null, preserveElementId = null) {
@@ -293,37 +338,65 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
     resetSelect(conditionSelect, 'Seleccione una condición');
+    updateBeltChangeVisibility();
 
-    document.getElementById('pending-count').innerText = '0';
-    document.getElementById('pending-container').innerHTML = `
-        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-            Selecciona un activo.
-        </div>
-    `;
+    const pendingCount = document.getElementById('pending-count');
+    const pendingContainer = document.getElementById('pending-container');
 
-    if (!clientSelect.value) {
+    if (pendingCount) {
+        pendingCount.innerText = '0';
+    }
+
+    if (pendingContainer) {
+        pendingContainer.innerHTML = `
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Selecciona un activo.
+            </div>
+        `;
+    }
+
+    if (!clientSelect || !clientSelect.value) {
         return;
     }
 
-    const [areasResponse, conditionsResponse] = await Promise.all([
-        fetch(`/inspector/clients/${clientSelect.value}/areas`),
-        fetch(`/inspector/clients/${clientSelect.value}/conditions`)
-    ]);
+    try {
+        const [areasResponse, conditionsResponse] = await Promise.all([
+            fetch(`/inspector/clients/${clientSelect.value}/areas`, {
+                headers: { 'Accept': 'application/json' }
+            }),
+            fetch(`/inspector/clients/${clientSelect.value}/conditions`, {
+                headers: { 'Accept': 'application/json' }
+            })
+        ]);
 
-    const areas = await areasResponse.json();
-    const conditions = await conditionsResponse.json();
+        if (!areasResponse.ok) {
+            throw new Error(`Error cargando áreas: ${areasResponse.status}`);
+        }
 
-    areas.forEach(area => {
-        areaSelect.innerHTML += `<option value="${area.id}">${area.name}</option>`;
-    });
+        if (!conditionsResponse.ok) {
+            throw new Error(`Error cargando condiciones: ${conditionsResponse.status}`);
+        }
 
-    conditions.forEach(condition => {
-        conditionSelect.innerHTML += `<option value="${condition.id}">${condition.code}</option>`;
-    });
+        const areas = await areasResponse.json();
+        const conditions = await conditionsResponse.json();
 
-    if (preserveAreaId && areas.some(area => String(area.id) === String(preserveAreaId))) {
-        areaSelect.value = String(preserveAreaId);
-        await loadElements(preserveElementId);
+        areas.forEach(area => {
+            areaSelect.innerHTML += `<option value="${area.id}">${area.name}</option>`;
+        });
+
+        conditions.forEach(condition => {
+            conditionSelect.innerHTML += `<option value="${condition.id}">${condition.code}</option>`;
+        });
+
+        if (
+            preserveAreaId &&
+            areas.some(area => String(area.id) === String(preserveAreaId))
+        ) {
+            areaSelect.value = String(preserveAreaId);
+            await loadElements(preserveElementId);
+        }
+    } catch (error) {
+        console.error(error);
     }
 }
 
@@ -331,109 +404,179 @@ async function loadElements(preserveElementId = null) {
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    updateBeltChangeVisibility();
 
-    if (!areaSelect.value) {
+    if (!areaSelect || !areaSelect.value) {
         return;
     }
 
-    const response = await fetch(`/inspector/areas/${areaSelect.value}/elements`);
-    const elements = await response.json();
+    try {
+        const response = await fetch(`/inspector/areas/${areaSelect.value}/elements`, {
+            headers: { 'Accept': 'application/json' }
+        });
 
-    elements.forEach(element => {
-        elementSelect.innerHTML += `<option value="${element.id}">${element.name}</option>`;
-    });
+        if (!response.ok) {
+            throw new Error(`Error cargando activos: ${response.status}`);
+        }
 
-    if (preserveElementId && elements.some(element => String(element.id) === String(preserveElementId))) {
-        elementSelect.value = String(preserveElementId);
-        await loadComponents();
+        const elements = await response.json();
+
+        elements.forEach(element => {
+            elementSelect.innerHTML += `<option value="${element.id}">${element.name}</option>`;
+        });
+
+        if (
+            preserveElementId &&
+            elements.some(element => String(element.id) === String(preserveElementId))
+        ) {
+            elementSelect.value = String(preserveElementId);
+            await loadComponents();
+        }
+    } catch (error) {
+        console.error(error);
     }
 }
 
 async function loadComponents() {
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    updateBeltChangeVisibility();
 
-    if (!elementSelect.value) {
+    if (!elementSelect || !elementSelect.value) {
         return;
     }
 
-    const response = await fetch(`/inspector/elements/${elementSelect.value}/components`);
-    const components = await response.json();
+    try {
+        const response = await fetch(`/inspector/elements/${elementSelect.value}/components`, {
+            headers: { 'Accept': 'application/json' }
+        });
 
-    components.forEach(component => {
-        componentSelect.innerHTML += `<option value="${component.id}">${component.name}</option>`;
-    });
+        if (!response.ok) {
+            throw new Error(`Error cargando componentes: ${response.status}`);
+        }
 
-    await loadPending();
+        const components = await response.json();
+
+        components.forEach(component => {
+            componentSelect.innerHTML += `<option value="${component.id}">${component.name}</option>`;
+        });
+
+        await loadPending();
+    } catch (error) {
+        console.error(error);
+    }
 }
 
 async function loadDiagnostics() {
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    updateBeltChangeVisibility();
 
-    if (!componentSelect.value || !elementSelect.value) {
+    if (!componentSelect || !componentSelect.value || !elementSelect || !elementSelect.value) {
         return;
     }
 
-    const response = await fetch(`/inspector/components/${componentSelect.value}/diagnostics?element_id=${elementSelect.value}`);
-    const diagnostics = await response.json();
+    try {
+        const response = await fetch(
+            `/inspector/components/${componentSelect.value}/diagnostics?element_id=${elementSelect.value}`,
+            { headers: { 'Accept': 'application/json' } }
+        );
 
-    diagnostics.forEach(diagnostic => {
-        diagnosticSelect.innerHTML += `<option value="${diagnostic.id}">${diagnostic.name}</option>`;
-    });
+        if (!response.ok) {
+            throw new Error(`Error cargando diagnósticos: ${response.status}`);
+        }
+
+        const diagnostics = await response.json();
+
+        diagnostics.forEach(diagnostic => {
+            diagnosticSelect.innerHTML += `<option value="${diagnostic.id}">${diagnostic.name}</option>`;
+        });
+
+        updateBeltChangeVisibility();
+    } catch (error) {
+        console.error(error);
+    }
 }
-
-
-
 
 async function loadPending() {
-    if (!elementSelect.value) {
+    if (!elementSelect || !elementSelect.value) {
         return;
     }
 
-    const response = await fetch(`/inspector/elements/${elementSelect.value}/pending-diagnostics`);
-    const data = await response.json();
+    try {
+        const response = await fetch(`/inspector/elements/${elementSelect.value}/pending-diagnostics`, {
+            headers: { 'Accept': 'application/json' }
+        });
 
-    document.getElementById('pending-count').innerText = data.total_pending;
+        if (!response.ok) {
+            throw new Error(`Error cargando pendientes: ${response.status}`);
+        }
 
-    document.getElementById('pending-container').innerHTML = data.items.length
-        ? data.items.map(item => `
-            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <div class="font-medium">${item.component_name}</div>
-                <div class="text-xs text-slate-500">${item.diagnostic_name}</div>
-            </div>
-        `).join('')
-        : `
-            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                No hay diagnósticos pendientes para este activo en la semana actual.
-            </div>
-        `;
+        const data = await response.json();
+
+        const pendingCount = document.getElementById('pending-count');
+        const pendingContainer = document.getElementById('pending-container');
+
+        if (pendingCount) {
+            pendingCount.innerText = data.total_pending;
+        }
+
+        if (pendingContainer) {
+            pendingContainer.innerHTML = data.items.length
+                ? data.items.map(item => `
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        <div class="font-medium">${item.component_name}</div>
+                        <div class="text-xs text-slate-500">${item.diagnostic_name}</div>
+                    </div>
+                `).join('')
+                : `
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                        No hay diagnósticos pendientes para este activo en la semana actual.
+                    </div>
+                `;
+        }
+    } catch (error) {
+        console.error(error);
+    }
 }
 
-if (clientSelect.tagName === 'SELECT') {
+if (clientSelect && clientSelect.tagName === 'SELECT') {
     clientSelect.addEventListener('change', async () => {
         updateSpecialtyBox();
         await loadAreas();
     });
 }
 
-areaSelect.addEventListener('change', async () => {
-    await loadElements();
-});
+if (areaSelect) {
+    areaSelect.addEventListener('change', async () => {
+        await loadElements();
+    });
+}
 
-elementSelect.addEventListener('change', async () => {
-    await loadComponents();
-});
+if (elementSelect) {
+    elementSelect.addEventListener('change', async () => {
+        await loadComponents();
+    });
+}
 
-componentSelect.addEventListener('change', async () => {
-    await loadDiagnostics();
-});
+if (componentSelect) {
+    componentSelect.addEventListener('change', async () => {
+        await loadDiagnostics();
+        updateBeltChangeVisibility();
+    });
+}
+
+if (diagnosticSelect) {
+    diagnosticSelect.addEventListener('change', updateBeltChangeVisibility);
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     updateSpecialtyBox();
+    updateBeltChangeVisibility();
 
-    if (clientSelect.value) {
+    if (clientSelect && clientSelect.value) {
         await loadAreas(selectedAreaId, selectedElementId);
     }
 });
 </script>
+
 @endsection

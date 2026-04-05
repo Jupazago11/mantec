@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Client;
+use App\Models\ElementType;
 
 class DemoUsersSeeder extends Seeder
 {
@@ -15,11 +16,14 @@ class DemoUsersSeeder extends Seeder
         $roles = Role::pluck('id', 'key');
 
         $corona = Client::where('name', 'CORONA')->firstOrFail();
-        //$argos = Client::where('name', 'ARGOS')->firstOrFail();
+
+        $bandaTransportadora = ElementType::where('client_id', $corona->id)
+            ->where('name', 'Banda transportadora')
+            ->firstOrFail();
 
         /*
         |--------------------------------------------------------------------------
-        | ADMIN EMPRESA (ADMIN2)
+        | ADMIN EMPRESA
         |--------------------------------------------------------------------------
         */
         $adminEmpresa = User::updateOrCreate(
@@ -33,37 +37,17 @@ class DemoUsersSeeder extends Seeder
                 'status' => true,
             ]
         );
+
         $adminEmpresa->clients()->sync([$corona->id]);
+        $adminEmpresa->allowedElementTypes()->detach();
 
         /*
         |--------------------------------------------------------------------------
-        | ADMIN CLIENTE CORONA (2)
-        |--------------------------------------------------------------------------
-        */
-        /*
-        $adminClienteCorona1 = User::updateOrCreate(
-            ['username' => 'admin.corona1'],
-            [
-                'name' => 'Admin Cliente Corona 1',
-                'document' => '2001',
-                'email' => 'adminc1.corona@mantec.local',
-                'password' => Hash::make('123456'),
-                'role_id' => $roles['admin_cliente'],
-                'status' => true,
-            ]
-        );
-
-        $adminClienteCorona1->clients()->sync([$corona->id]);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INSPECTORES CORONA (1)
+        | INSPECTOR CORONA
         |--------------------------------------------------------------------------
         */
-        /*
         $inspectorCorona1 = User::updateOrCreate(
-            ['username' => 'ins.corona1'],
+            ['username' => 'ins.corona'],
             [
                 'name' => 'Inspector Corona 1',
                 'document' => '3001',
@@ -75,6 +59,11 @@ class DemoUsersSeeder extends Seeder
         );
 
         $inspectorCorona1->clients()->sync([$corona->id]);
-        */
+
+        $inspectorCorona1->allowedElementTypes()->sync([
+            $bandaTransportadora->id => [
+                'client_id' => $corona->id,
+            ],
+        ]);
     }
 }

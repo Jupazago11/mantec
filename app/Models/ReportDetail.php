@@ -19,6 +19,7 @@ class ReportDetail extends Model
         'recommendation',
         'orden',
         'aviso',
+        'is_belt_change',
         'execution_status_id',
         'execution_date',
     ];
@@ -28,6 +29,7 @@ class ReportDetail extends Model
         return [
             'year' => 'integer',
             'week' => 'integer',
+            'is_belt_change' => 'boolean',
             'execution_date' => 'date',
         ];
     }
