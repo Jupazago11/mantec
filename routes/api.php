@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthApiController;
 use App\Http\Controllers\Inspector\InspectorReportController;
+use App\Http\Controllers\Api\InspectorSyncController;
+use App\Http\Controllers\Api\InspectorSyncFileController;
 
 Route::post('/login', [AuthApiController::class, 'login']);
 
@@ -16,6 +18,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/elements/{element}/components', [InspectorReportController::class, 'getComponentsByElement']);
         Route::get('/components/{component}/diagnostics', [InspectorReportController::class, 'getDiagnosticsByComponent']);
         Route::get('/elements/{element}/pending-diagnostics', [InspectorReportController::class, 'getPendingDiagnostics']);
-        Route::post('/reports', [InspectorReportController::class, 'store']);
+        Route::post('/reports', [InspectorReportController::class, 'store']);      
+
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::post('/reports/sync', [InspectorSyncController::class, 'store']);
+            Route::post('/report-details/{reportDetail}/files', [InspectorSyncFileController::class, 'store']);
+        });
+
+
     });
 });

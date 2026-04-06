@@ -145,6 +145,22 @@
                                 <option value="">Seleccione un diagnóstico</option>
                             </select>
                         </div>
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Condición</label>
+                            <select
+                                name="condition_id"
+                                id="condition_id"
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                            >
+                                <option value="">Seleccione una condición</option>
+                                @foreach($conditions as $condition)
+                                    <option value="{{ $condition->id }}" @selected(old('condition_id') == $condition->id)>
+                                        {{ $condition->code }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
 
                         <div id="belt-change-wrapper" class="hidden md:col-span-2">
                             <label class="mb-2 block text-sm font-medium text-slate-700">¿Cambio de banda?</label>
