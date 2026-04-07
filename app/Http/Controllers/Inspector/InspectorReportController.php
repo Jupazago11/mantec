@@ -7,13 +7,13 @@ use App\Models\Area;
 use App\Models\Client;
 use App\Models\Component;
 use App\Models\Condition;
+use App\Models\Diagnostic;
 use App\Models\Element;
 use App\Models\ReportDetail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use App\Support\ReportFilePathBuilder;
@@ -68,12 +68,6 @@ class InspectorReportController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            $conditions = Condition::where('client_id', $selectedClientId)
-                ->where('status', true)
-                ->orderBy('severity')
-                ->orderBy('name')
-                ->get();
-
             $sessionAreaId = (int) session('inspector_last_area_id');
 
             if ($sessionAreaId && $areas->pluck('id')->contains($sessionAreaId)) {
@@ -94,6 +88,20 @@ class InspectorReportController extends Controller
 
                 if ($sessionElementId && $elements->pluck('id')->contains($sessionElementId)) {
                     $selectedElementId = $sessionElementId;
+                }
+
+                if ($selectedElementId) {
+                    $selectedElement = $elements->firstWhere('id', $selectedElementId);
+
+                    if ($selectedElement) {
+                        $conditions = Condition::query()
+                            ->where('client_id', $selectedClientId)
+                            ->where('element_type_id', $selectedElement->element_type_id)
+                            ->where('status', true)
+                            ->orderBy('severity')
+                            ->orderBy('name')
+                            ->get();
+                    }
                 }
             }
         }
@@ -159,20 +167,33 @@ class InspectorReportController extends Controller
         return response()->json($areas);
     }
 
-    public function getConditionsByClient(Client $client): JsonResponse
+    public function getConditionsByElement(Element $element): JsonResponse
     {
         $user = Auth::user();
 
-        abort_unless($this->userHasClientAccess($user, $client->id), 403);
+        $element->loadMissing('area');
 
-        $conditions = Condition::where('client_id', $client->id)
+        abort_unless($this->userCanAccessElement($user, $element), 403);
+
+        $conditions = Condition::query()
+            ->where('client_id', $element->area->client_id)
+            ->where('element_type_id', $element->element_type_id)
             ->where('status', true)
             ->orderBy('severity')
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'severity', 'color']);
+            ->get([
+                'id',
+                'client_id',
+                'element_type_id',
+                'name',
+                'code',
+                'severity',
+                'color',
+            ]);
 
         return response()->json($conditions);
     }
+
 
     public function getElementsByArea(Area $area): JsonResponse
     {
@@ -289,7 +310,6 @@ class InspectorReportController extends Controller
                         'diagnostic_id' => $diagnostic->id,
                         'diagnostic_name' => $diagnostic->name,
                     ];
-
                 }
             }
         }
@@ -299,7 +319,6 @@ class InspectorReportController extends Controller
             'items' => $pending,
         ]);
     }
-
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -312,7 +331,6 @@ class InspectorReportController extends Controller
             'recommendation' => ['nullable', 'string'],
             'is_belt_change' => ['nullable', 'in:0,1'],
 
-
             'attachments' => ['nullable', 'array', 'max:6'],
             'attachments.*' => [
                 'file',
@@ -321,14 +339,13 @@ class InspectorReportController extends Controller
             ],
         ]);
 
-
         $user = Auth::user();
 
         $client = Client::findOrFail($validated['client_id']);
         $area = Area::findOrFail($validated['area_id']);
         $element = Element::findOrFail($validated['element_id']);
         $component = Component::findOrFail($validated['component_id']);
-        $diagnostic = \App\Models\Diagnostic::findOrFail($validated['diagnostic_id']);
+        $diagnostic = Diagnostic::findOrFail($validated['diagnostic_id']);
         $condition = Condition::findOrFail($validated['condition_id']);
 
         abort_unless(
@@ -337,13 +354,13 @@ class InspectorReportController extends Controller
             'No tienes acceso a este cliente.'
         );
 
-        if ($area->client_id !== $client->id) {
+        if ((int) $area->client_id !== (int) $client->id) {
             return back()
                 ->withErrors(['area_id' => 'El área no pertenece al cliente seleccionado.'])
                 ->withInput();
         }
 
-        if ($element->area_id !== $area->id) {
+        if ((int) $element->area_id !== (int) $area->id) {
             return back()
                 ->withErrors(['element_id' => 'El activo no pertenece al área seleccionada.'])
                 ->withInput();
@@ -381,10 +398,15 @@ class InspectorReportController extends Controller
             ? (isset($validated['is_belt_change']) ? (bool) ((int) $validated['is_belt_change']) : null)
             : null;
 
-
-        if ($condition->client_id !== $client->id) {
+        if ((int) $condition->client_id !== (int) $client->id) {
             return back()
                 ->withErrors(['condition_id' => 'La condición no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
+
+        if ((int) $condition->element_type_id !== (int) $element->element_type_id) {
+            return back()
+                ->withErrors(['condition_id' => 'La condición no pertenece al tipo de activo del elemento seleccionado.'])
                 ->withInput();
         }
 
@@ -418,7 +440,6 @@ class InspectorReportController extends Controller
             }
 
             $existingReport->update($updateData);
-
 
             if ($request->hasFile('attachments')) {
                 $existingReport->loadMissing('element');
@@ -508,7 +529,6 @@ class InspectorReportController extends Controller
             ]);
         }
     }
-
 
     private function storeLastSelectionInSession(int $clientId, int $areaId, int $elementId): void
     {

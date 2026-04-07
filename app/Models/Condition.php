@@ -8,6 +8,7 @@ class Condition extends Model
 {
     protected $fillable = [
         'client_id',
+        'element_type_id',
         'code',
         'name',
         'description',
@@ -27,6 +28,11 @@ class Condition extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function elementType()
+    {
+        return $this->belongsTo(ElementType::class);
     }
 
     public function reportDetails()

@@ -76,6 +76,13 @@ class InspectorSyncController extends Controller
             ], 422);
         }
 
+        if ((int) $condition->element_type_id !== (int) $element->element_type_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La condición no pertenece al tipo de activo del elemento.',
+            ], 422);
+        }
+
         $existing = ReportDetail::query()
             ->where('user_id', $user->id)
             ->where('element_id', $validated['element_id'])
@@ -118,7 +125,6 @@ class InspectorSyncController extends Controller
                 'duplicated' => true,
             ]);
         }
-
 
         $reportDetail = DB::transaction(function () use ($validated, $user) {
             return ReportDetail::create([

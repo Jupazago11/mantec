@@ -12,10 +12,11 @@ class DatabaseSeeder extends Seeder
             RolesSeeder::class,
             UserSeeder::class,
             ClientSeeder::class,
-            ConditionSeeder::class,
+            
             ElementTypeSeeder::class,
             AreaSeeder::class,
             ElementSeeder::class,
+            ConditionSeeder::class,
             ExecutionStatusSeeder::class,
             BeltDiagnosticSeeder::class,
             BeltComponentSeeder::class,

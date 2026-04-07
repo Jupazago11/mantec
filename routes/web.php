@@ -1,10 +1,11 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
+
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inspector\InspectorReportController;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 
 // Global
 use App\Http\Controllers\Admin\ClientController;
@@ -61,7 +62,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | CLIENTES Y USUARIOS GLOBALES
+    | ADMIN - CLIENTES Y USUARIOS GLOBALES
     |--------------------------------------------------------------------------
     | Uso esperado:
     | - superadmin
@@ -85,7 +86,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | MÓDULOS OPERATIVOS COMPARTIDOS
+    | ADMIN - MÓDULOS OPERATIVOS COMPARTIDOS
     |--------------------------------------------------------------------------
     | Uso esperado:
     | - superadmin
@@ -172,10 +173,11 @@ Route::middleware('auth')->group(function () {
     Route::prefix('inspector')->name('inspector.')->group(function () {
         Route::get('/reports', [InspectorReportController::class, 'index'])->name('reports.index');
         Route::post('/reports', [InspectorReportController::class, 'store'])->name('reports.store');
+
         Route::get('/clients/{client}/areas', [InspectorReportController::class, 'getAreasByClient'])->name('clients.areas');
-        Route::get('/clients/{client}/conditions', [InspectorReportController::class, 'getConditionsByClient'])->name('clients.conditions');
         Route::get('/areas/{area}/elements', [InspectorReportController::class, 'getElementsByArea'])->name('areas.elements');
         Route::get('/elements/{element}/components', [InspectorReportController::class, 'getComponentsByElement'])->name('elements.components');
+        Route::get('/elements/{element}/conditions', [InspectorReportController::class, 'getConditionsByElement'])->name('elements.conditions');
         Route::get('/components/{component}/diagnostics', [InspectorReportController::class, 'getDiagnosticsByComponent'])->name('components.diagnostics');
         Route::get('/elements/{element}/pending-diagnostics', [InspectorReportController::class, 'getPendingDiagnostics'])->name('elements.pending-diagnostics');
     });

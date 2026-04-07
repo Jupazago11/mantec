@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Condition;
+use App\Models\ElementType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -27,6 +28,12 @@ class AdminConditionController extends Controller
                 ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
+        $selectedElementTypeIds = collect($request->input('element_type_ids', []))
+            ->filter()
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
+
         $selectedCodes = collect($request->input('codes', []))
             ->filter()
             ->map(fn ($value) => (string) $value)
@@ -45,13 +52,23 @@ class AdminConditionController extends Controller
             ->values()
             ->all();
 
+        $elementTypes = ElementType::query()
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'client_id', 'name']);
+
         $baseQuery = Condition::query()
-            ->with('client')
+            ->with(['client', 'elementType'])
             ->withCount('reportDetails')
             ->whereIn('client_id', $clients->pluck('id'));
 
         if (!empty($selectedClientIds)) {
             $baseQuery->whereIn('client_id', $selectedClientIds);
+        }
+
+        if (!empty($selectedElementTypeIds)) {
+            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
         }
 
         if (!empty($selectedCodes)) {
@@ -68,6 +85,7 @@ class AdminConditionController extends Controller
 
         $conditions = (clone $baseQuery)
             ->orderBy('client_id')
+            ->orderBy('element_type_id')
             ->orderBy('severity')
             ->orderBy('name')
             ->paginate(8)
@@ -79,6 +97,17 @@ class AdminConditionController extends Controller
                 'label' => $client->name,
             ])->values()
             : collect();
+
+        $elementTypeFilterOptions = $elementTypes->map(function ($type) use ($showClientColumn, $clients) {
+            $clientName = $clients->firstWhere('id', $type->client_id)?->name ?? '—';
+
+            return [
+                'value' => (string) $type->id,
+                'label' => $showClientColumn
+                    ? $clientName . ' - ' . $type->name
+                    : $type->name,
+            ];
+        })->values();
 
         $allConditions = Condition::query()
             ->whereIn('client_id', $clients->pluck('id'))
@@ -107,6 +136,7 @@ class AdminConditionController extends Controller
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
+            'element_type_ids' => $elementTypeFilterOptions,
             'codes' => $codeFilterOptions,
             'names' => $nameFilterOptions,
             'statuses' => $statusFilterOptions,
@@ -114,6 +144,7 @@ class AdminConditionController extends Controller
 
         $activeFilters = [
             'client_ids' => $selectedClientIds,
+            'element_type_ids' => $selectedElementTypeIds,
             'codes' => $selectedCodes,
             'names' => $selectedNames,
             'statuses' => $selectedStatuses,
@@ -124,6 +155,7 @@ class AdminConditionController extends Controller
             'singleClient' => $singleClient,
             'showClientColumn' => $showClientColumn,
             'conditions' => $conditions,
+            'elementTypes' => $elementTypes,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
         ]);
@@ -135,12 +167,15 @@ class AdminConditionController extends Controller
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'code' => [
                 'required',
                 'string',
                 'max:50',
                 Rule::unique('conditions', 'code')->where(function ($query) use ($request) {
-                    return $query->where('client_id', $request->input('client_id'));
+                    return $query
+                        ->where('client_id', $request->input('client_id'))
+                        ->where('element_type_id', $request->input('element_type_id'));
                 }),
             ],
             'name' => [
@@ -148,19 +183,30 @@ class AdminConditionController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('conditions', 'name')->where(function ($query) use ($request) {
-                    return $query->where('client_id', $request->input('client_id'));
+                    return $query
+                        ->where('client_id', $request->input('client_id'))
+                        ->where('element_type_id', $request->input('element_type_id'));
                 }),
             ],
             'description' => ['nullable', 'string'],
             'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
-            'code.unique' => 'Ya existe una condición con ese código para este cliente.',
-            'name.unique' => 'Ya existe una condición con ese nombre para este cliente.',
+            'code.unique' => 'Ya existe una condición con ese código para este cliente y tipo de activo.',
+            'name.unique' => 'Ya existe una condición con ese nombre para este cliente y tipo de activo.',
         ]);
+
+        $elementType = ElementType::findOrFail($validated['element_type_id']);
+
+        if ((int) $elementType->client_id !== (int) $validated['client_id']) {
+            return back()
+                ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
 
         Condition::create([
             'client_id' => $validated['client_id'],
+            'element_type_id' => $validated['element_type_id'],
             'code' => trim($validated['code']),
             'name' => trim($validated['name']),
             'description' => $validated['description'] ? trim($validated['description']) : null,
@@ -182,6 +228,7 @@ class AdminConditionController extends Controller
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'code' => [
                 'required',
                 'string',
@@ -189,7 +236,9 @@ class AdminConditionController extends Controller
                 Rule::unique('conditions', 'code')
                     ->ignore($condition->id)
                     ->where(function ($query) use ($request) {
-                        return $query->where('client_id', $request->input('client_id'));
+                        return $query
+                            ->where('client_id', $request->input('client_id'))
+                            ->where('element_type_id', $request->input('element_type_id'));
                     }),
             ],
             'name' => [
@@ -199,19 +248,30 @@ class AdminConditionController extends Controller
                 Rule::unique('conditions', 'name')
                     ->ignore($condition->id)
                     ->where(function ($query) use ($request) {
-                        return $query->where('client_id', $request->input('client_id'));
+                        return $query
+                            ->where('client_id', $request->input('client_id'))
+                            ->where('element_type_id', $request->input('element_type_id'));
                     }),
             ],
             'description' => ['nullable', 'string'],
             'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
-            'code.unique' => 'Ya existe una condición con ese código para este cliente.',
-            'name.unique' => 'Ya existe una condición con ese nombre para este cliente.',
+            'code.unique' => 'Ya existe una condición con ese código para este cliente y tipo de activo.',
+            'name.unique' => 'Ya existe una condición con ese nombre para este cliente y tipo de activo.',
         ]);
+
+        $elementType = ElementType::findOrFail($validated['element_type_id']);
+
+        if ((int) $elementType->client_id !== (int) $validated['client_id']) {
+            return back()
+                ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
 
         $condition->update([
             'client_id' => $validated['client_id'],
+            'element_type_id' => $validated['element_type_id'],
             'code' => trim($validated['code']),
             'name' => trim($validated['name']),
             'description' => $validated['description'] ? trim($validated['description']) : null,
@@ -298,6 +358,12 @@ class AdminConditionController extends Controller
         foreach ((array) $request->input('redirect_client_ids', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['client_ids'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_element_type_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['element_type_ids'][] = $value;
             }
         }
 

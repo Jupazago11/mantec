@@ -145,6 +145,7 @@
                                 <option value="">Seleccione un diagnóstico</option>
                             </select>
                         </div>
+
                         <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">Condición</label>
                             <select
@@ -160,7 +161,6 @@
                                 @endforeach
                             </select>
                         </div>
-
 
                         <div id="belt-change-wrapper" class="hidden md:col-span-2">
                             <label class="mb-2 block text-sm font-medium text-slate-700">¿Cambio de banda?</label>
@@ -189,8 +189,10 @@
                                 </label>
                             </div>
 
+                            <p class="mt-2 text-xs text-slate-500">
+                                Esta pregunta solo aplica cuando el componente es Banda y el diagnóstico es Estado.
+                            </p>
                         </div>
-
                     </div>
 
                     <div>
@@ -226,8 +228,7 @@
                 </form>
             </div>
         </div>
-
-        <div class="xl:col-span-1">
+<div class="xl:col-span-1">
             <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -376,32 +377,18 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
     }
 
     try {
-        const [areasResponse, conditionsResponse] = await Promise.all([
-            fetch(`/inspector/clients/${clientSelect.value}/areas`, {
-                headers: { 'Accept': 'application/json' }
-            }),
-            fetch(`/inspector/clients/${clientSelect.value}/conditions`, {
-                headers: { 'Accept': 'application/json' }
-            })
-        ]);
+        const response = await fetch(`/inspector/clients/${clientSelect.value}/areas`, {
+            headers: { 'Accept': 'application/json' }
+        });
 
-        if (!areasResponse.ok) {
-            throw new Error(`Error cargando áreas: ${areasResponse.status}`);
+        if (!response.ok) {
+            throw new Error(`Error cargando áreas: ${response.status}`);
         }
 
-        if (!conditionsResponse.ok) {
-            throw new Error(`Error cargando condiciones: ${conditionsResponse.status}`);
-        }
-
-        const areas = await areasResponse.json();
-        const conditions = await conditionsResponse.json();
+        const areas = await response.json();
 
         areas.forEach(area => {
             areaSelect.innerHTML += `<option value="${area.id}">${area.name}</option>`;
-        });
-
-        conditions.forEach(condition => {
-            conditionSelect.innerHTML += `<option value="${condition.id}">${condition.code}</option>`;
         });
 
         if (
@@ -420,6 +407,7 @@ async function loadElements(preserveElementId = null) {
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
     if (!areaSelect || !areaSelect.value) {
@@ -447,12 +435,12 @@ async function loadElements(preserveElementId = null) {
         ) {
             elementSelect.value = String(preserveElementId);
             await loadComponents();
+            await loadConditions();
         }
     } catch (error) {
         console.error(error);
     }
 }
-
 async function loadComponents() {
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
@@ -478,6 +466,32 @@ async function loadComponents() {
         });
 
         await loadPending();
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function loadConditions() {
+    resetSelect(conditionSelect, 'Seleccione una condición');
+
+    if (!elementSelect || !elementSelect.value) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/inspector/elements/${elementSelect.value}/conditions`, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error cargando condiciones: ${response.status}`);
+        }
+
+        const conditions = await response.json();
+
+        conditions.forEach(condition => {
+            conditionSelect.innerHTML += `<option value="${condition.id}">${condition.code}</option>`;
+        });
     } catch (error) {
         console.error(error);
     }
@@ -571,6 +585,7 @@ if (areaSelect) {
 if (elementSelect) {
     elementSelect.addEventListener('change', async () => {
         await loadComponents();
+        await loadConditions();
     });
 }
 
@@ -594,5 +609,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 </script>
-
 @endsection
