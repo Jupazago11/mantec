@@ -10,7 +10,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens,Notifiable;
+    use HasApiTokens, Notifiable;
 
     protected $fillable = [
         'name',
@@ -62,6 +62,29 @@ class User extends Authenticatable
         return $this->allowedElementTypes()
             ->wherePivot('client_id', $clientId)
             ->where('element_types.id', $elementTypeId)
+            ->exists();
+    }
+
+    public function allowedAreas(): BelongsToMany
+    {
+        return $this->belongsToMany(Area::class, 'user_client_element_type_areas')
+            ->withPivot('client_id', 'element_type_id')
+            ->withTimestamps();
+    }
+
+    public function allowedAreasForClientAndElementType(int $clientId, int $elementTypeId)
+    {
+        return $this->allowedAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('element_type_id', $elementTypeId);
+    }
+
+    public function hasAreaAccessForElementType(int $clientId, int $elementTypeId, int $areaId): bool
+    {
+        return $this->allowedAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('element_type_id', $elementTypeId)
+            ->where('areas.id', $areaId)
             ->exists();
     }
 

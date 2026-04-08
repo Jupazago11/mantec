@@ -111,22 +111,63 @@
                         <label class="mb-2 block text-sm font-medium text-slate-700">
                             Tipos de activo permitidos por cliente
                         </label>
+
                         <div class="space-y-4 rounded-xl border border-slate-300 p-4">
                             @foreach($clients as $client)
                                 <div class="create-client-element-types-block hidden" data-client-id="{{ $client->id }}">
                                     <p class="mb-2 text-sm font-semibold text-slate-900">{{ $client->name }}</p>
-                                    <div class="grid gap-2">
+
+                                    <div class="grid gap-3">
                                         @forelse(($elementTypesByClient[$client->id] ?? collect()) as $elementType)
-                                            <label class="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
-                                                <input
-                                                    type="checkbox"
-                                                    name="element_type_permissions[{{ $client->id }}][]"
-                                                    value="{{ $elementType->id }}"
-                                                    class="rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                    {{ in_array($elementType->id, old("element_type_permissions.$client->id", [])) ? 'checked' : '' }}
+                                            <div
+                                                class="rounded-xl border border-slate-200 p-3"
+                                                data-create-element-type-card
+                                                data-client-id="{{ $client->id }}"
+                                                data-element-type-id="{{ $elementType->id }}"
+                                            >
+                                                <label class="flex items-center gap-3 text-sm text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="element_type_permissions[{{ $client->id }}][]"
+                                                        value="{{ $elementType->id }}"
+                                                        class="create-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                        data-client-id="{{ $client->id }}"
+                                                        data-element-type-id="{{ $elementType->id }}"
+                                                        onchange="toggleAreaPermissionsByElementType('create')"
+                                                        {{ in_array($elementType->id, old("element_type_permissions.$client->id", [])) ? 'checked' : '' }}
+                                                    >
+                                                    <span>{{ $elementType->name }}</span>
+                                                </label>
+
+                                                <div
+                                                    class="create-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                                    data-client-id="{{ $client->id }}"
+                                                    data-element-type-id="{{ $elementType->id }}"
                                                 >
-                                                {{ $elementType->name }}
-                                            </label>
+                                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                        Áreas permitidas para esta especialidad
+                                                    </p>
+
+                                                    <div class="grid gap-2">
+                                                        @forelse(($areasByClient[$client->id] ?? collect()) as $area)
+                                                            <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
+                                                                    value="{{ $area->id }}"
+                                                                    class="create-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                    data-client-id="{{ $client->id }}"
+                                                                    data-element-type-id="{{ $elementType->id }}"
+                                                                    {{ in_array($area->id, old("area_permissions.$client->id.$elementType->id", [])) ? 'checked' : '' }}
+                                                                >
+                                                                <span>{{ $area->name }}</span>
+                                                            </label>
+                                                        @empty
+                                                            <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
+                                                        @endforelse
+                                                    </div>
+                                                </div>
+                                            </div>
                                         @empty
                                             <p class="text-sm text-slate-500">No hay tipos de activo para este cliente.</p>
                                         @endforelse
@@ -135,6 +176,7 @@
                             @endforeach
                         </div>
                     </div>
+
 
                     @foreach(($activeFilters['client_ids'] ?? []) as $value)
                         <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
@@ -340,12 +382,22 @@
                                                         ->groupBy(fn ($item) => $item->pivot->client_id)
                                                         ->map(fn ($group) => $group->pluck('id')->values()->toArray())
                                                         ->toArray(),
+                                                    'area_permissions' => $user->allowedAreas
+                                                        ->groupBy(fn ($item) => $item->pivot->client_id)
+                                                        ->map(function ($groupByClient) {
+                                                            return $groupByClient
+                                                                ->groupBy(fn ($item) => $item->pivot->element_type_id)
+                                                                ->map(fn ($groupByType) => $groupByType->pluck('id')->values()->toArray())
+                                                                ->toArray();
+                                                        })
+                                                        ->toArray(),
                                                     'action' => route('admin.managed-users.update', $user),
                                                     'is_self' => $isSelf,
                                                     'is_protected_admin' => $isProtectedAdmin,
                                                     'can_manage' => $canManage,
                                                 ];
                                             @endphp
+
 
                                             @if($isSelf)
                                                 <button
@@ -420,120 +472,164 @@
     </div>
 </div>
 
-<div id="editUserModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
-    <div class="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <h3 class="text-lg font-semibold text-slate-900">Editar usuario</h3>
-            <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditUserModal()">✕</button>
-        </div>
-
-        <form id="editUserForm" method="POST" class="space-y-5 p-6">
-            @csrf
-            @method('PUT')
-
-            <div id="edit_readonly_message" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Para tu propio usuario solo puedes cambiar la contraseña.
+<div id="editUserModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
+    <div class="flex min-h-full w-full items-start justify-center">
+        <div class="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl">
+            <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-slate-900">Editar usuario</h3>
+                <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditUserModal()">✕</button>
             </div>
 
-            <x-form.input name="name" label="Nombre" id="edit_name" />
-            <x-form.input name="document" label="Documento" id="edit_document" />
-            <x-form.input name="username" label="Usuario" id="edit_username" />
-            <x-form.input name="password" label="Contraseña" type="password" id="edit_password" placeholder="Dejar en blanco para no cambiar" />
+            <form id="editUserForm" method="POST" class="flex-1 overflow-y-auto space-y-5 p-6">
 
-            <div id="edit_role_wrapper">
-                <label class="mb-2 block text-sm font-medium text-slate-700">Rol</label>
-                <select
-                    name="role_id"
-                    id="edit_role_id"
-                    class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    onchange="toggleSpecializedPermissions('edit')"
-                >
-                    <option value="">Seleccione un rol</option>
-                    @foreach($roles as $role)
-                        <option value="{{ $role->id }}" data-role-key="{{ $role->key }}">
-                            {{ $role->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
 
-            <div id="edit_clients_wrapper">
-                <label class="mb-2 block text-sm font-medium text-slate-700">Clientes</label>
-                <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
-                    @foreach($clients as $client)
-                        <label class="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                                type="checkbox"
-                                name="clients[]"
-                                value="{{ $client->id }}"
-                                class="edit-client-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                onchange="toggleClientElementTypes('edit')"
-                            >
-                            {{ $client->name }}
-                        </label>
-                    @endforeach
+                @csrf
+                @method('PUT')
+
+                <div id="edit_readonly_message" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Para tu propio usuario solo puedes cambiar la contraseña.
                 </div>
-            </div>
 
-            <div id="edit_specialized_permissions_wrapper" class="hidden">
-                <label class="mb-2 block text-sm font-medium text-slate-700">
-                    Tipos de activo permitidos por cliente
-                </label>
-                <div class="space-y-4 rounded-xl border border-slate-300 p-4">
-                    @foreach($clients as $client)
-                        <div class="edit-client-element-types-block hidden" data-client-id="{{ $client->id }}">
-                            <p class="mb-2 text-sm font-semibold text-slate-900">{{ $client->name }}</p>
-                            <div class="grid gap-2">
-                                @forelse(($elementTypesByClient[$client->id] ?? collect()) as $elementType)
-                                    <label class="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
-                                        <input
-                                            type="checkbox"
-                                            name="element_type_permissions[{{ $client->id }}][]"
-                                            value="{{ $elementType->id }}"
-                                            class="edit-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                <x-form.input name="name" label="Nombre" id="edit_name" />
+                <x-form.input name="document" label="Documento" id="edit_document" />
+                <x-form.input name="username" label="Usuario" id="edit_username" />
+                <x-form.input name="password" label="Contraseña" type="password" id="edit_password" placeholder="Dejar en blanco para no cambiar" />
+
+                <div id="edit_role_wrapper">
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Rol</label>
+                    <select
+                        name="role_id"
+                        id="edit_role_id"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        onchange="toggleSpecializedPermissions('edit')"
+                    >
+                        <option value="">Seleccione un rol</option>
+                        @foreach($roles as $role)
+                            <option value="{{ $role->id }}" data-role-key="{{ $role->key }}">
+                                {{ $role->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div id="edit_clients_wrapper">
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Clientes</label>
+                    <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
+                        @foreach($clients as $client)
+                            <label class="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    name="clients[]"
+                                    value="{{ $client->id }}"
+                                    class="edit-client-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                    onchange="toggleClientElementTypes('edit')"
+                                >
+                                {{ $client->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div id="edit_specialized_permissions_wrapper" class="hidden">
+                    <label class="mb-2 block text-sm font-medium text-slate-700">
+                        Tipos de activo permitidos por cliente
+                    </label>
+
+                    <div class="space-y-4 rounded-xl border border-slate-300 p-4">
+                        @foreach($clients as $client)
+                            <div class="edit-client-element-types-block hidden" data-client-id="{{ $client->id }}">
+                                <p class="mb-2 text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+
+                                <div class="grid gap-3">
+                                    @forelse(($elementTypesByClient[$client->id] ?? collect()) as $elementType)
+                                        <div
+                                            class="rounded-xl border border-slate-200 p-3"
+                                            data-edit-element-type-card
                                             data-client-id="{{ $client->id }}"
+                                            data-element-type-id="{{ $elementType->id }}"
                                         >
-                                        {{ $elementType->name }}
-                                    </label>
-                                @empty
-                                    <p class="text-sm text-slate-500">No hay tipos de activo para este cliente.</p>
-                                @endforelse
+                                            <label class="flex items-center gap-3 text-sm text-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    name="element_type_permissions[{{ $client->id }}][]"
+                                                    value="{{ $elementType->id }}"
+                                                    class="edit-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                    data-client-id="{{ $client->id }}"
+                                                    data-element-type-id="{{ $elementType->id }}"
+                                                    onchange="toggleAreaPermissionsByElementType('edit')"
+                                                >
+                                                <span>{{ $elementType->name }}</span>
+                                            </label>
+
+                                            <div
+                                                class="edit-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                                data-client-id="{{ $client->id }}"
+                                                data-element-type-id="{{ $elementType->id }}"
+                                            >
+                                                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                    Áreas permitidas para esta especialidad
+                                                </p>
+
+                                                <div class="grid gap-2">
+                                                    @forelse(($areasByClient[$client->id] ?? collect()) as $area)
+                                                        <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                                            <input
+                                                                type="checkbox"
+                                                                name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
+                                                                value="{{ $area->id }}"
+                                                                class="edit-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                data-client-id="{{ $client->id }}"
+                                                                data-element-type-id="{{ $elementType->id }}"
+                                                            >
+                                                            <span>{{ $area->name }}</span>
+                                                        </label>
+                                                    @empty
+                                                        <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <p class="text-sm text-slate-500">No hay tipos de activo para este cliente.</p>
+                                    @endforelse
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                 </div>
-            </div>
 
-            @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['names'] ?? []) as $value)
-                <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['role_keys'] ?? []) as $value)
-                <input type="hidden" name="redirect_role_keys[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['statuses'] ?? []) as $value)
-                <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-            @endforeach
-            <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
 
-            <div class="flex justify-end gap-3">
-                <button
-                    type="button"
-                    onclick="closeEditUserModal()"
-                    class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                    Cancelar
-                </button>
-                <button
-                    type="submit"
-                    class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                >
-                    Actualizar usuario
-                </button>
-            </div>
-        </form>
+                @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                    <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['names'] ?? []) as $value)
+                    <input type="hidden" name="redirect_names[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['role_keys'] ?? []) as $value)
+                    <input type="hidden" name="redirect_role_keys[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['statuses'] ?? []) as $value)
+                    <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
+                @endforeach
+                <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
+
+                <div class="flex justify-end gap-3 border-t border-slate-200 pt-4 shrink-0">
+                    <button
+                        type="button"
+                        onclick="closeEditUserModal()"
+                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                    >
+                        Actualizar usuario
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -605,8 +701,14 @@
         return option ? option.dataset.roleKey : '';
     }
 
+
+
     function roleUsesSpecialization(roleKey) {
-        return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
+    return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
+}
+
+    function roleUsesAreaPermissions(roleKey) {
+        return roleKey === 'admin_cliente';
     }
 
     function toggleSpecializedPermissions(prefix) {
@@ -618,6 +720,9 @@
         } else {
             wrapper.classList.add('hidden');
         }
+
+        toggleClientElementTypes(prefix);
+        toggleAreaPermissionsByElementType(prefix);
     }
 
     function toggleClientElementTypes(prefix) {
@@ -637,7 +742,92 @@
                 });
             }
         });
+
+        toggleAreaPermissionsByElementType(prefix);
     }
+
+    function toggleAreaPermissionsByElementType(prefix) {
+        const roleKey = getSelectedRoleKey(prefix);
+        const useAreas = roleUsesAreaPermissions(roleKey);
+
+        document.querySelectorAll(`.${prefix}-area-permissions-block`).forEach(block => {
+            const clientId = parseInt(block.dataset.clientId);
+            const elementTypeId = parseInt(block.dataset.elementTypeId);
+
+            const elementTypeCheckbox = document.querySelector(
+                `.${prefix}-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`
+            );
+
+            const shouldShow = useAreas && !!elementTypeCheckbox && elementTypeCheckbox.checked;
+
+            block.classList.toggle('hidden', !shouldShow);
+
+            if (!shouldShow) {
+                block.querySelectorAll(`.${prefix}-area-checkbox`).forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+    }
+
+    function openEditUserModal(user) {
+        document.getElementById('editUserForm').action = user.action;
+        document.getElementById('edit_name').value = user.name ?? '';
+        document.getElementById('edit_document').value = user.document ?? '';
+        document.getElementById('edit_username').value = user.username ?? '';
+        document.getElementById('edit_password').value = '';
+        document.getElementById('edit_role_id').value = user.role_id ?? '';
+
+        document.querySelectorAll('.edit-client-checkbox').forEach(cb => {
+            cb.checked = (user.clients || []).includes(parseInt(cb.value));
+        });
+
+        document.querySelectorAll('.edit-element-type-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+
+        document.querySelectorAll('.edit-area-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+
+        Object.entries(user.permissions || {}).forEach(([clientId, elementTypeIds]) => {
+            elementTypeIds.forEach(elementTypeId => {
+                const checkbox = document.querySelector(
+                    `.edit-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`
+                );
+
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        });
+
+        Object.entries(user.area_permissions || {}).forEach(([clientId, byType]) => {
+            Object.entries(byType || {}).forEach(([elementTypeId, areaIds]) => {
+                areaIds.forEach(areaId => {
+                    const checkbox = document.querySelector(
+                        `.edit-area-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"][value="${areaId}"]`
+                    );
+
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            });
+        });
+
+        setEditReadOnlyMode(!!user.is_self);
+        toggleSpecializedPermissions('edit');
+        toggleClientElementTypes('edit');
+        toggleAreaPermissionsByElementType('edit');
+
+        const modal = document.getElementById('editUserModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+
+   
 
     function setEditReadOnlyMode(isSelf) {
         const readonlyMessage = document.getElementById('edit_readonly_message');
@@ -672,42 +862,7 @@
         }
     }
 
-    function openEditUserModal(user) {
-        document.getElementById('editUserForm').action = user.action;
-        document.getElementById('edit_name').value = user.name ?? '';
-        document.getElementById('edit_document').value = user.document ?? '';
-        document.getElementById('edit_username').value = user.username ?? '';
-        document.getElementById('edit_password').value = '';
-        document.getElementById('edit_role_id').value = user.role_id ?? '';
-
-        document.querySelectorAll('.edit-client-checkbox').forEach(cb => {
-            cb.checked = (user.clients || []).includes(parseInt(cb.value));
-        });
-
-        document.querySelectorAll('.edit-element-type-checkbox').forEach(cb => {
-            cb.checked = false;
-        });
-
-        Object.entries(user.permissions || {}).forEach(([clientId, elementTypeIds]) => {
-            elementTypeIds.forEach(elementTypeId => {
-                const checkbox = document.querySelector(
-                    `.edit-element-type-checkbox[data-client-id="${clientId}"][value="${elementTypeId}"]`
-                );
-
-                if (checkbox) {
-                    checkbox.checked = true;
-                }
-            });
-        });
-
-        setEditReadOnlyMode(!!user.is_self);
-        toggleSpecializedPermissions('edit');
-        toggleClientElementTypes('edit');
-
-        const modal = document.getElementById('editUserModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    }
+    
 
     function closeEditUserModal() {
         const modal = document.getElementById('editUserModal');
@@ -869,7 +1024,9 @@
     document.addEventListener('DOMContentLoaded', function () {
         toggleSpecializedPermissions('create');
         toggleClientElementTypes('create');
+        toggleAreaPermissionsByElementType('create');
     });
+
 
     document.addEventListener('click', function (event) {
         const popover = document.getElementById('filterPopover');

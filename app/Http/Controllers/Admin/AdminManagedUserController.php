@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\Role;
+use App\Models\Area;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+
 
 class AdminManagedUserController extends Controller
 {
@@ -63,6 +65,13 @@ class AdminManagedUserController extends Controller
             ->get()
             ->groupBy('client_id');
 
+        $areasByClient = Area::query()
+            ->whereIn('client_id', $clientIds)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get()
+            ->groupBy('client_id');
+
         $selectedClientIds = $showClientColumn
             ? collect($request->input('client_ids', []))
                 ->filter()
@@ -89,13 +98,12 @@ class AdminManagedUserController extends Controller
             ->values()
             ->all();
 
-        $authUserClientIds = $authUser->clients()->pluck('clients.id');
-
         $baseQuery = User::query()
             ->with([
                 'role',
                 'clients',
                 'allowedElementTypes',
+                'allowedAreas',
             ])
             ->where(function ($query) use ($clientIds, $authUser) {
                 $query->whereHas('clients', function ($subQuery) use ($clientIds) {
@@ -112,9 +120,7 @@ class AdminManagedUserController extends Controller
                     $subQuery->whereIn('clients.id', $selectedClientIds);
                 });
 
-                if (in_array((string) $authUser->id, [(string) $authUser->id], true)) {
-                    $query->orWhere('id', $authUser->id);
-                }
+                $query->orWhere('id', $authUser->id);
             });
         }
 
@@ -184,6 +190,7 @@ class AdminManagedUserController extends Controller
             'roles' => $assignableRoles,
             'visibleRoles' => $visibleRoles,
             'elementTypesByClient' => $elementTypesByClient,
+            'areasByClient' => $areasByClient,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'authUserId' => $authUser->id,
@@ -227,6 +234,7 @@ class AdminManagedUserController extends Controller
             'clients' => ['required', 'array', 'min:1'],
             'clients.*' => [Rule::in($allowedClientIds)],
             'element_type_permissions' => ['nullable', 'array'],
+            'area_permissions' => ['nullable', 'array'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -239,6 +247,14 @@ class AdminManagedUserController extends Controller
 
         if (in_array($role->key, $specializedRoleKeys, true)) {
             $this->validateSpecialties($clientIds, $validated['element_type_permissions'] ?? []);
+        }
+
+        if ($role->key === 'admin_cliente') {
+            $this->validateAreaPermissions(
+                $clientIds,
+                $validated['element_type_permissions'] ?? [],
+                $validated['area_permissions'] ?? []
+            );
         }
 
         DB::transaction(function () use ($validated, $role, $clientIds) {
@@ -258,6 +274,14 @@ class AdminManagedUserController extends Controller
                 $role->key,
                 $clientIds,
                 $validated['element_type_permissions'] ?? []
+            );
+
+            $this->syncAreaPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['element_type_permissions'] ?? [],
+                $validated['area_permissions'] ?? []
             );
         });
 
@@ -323,6 +347,7 @@ class AdminManagedUserController extends Controller
             'clients' => ['required', 'array', 'min:1'],
             'clients.*' => [Rule::in($allowedClientIds)],
             'element_type_permissions' => ['nullable', 'array'],
+            'area_permissions' => ['nullable', 'array'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -335,6 +360,14 @@ class AdminManagedUserController extends Controller
 
         if (in_array($role->key, $specializedRoleKeys, true)) {
             $this->validateSpecialties($clientIds, $validated['element_type_permissions'] ?? []);
+        }
+
+        if ($role->key === 'admin_cliente') {
+            $this->validateAreaPermissions(
+                $clientIds,
+                $validated['element_type_permissions'] ?? [],
+                $validated['area_permissions'] ?? []
+            );
         }
 
         DB::transaction(function () use ($user, $validated, $role, $clientIds) {
@@ -350,6 +383,7 @@ class AdminManagedUserController extends Controller
             }
 
             $user->update($payload);
+
             $user->clients()->sync($clientIds);
 
             $this->syncElementTypePermissions(
@@ -358,12 +392,21 @@ class AdminManagedUserController extends Controller
                 $clientIds,
                 $validated['element_type_permissions'] ?? []
             );
+
+            $this->syncAreaPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['element_type_permissions'] ?? [],
+                $validated['area_permissions'] ?? []
+            );
         });
 
         return redirect()
             ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
             ->with('success', 'Usuario actualizado correctamente.');
     }
+
 
     public function toggleStatus(Request $request, User $user): RedirectResponse
     {
@@ -449,6 +492,119 @@ class AdminManagedUserController extends Controller
             DB::table('user_client_element_type')->insert($rows);
         }
     }
+
+    private function validateAreaPermissions(array $clientIds, array $permissions, array $areaPermissions): void
+{
+    foreach ($clientIds as $clientId) {
+        $elementTypeIds = collect($permissions[$clientId] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($elementTypeIds as $elementTypeId) {
+            $selectedAreaIds = collect($areaPermissions[$clientId][$elementTypeId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if (empty($selectedAreaIds)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'area_permissions' => 'Debes asignar al menos un área por cada especialidad del administrador cliente.',
+                ]);
+            }
+
+            $validAreaCount = Area::query()
+                ->where('client_id', $clientId)
+                ->whereIn('id', $selectedAreaIds)
+                ->count();
+
+            if ($validAreaCount !== count($selectedAreaIds)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'area_permissions' => 'Una o más áreas seleccionadas no pertenecen al cliente correspondiente.',
+                ]);
+            }
+
+            $elementTypeBelongsToClient = ElementType::query()
+                ->where('id', $elementTypeId)
+                ->where('client_id', $clientId)
+                ->exists();
+
+            if (!$elementTypeBelongsToClient) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'area_permissions' => 'Una o más especialidades no pertenecen al cliente correspondiente.',
+                ]);
+            }
+        }
+    }
+}
+
+    private function syncAreaPermissions(
+        User $user,
+        string $roleKey,
+        array $clientIds,
+        array $permissions,
+        array $areaPermissions
+    ): void {
+        DB::table('user_client_element_type_areas')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        if ($roleKey !== 'admin_cliente') {
+            return;
+        }
+
+        $rows = [];
+
+        foreach ($clientIds as $clientId) {
+            $elementTypeIds = collect($permissions[$clientId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            $validElementTypeIds = ElementType::query()
+                ->where('client_id', $clientId)
+                ->whereIn('id', $elementTypeIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            foreach ($validElementTypeIds as $elementTypeId) {
+                $selectedAreaIds = collect($areaPermissions[$clientId][$elementTypeId] ?? [])
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values();
+
+                $validAreaIds = Area::query()
+                    ->where('client_id', $clientId)
+                    ->whereIn('id', $selectedAreaIds)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+
+                foreach ($validAreaIds as $areaId) {
+                    $rows[] = [
+                        'user_id' => $user->id,
+                        'client_id' => $clientId,
+                        'element_type_id' => $elementTypeId,
+                        'area_id' => $areaId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+        }
+
+        if (!empty($rows)) {
+            DB::table('user_client_element_type_areas')->insert($rows);
+        }
+    }
+
 
     private function canViewUser(User $authUser, User $targetUser): bool
     {

@@ -469,9 +469,10 @@
             type: 'checklist_object',
             title: 'Estado',
             inputName: 'statuses',
-            options: [{"value":"1","label":"Activo"},{"value":"0","label":"Inactivo"}],
-        },
-
+            options: [
+                { value: '1', label: 'Activo' },
+                { value: '0', label: 'Inactivo' }
+            ],
         },
     };
 
@@ -671,6 +672,7 @@
         }
     });
 </script>
+
 @endsection
 
 
