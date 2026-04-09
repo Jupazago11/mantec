@@ -9,7 +9,6 @@ use App\Http\Controllers\Inspector\InspectorReportController;
 
 // Global
 use App\Http\Controllers\Admin\ClientController;
-use App\Http\Controllers\Admin\UserController;
 
 // Operativos compartidos
 use App\Http\Controllers\Admin\AdminManagedUserController;
@@ -77,11 +76,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
         Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus'])->name('clients.toggle-status');
 
-        // Usuarios globales
-        Route::get('/users', [UserController::class, 'index'])->name('users.index');
-        Route::post('/users', [UserController::class, 'store'])->name('users.store');
-        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 
     /*

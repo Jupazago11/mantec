@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Area;
 use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\Role;
-use App\Models\Area;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,23 +15,31 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
-
 class AdminManagedUserController extends Controller
 {
     public function index(Request $request): View
     {
         $authUser = auth()->user();
+        $authRoleKey = $authUser->role?->key;
 
-        $clients = $authUser->clients()
-            ->where('clients.status', true)
-            ->orderBy('clients.name')
-            ->get(['clients.id', 'clients.name']);
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            $clients = Client::query()
+                ->where('status', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        } else {
+            $clients = $authUser->clients()
+                ->where('clients.status', true)
+                ->orderBy('clients.name')
+                ->get(['clients.id', 'clients.name']);
+        }
 
         $clientIds = $clients->pluck('id')->all();
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
         $assignableRoleKeys = [
+            'admin',
             'admin_cliente',
             'inspector',
             'observador',
@@ -105,22 +113,27 @@ class AdminManagedUserController extends Controller
                 'allowedElementTypes',
                 'allowedAreas',
             ])
-            ->where(function ($query) use ($clientIds, $authUser) {
-                $query->whereHas('clients', function ($subQuery) use ($clientIds) {
-                    $subQuery->whereIn('clients.id', $clientIds);
-                })->orWhere('id', $authUser->id);
-            })
             ->whereHas('role', function ($query) use ($visibleRoleKeys) {
                 $query->whereIn('key', $visibleRoleKeys);
             });
 
+        if (!in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            $baseQuery->where(function ($query) use ($clientIds, $authUser) {
+                $query->whereHas('clients', function ($subQuery) use ($clientIds) {
+                    $subQuery->whereIn('clients.id', $clientIds);
+                })->orWhere('id', $authUser->id);
+            });
+        }
+
         if (!empty($selectedClientIds)) {
-            $baseQuery->where(function ($query) use ($selectedClientIds, $authUser) {
+            $baseQuery->where(function ($query) use ($selectedClientIds, $authUser, $authRoleKey) {
                 $query->whereHas('clients', function ($subQuery) use ($selectedClientIds) {
                     $subQuery->whereIn('clients.id', $selectedClientIds);
                 });
 
-                $query->orWhere('id', $authUser->id);
+                if (!in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+                    $query->orWhere('id', $authUser->id);
+                }
             });
         }
 
@@ -200,13 +213,22 @@ class AdminManagedUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $authUser = auth()->user();
+        $authRoleKey = $authUser->role?->key;
 
-        $allowedClientIds = $authUser->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->all();
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            $allowedClientIds = Client::query()
+                ->where('status', true)
+                ->pluck('id')
+                ->all();
+        } else {
+            $allowedClientIds = $authUser->clients()
+                ->where('clients.status', true)
+                ->pluck('clients.id')
+                ->all();
+        }
 
         $assignableRoleKeys = [
+            'admin',
             'admin_cliente',
             'inspector',
             'observador',
@@ -293,6 +315,7 @@ class AdminManagedUserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $authUser = auth()->user();
+        $authRoleKey = $authUser->role?->key;
 
         abort_unless($this->canViewUser($authUser, $user), 403);
 
@@ -314,12 +337,20 @@ class AdminManagedUserController extends Controller
 
         abort_unless($this->canManageTargetUser($authUser, $user), 403);
 
-        $allowedClientIds = $authUser->clients()
-            ->where('clients.status', true)
-            ->pluck('clients.id')
-            ->all();
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            $allowedClientIds = Client::query()
+                ->where('status', true)
+                ->pluck('id')
+                ->all();
+        } else {
+            $allowedClientIds = $authUser->clients()
+                ->where('clients.status', true)
+                ->pluck('clients.id')
+                ->all();
+        }
 
         $assignableRoleKeys = [
+            'admin',
             'admin_cliente',
             'inspector',
             'observador',
@@ -407,7 +438,6 @@ class AdminManagedUserController extends Controller
             ->with('success', 'Usuario actualizado correctamente.');
     }
 
-
     public function toggleStatus(Request $request, User $user): RedirectResponse
     {
         $authUser = auth()->user();
@@ -494,53 +524,53 @@ class AdminManagedUserController extends Controller
     }
 
     private function validateAreaPermissions(array $clientIds, array $permissions, array $areaPermissions): void
-{
-    foreach ($clientIds as $clientId) {
-        $elementTypeIds = collect($permissions[$clientId] ?? [])
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        foreach ($elementTypeIds as $elementTypeId) {
-            $selectedAreaIds = collect($areaPermissions[$clientId][$elementTypeId] ?? [])
+    {
+        foreach ($clientIds as $clientId) {
+            $elementTypeIds = collect($permissions[$clientId] ?? [])
                 ->filter()
                 ->map(fn ($id) => (int) $id)
                 ->unique()
                 ->values()
                 ->all();
 
-            if (empty($selectedAreaIds)) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'area_permissions' => 'Debes asignar al menos un área por cada especialidad del administrador cliente.',
-                ]);
-            }
+            foreach ($elementTypeIds as $elementTypeId) {
+                $selectedAreaIds = collect($areaPermissions[$clientId][$elementTypeId] ?? [])
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
 
-            $validAreaCount = Area::query()
-                ->where('client_id', $clientId)
-                ->whereIn('id', $selectedAreaIds)
-                ->count();
+                if (empty($selectedAreaIds)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'area_permissions' => 'Debes asignar al menos un área por cada especialidad del administrador cliente.',
+                    ]);
+                }
 
-            if ($validAreaCount !== count($selectedAreaIds)) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'area_permissions' => 'Una o más áreas seleccionadas no pertenecen al cliente correspondiente.',
-                ]);
-            }
+                $validAreaCount = Area::query()
+                    ->where('client_id', $clientId)
+                    ->whereIn('id', $selectedAreaIds)
+                    ->count();
 
-            $elementTypeBelongsToClient = ElementType::query()
-                ->where('id', $elementTypeId)
-                ->where('client_id', $clientId)
-                ->exists();
+                if ($validAreaCount !== count($selectedAreaIds)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'area_permissions' => 'Una o más áreas seleccionadas no pertenecen al cliente correspondiente.',
+                    ]);
+                }
 
-            if (!$elementTypeBelongsToClient) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'area_permissions' => 'Una o más especialidades no pertenecen al cliente correspondiente.',
-                ]);
+                $elementTypeBelongsToClient = ElementType::query()
+                    ->where('id', $elementTypeId)
+                    ->where('client_id', $clientId)
+                    ->exists();
+
+                if (!$elementTypeBelongsToClient) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'area_permissions' => 'Una o más especialidades no pertenecen al cliente correspondiente.',
+                    ]);
+                }
             }
         }
     }
-}
 
     private function syncAreaPermissions(
         User $user,
@@ -605,10 +635,15 @@ class AdminManagedUserController extends Controller
         }
     }
 
-
     private function canViewUser(User $authUser, User $targetUser): bool
     {
+        $authRoleKey = $authUser->role?->key;
+
         if ((int) $authUser->id === (int) $targetUser->id) {
+            return true;
+        }
+
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
             return true;
         }
 
@@ -617,22 +652,30 @@ class AdminManagedUserController extends Controller
             ->exists();
     }
 
+
     private function canManageTargetUser(User $authUser, User $targetUser): bool
     {
+        $authRoleKey = $authUser->role?->key;
+
         if ((int) $authUser->id === (int) $targetUser->id) {
             return false;
         }
 
         $targetRoleKey = $targetUser->role?->key;
 
-        if (!in_array($targetRoleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true)) {
+        if (!in_array($targetRoleKey, ['admin', 'admin_cliente', 'inspector', 'observador', 'observador_cliente'], true)) {
             return false;
+        }
+
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            return true;
         }
 
         return $targetUser->clients()
             ->whereIn('clients.id', $authUser->clients()->pluck('clients.id'))
             ->exists();
     }
+
 
     private function buildRedirectQuery(Request $request): array
     {

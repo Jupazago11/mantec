@@ -28,7 +28,7 @@
     <div>
         <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de usuarios</h2>
         <p class="mt-2 text-slate-600">
-            Crea y administra administradores cliente, inspectores, observadores y observadores cliente. Los administradores empresa solo quedan en modo lectura.
+            Crea y administra administradores, administradores cliente, inspectores, observadores y observadores cliente.
         </p>
     </div>
 
@@ -60,7 +60,7 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-lg font-semibold text-slate-900">Nuevo usuario</h3>
                 <p class="mt-1 text-sm text-slate-500">
-                    Solo se pueden crear usuarios de nivel inferior.
+                    Crea usuarios según tu nivel de acceso.
                 </p>
 
                 <form method="POST" action="{{ route('admin.managed-users.store') }}" class="mt-6 space-y-5">
@@ -176,7 +176,6 @@
                             @endforeach
                         </div>
                     </div>
-
 
                     @foreach(($activeFilters['client_ids'] ?? []) as $value)
                         <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
@@ -302,163 +301,172 @@
                         </thead>
 
                         <tbody class="divide-y divide-slate-200 bg-white">
-                            @forelse($users as $user)
-                                @php
-                                    $roleKey = $user->role?->key;
-                                    $specializedMap = $user->allowedElementTypes
-                                        ->groupBy(fn($item) => $item->pivot->client_id);
+@forelse($users as $user)
+    @php
+        $roleKey = $user->role?->key;
+        $authRoleKey = auth()->user()?->role?->key;
 
-                                    $isSelf = (int) $user->id === (int) $authUserId;
-                                    $isProtectedAdmin = !$isSelf && $roleKey === 'admin';
-                                    $canManage = in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true);
-                                @endphp
+        $specializedMap = $user->allowedElementTypes
+            ->groupBy(fn($item) => $item->pivot->client_id);
 
-                                <tr class="hover:bg-slate-50">
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
-                                        {{ $user->name }}
-                                        @if($isSelf)
-                                            <span class="ml-2 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">Tú</span>
-                                        @endif
-                                    </td>
+        $isSelf = (int) $user->id === (int) $authUserId;
 
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                        {{ $user->username }}
-                                    </td>
+        $canManage = false;
 
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                        {{ $user->role?->name ?? '—' }}
-                                    </td>
+        if (!$isSelf) {
+            if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+                $canManage = in_array($roleKey, ['admin', 'admin_cliente', 'inspector', 'observador', 'observador_cliente'], true);
+            } else {
+                $canManage = in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true);
+            }
+        }
+    @endphp
 
-                                    @if($showClientColumn)
-                                        <td class="px-5 py-3 text-sm text-slate-700">
-                                            {{ $user->clients->pluck('name')->implode(', ') ?: '—' }}
-                                        </td>
-                                    @endif
+    <tr class="hover:bg-slate-50">
+        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
+            {{ $user->name }}
+            @if($isSelf)
+                <span class="ml-2 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">Tú</span>
+            @endif
+        </td>
 
-                                    <td class="px-5 py-3 text-sm text-slate-700">
-                                        @if(in_array($roleKey, ['inspector', 'admin_cliente', 'observador', 'observador_cliente']) && $specializedMap->isNotEmpty())
-                                            <div class="space-y-1">
-                                                @foreach($user->clients as $client)
-                                                    @php
-                                                        $types = $specializedMap->get($client->id, collect());
-                                                    @endphp
-                                                    @if($types->isNotEmpty())
-                                                        <div>
-                                                            <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
-                                                            {{ $types->pluck('name')->implode(', ') }}
-                                                        </div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
+        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+            {{ $user->username }}
+        </td>
 
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                        @if($user->status)
-                                            <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                                                Activo
-                                            </span>
-                                        @else
-                                            <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                Inactivo
-                                            </span>
-                                        @endif
-                                    </td>
+        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+            {{ $user->role?->name ?? '—' }}
+        </td>
 
-                                    <td class="whitespace-nowrap px-5 py-3 text-right">
-                                        <div class="flex justify-end gap-2">
-                                            @php
-                                                $editPayload = [
-                                                    'id' => $user->id,
-                                                    'name' => $user->name,
-                                                    'document' => $user->document,
-                                                    'username' => $user->username,
-                                                    'role_id' => $user->role_id,
-                                                    'role_key' => $user->role?->key,
-                                                    'clients' => $user->clients->pluck('id')->values()->toArray(),
-                                                    'permissions' => $user->allowedElementTypes
-                                                        ->groupBy(fn ($item) => $item->pivot->client_id)
-                                                        ->map(fn ($group) => $group->pluck('id')->values()->toArray())
-                                                        ->toArray(),
-                                                    'area_permissions' => $user->allowedAreas
-                                                        ->groupBy(fn ($item) => $item->pivot->client_id)
-                                                        ->map(function ($groupByClient) {
-                                                            return $groupByClient
-                                                                ->groupBy(fn ($item) => $item->pivot->element_type_id)
-                                                                ->map(fn ($groupByType) => $groupByType->pluck('id')->values()->toArray())
-                                                                ->toArray();
-                                                        })
-                                                        ->toArray(),
-                                                    'action' => route('admin.managed-users.update', $user),
-                                                    'is_self' => $isSelf,
-                                                    'is_protected_admin' => $isProtectedAdmin,
-                                                    'can_manage' => $canManage,
-                                                ];
-                                            @endphp
+        @if($showClientColumn)
+            <td class="px-5 py-3 text-sm text-slate-700">
+                {{ $user->clients->pluck('name')->implode(', ') ?: '—' }}
+            </td>
+        @endif
 
+        <td class="px-5 py-3 text-sm text-slate-700">
+            @if(in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente']) && $specializedMap->isNotEmpty())
+                <div class="space-y-1">
+                    @foreach($user->clients as $client)
+                        @php
+                            $types = $specializedMap->get($client->id, collect());
+                        @endphp
+                        @if($types->isNotEmpty())
+                            <div>
+                                <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
+                                {{ $types->pluck('name')->implode(', ') }}
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+            @else
+                —
+            @endif
+        </td>
 
-                                            @if($isSelf)
-                                                <button
-                                                    type="button"
-                                                    class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                    onclick='openEditUserModal(@json($editPayload))'
-                                                >
-                                                    Cambiar contraseña
-                                                </button>
-                                            @elseif($canManage)
-                                                <button
-                                                    type="button"
-                                                    class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                    onclick='openEditUserModal(@json($editPayload))'
-                                                >
-                                                    Editar
-                                                </button>
+        <td class="whitespace-nowrap px-5 py-3 text-sm">
+            @if($user->status)
+                <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                    Activo
+                </span>
+            @else
+                <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                    Inactivo
+                </span>
+            @endif
+        </td>
 
-                                                <form
-                                                    method="POST"
-                                                    action="{{ route('admin.managed-users.toggle-status', $user) }}"
-                                                >
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['names'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['role_keys'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_role_keys[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
+        <td class="whitespace-nowrap px-5 py-3 text-right">
+            <div class="flex justify-end gap-2">
+                @php
+                    $editPayload = [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'document' => $user->document,
+                        'username' => $user->username,
+                        'role_id' => $user->role_id,
+                        'role_key' => $user->role?->key,
+                        'clients' => $user->clients->pluck('id')->values()->toArray(),
+                        'permissions' => $user->allowedElementTypes
+                            ->groupBy(fn ($item) => $item->pivot->client_id)
+                            ->map(fn ($group) => $group->pluck('id')->values()->toArray())
+                            ->toArray(),
+                        'area_permissions' => $user->allowedAreas
+                            ->groupBy(fn ($item) => $item->pivot->client_id)
+                            ->map(function ($groupByClient) {
+                                return $groupByClient
+                                    ->groupBy(fn ($item) => $item->pivot->element_type_id)
+                                    ->map(fn ($groupByType) => $groupByType->pluck('id')->values()->toArray())
+                                    ->toArray();
+                            })
+                            ->toArray(),
+                        'action' => route('admin.managed-users.update', $user),
+                        'is_self' => $isSelf,
+                        'can_manage' => $canManage,
+                    ];
+                @endphp
 
-                                                    <button
-                                                        type="submit"
-                                                        class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $user->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
-                                                    >
-                                                        {{ $user->status ? 'Inactivar' : 'Activar' }}
-                                                    </button>
-                                                </form>
-                                            @else
-                                                <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">
-                                                    Solo lectura
-                                                </span>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $showClientColumn ? 7 : 6 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                        No hay usuarios registrados todavía.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
+                @if($isSelf)
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        onclick='openEditUserModal(@json($editPayload))'
+                    >
+                        Cambiar contraseña
+                    </button>
+@elseif($canManage)
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        onclick='openEditUserModal(@json($editPayload))'
+                    >
+                        Editar
+                    </button>
+
+                    <form
+                        method="POST"
+                        action="{{ route('admin.managed-users.toggle-status', $user) }}"
+                    >
+                        @csrf
+                        @method('PATCH')
+
+                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                        @endforeach
+                        @foreach(($activeFilters['names'] ?? []) as $value)
+                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
+                        @endforeach
+                        @foreach(($activeFilters['role_keys'] ?? []) as $value)
+                            <input type="hidden" name="redirect_role_keys[]" value="{{ $value }}">
+                        @endforeach
+                        @foreach(($activeFilters['statuses'] ?? []) as $value)
+                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
+                        @endforeach
+                        <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
+
+                        <button
+                            type="submit"
+                            class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $user->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
+                        >
+                            {{ $user->status ? 'Inactivar' : 'Activar' }}
+                        </button>
+                    </form>
+                @else
+                    <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">
+                        Solo lectura
+                    </span>
+                @endif
+            </div>
+        </td>
+    </tr>
+@empty
+    <tr>
+        <td colspan="{{ $showClientColumn ? 7 : 6 }}" class="px-5 py-10 text-center text-sm text-slate-500">
+            No hay usuarios registrados todavía.
+        </td>
+    </tr>
+@endforelse
+</tbody>
                     </table>
                 </div>
 
@@ -475,14 +483,13 @@
 <div id="editUserModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
     <div class="flex min-h-full w-full items-start justify-center">
         <div class="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl">
+
             <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-slate-900">Editar usuario</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditUserModal()">✕</button>
             </div>
 
             <form id="editUserForm" method="POST" class="flex-1 overflow-y-auto space-y-5 p-6">
-
-
                 @csrf
                 @method('PUT')
 
@@ -529,8 +536,7 @@
                         @endforeach
                     </div>
                 </div>
-
-                <div id="edit_specialized_permissions_wrapper" class="hidden">
+<div id="edit_specialized_permissions_wrapper" class="hidden">
                     <label class="mb-2 block text-sm font-medium text-slate-700">
                         Tipos de activo permitidos por cliente
                     </label>
@@ -598,7 +604,6 @@
                     </div>
                 </div>
 
-
                 @foreach(($activeFilters['client_ids'] ?? []) as $value)
                     <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                 @endforeach
@@ -661,7 +666,6 @@
         </button>
     </div>
 </div>
-
 <script>
     const filterOptions = {
         @if($showClientColumn)
@@ -697,15 +701,14 @@
 
     function getSelectedRoleKey(prefix) {
         const select = document.getElementById(`${prefix}_role_id`);
+        if (!select) return '';
         const option = select.options[select.selectedIndex];
         return option ? option.dataset.roleKey : '';
     }
 
-
-
     function roleUsesSpecialization(roleKey) {
-    return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
-}
+        return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
+    }
 
     function roleUsesAreaPermissions(roleKey) {
         return roleKey === 'admin_cliente';
@@ -715,10 +718,8 @@
         const wrapper = document.getElementById(`${prefix}_specialized_permissions_wrapper`);
         const roleKey = getSelectedRoleKey(prefix);
 
-        if (roleUsesSpecialization(roleKey)) {
-            wrapper.classList.remove('hidden');
-        } else {
-            wrapper.classList.add('hidden');
+        if (wrapper) {
+            wrapper.classList.toggle('hidden', !roleUsesSpecialization(roleKey));
         }
 
         toggleClientElementTypes(prefix);
@@ -737,7 +738,11 @@
             block.classList.toggle('hidden', !visible);
 
             if (!visible) {
-                block.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                block.querySelectorAll(`.${prefix}-element-type-checkbox`).forEach(cb => {
+                    cb.checked = false;
+                });
+
+                block.querySelectorAll(`.${prefix}-area-checkbox`).forEach(cb => {
                     cb.checked = false;
                 });
             }
@@ -791,7 +796,7 @@
         });
 
         Object.entries(user.permissions || {}).forEach(([clientId, elementTypeIds]) => {
-            elementTypeIds.forEach(elementTypeId => {
+            (elementTypeIds || []).forEach(elementTypeId => {
                 const checkbox = document.querySelector(
                     `.edit-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`
                 );
@@ -804,7 +809,7 @@
 
         Object.entries(user.area_permissions || {}).forEach(([clientId, byType]) => {
             Object.entries(byType || {}).forEach(([elementTypeId, areaIds]) => {
-                areaIds.forEach(areaId => {
+                (areaIds || []).forEach(areaId => {
                     const checkbox = document.querySelector(
                         `.edit-area-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"][value="${areaId}"]`
                     );
@@ -818,51 +823,51 @@
 
         setEditReadOnlyMode(!!user.is_self);
         toggleSpecializedPermissions('edit');
-        toggleClientElementTypes('edit');
-        toggleAreaPermissionsByElementType('edit');
 
         const modal = document.getElementById('editUserModal');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
 
-
-   
-
     function setEditReadOnlyMode(isSelf) {
         const readonlyMessage = document.getElementById('edit_readonly_message');
         const roleWrapper = document.getElementById('edit_role_wrapper');
         const clientsWrapper = document.getElementById('edit_clients_wrapper');
+        const specializedWrapper = document.getElementById('edit_specialized_permissions_wrapper');
+
         const nameInput = document.getElementById('edit_name');
         const documentInput = document.getElementById('edit_document');
         const usernameInput = document.getElementById('edit_username');
         const roleSelect = document.getElementById('edit_role_id');
 
-        readonlyMessage.classList.toggle('hidden', !isSelf);
-        roleWrapper.classList.toggle('hidden', isSelf);
-        clientsWrapper.classList.toggle('hidden', isSelf);
-        document.getElementById('edit_specialized_permissions_wrapper').classList.toggle('hidden', isSelf);
+        if (readonlyMessage) readonlyMessage.classList.toggle('hidden', !isSelf);
+        if (roleWrapper) roleWrapper.classList.toggle('hidden', isSelf);
+        if (clientsWrapper) clientsWrapper.classList.toggle('hidden', isSelf);
+        if (specializedWrapper) specializedWrapper.classList.toggle('hidden', isSelf);
 
-        nameInput.readOnly = isSelf;
-        documentInput.readOnly = isSelf;
-        usernameInput.readOnly = isSelf;
-
-        if (isSelf) {
-            nameInput.classList.add('bg-slate-100');
-            documentInput.classList.add('bg-slate-100');
-            usernameInput.classList.add('bg-slate-100');
-            roleSelect.disabled = true;
-            document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox').forEach(cb => cb.disabled = true);
-        } else {
-            nameInput.classList.remove('bg-slate-100');
-            documentInput.classList.remove('bg-slate-100');
-            usernameInput.classList.remove('bg-slate-100');
-            roleSelect.disabled = false;
-            document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox').forEach(cb => cb.disabled = false);
+        if (nameInput) {
+            nameInput.readOnly = isSelf;
+            nameInput.classList.toggle('bg-slate-100', isSelf);
         }
-    }
 
-    
+        if (documentInput) {
+            documentInput.readOnly = isSelf;
+            documentInput.classList.toggle('bg-slate-100', isSelf);
+        }
+
+        if (usernameInput) {
+            usernameInput.readOnly = isSelf;
+            usernameInput.classList.toggle('bg-slate-100', isSelf);
+        }
+
+        if (roleSelect) {
+            roleSelect.disabled = isSelf;
+        }
+
+        document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox, .edit-area-checkbox').forEach(cb => {
+            cb.disabled = isSelf;
+        });
+    }
 
     function closeEditUserModal() {
         const modal = document.getElementById('editUserModal');
@@ -884,9 +889,9 @@
 
         Object.entries(activeFilters).forEach(([key, value]) => {
             if (Array.isArray(value)) {
-                value.filter(item => item !== null && item !== '').forEach(item => {
-                    addHidden(`${key}[]`, item);
-                });
+                value
+                    .filter(item => item !== null && item !== '')
+                    .forEach(item => addHidden(`${key}[]`, item));
             } else if (value !== null && value !== '') {
                 addHidden(key, value);
             }
@@ -951,7 +956,6 @@
 
         const renderList = () => {
             const term = search.value.toLowerCase().trim();
-
             let items = config.options;
 
             if (objectMode) {
@@ -990,7 +994,6 @@
 
     function clearCurrentFilter() {
         if (!currentPopoverKey) return;
-
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
         submitFilters();
@@ -998,7 +1001,6 @@
 
     function applyCurrentFilter() {
         if (!currentPopoverKey) return;
-
         const config = filterOptions[currentPopoverKey];
         const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
             .map(cb => cb.value);
@@ -1027,14 +1029,25 @@
         toggleAreaPermissionsByElementType('create');
     });
 
-
     document.addEventListener('click', function (event) {
         const popover = document.getElementById('filterPopover');
+        const modal = document.getElementById('editUserModal');
 
-        if (popover.classList.contains('hidden')) return;
+        if (!popover.classList.contains('hidden')) {
+            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+                closeFilterPopover();
+            }
+        }
 
-        if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+        if (modal.classList.contains('flex') && event.target === modal) {
+            closeEditUserModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
             closeFilterPopover();
+            closeEditUserModal();
         }
     });
 </script>

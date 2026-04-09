@@ -43,7 +43,7 @@
                         Registra un nuevo usuario del sistema.
                     </p>
 
-                    <form method="POST" action="{{ route('admin.users.store') }}" class="mt-6 space-y-5">
+                    <form method="POST" action="{{ route('admin.managed-users.store') }}" class="mt-6 space-y-5">
                         @csrf
 
                         <x-form.input
@@ -275,7 +275,7 @@
                                                             ->groupBy(fn ($item) => $item->pivot->client_id)
                                                             ->map(fn ($group) => $group->pluck("id")->map(fn($id) => (int) $id)->values())
                                                     )'
-                                                    data-action="{{ route('admin.users.update', $user) }}"
+                                                    data-action="{{ route('admin.managed-users.update', $user) }}"
                                                     onclick="openEditUserModal(this)"
                                                 >
                                                     Editar
@@ -283,7 +283,7 @@
 
                                                 <form
                                                     method="POST"
-                                                    action="{{ route('admin.users.destroy', $user) }}"
+                                                    action="{{ route('admin.managed-users.destroy', $user) }}"
                                                     onsubmit="return confirm('¿Seguro que deseas eliminar este usuario?');"
                                                 >
                                                     @csrf
