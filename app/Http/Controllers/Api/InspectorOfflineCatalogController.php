@@ -74,9 +74,28 @@ class InspectorOfflineCatalogController extends Controller
             ->map(fn ($id) => (int) $id)
             ->values();
 
+        $elements = Element::query()
+            ->whereHas('area', function ($query) use ($clientId) {
+                $query->where('client_id', $clientId)
+                    ->where('status', true);
+            })
+            ->whereIn('element_type_id', $allowedElementTypeIds)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get([
+                'id',
+                'area_id',
+                'element_type_id',
+                'name',
+                'code',
+                'warehouse_code',
+                'status',
+            ]);
+
         $areas = Area::query()
             ->where('client_id', $clientId)
             ->where('status', true)
+            ->whereIn('id', $elements->pluck('area_id')->unique()->values())
             ->orderBy('name')
             ->get([
                 'id',
@@ -101,21 +120,6 @@ class InspectorOfflineCatalogController extends Controller
                 'code',
                 'severity',
                 'color',
-                'status',
-            ]);
-
-        $elements = Element::query()
-            ->whereIn('area_id', $areas->pluck('id'))
-            ->whereIn('element_type_id', $allowedElementTypeIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get([
-                'id',
-                'area_id',
-                'element_type_id',
-                'name',
-                'code',
-                'warehouse_code',
                 'status',
             ]);
 
@@ -150,11 +154,14 @@ class InspectorOfflineCatalogController extends Controller
 
         $diagnostics = Diagnostic::query()
             ->whereIn('id', $diagnosticIds)
+            ->whereIn('element_type_id', $allowedElementTypeIds)
             ->where('status', true)
+            ->orderBy('element_type_id')
             ->orderBy('name')
             ->get([
                 'id',
                 'client_id',
+                'element_type_id',
                 'name',
                 'description',
                 'status',
@@ -234,6 +241,7 @@ class InspectorOfflineCatalogController extends Controller
                 return [
                     'id' => (int) $item->id,
                     'client_id' => (int) ($item->client_id ?? 0),
+                    'element_type_id' => (int) $item->element_type_id,
                     'name' => (string) $item->name,
                     'description' => $item->description,
                     'status' => (bool) $item->status,

@@ -45,11 +45,21 @@ class AdminPreventiveReportController extends Controller
         $query = clone $baseQuery;
         $this->applyFilters($query, $request);
 
+        $totalReportsGenerated = (clone $baseQuery)->count();
+        $totalReportsFiltered = (clone $query)->count();
+
         $reports = $query
             ->orderByDesc('week')
             ->orderByDesc('created_at')
             ->paginate(30)
             ->withQueryString();
+
+        $reports->getCollection()->transform(function ($report) {
+            $report->responsable_names = $this->resolveAdminClienteResponsables($report);
+            return $report;
+        });
+
+
 
         $optionsRows = (clone $baseQuery)
             ->with([
@@ -141,11 +151,14 @@ class AdminPreventiveReportController extends Controller
                 ->values(),
 
             'responsable_names' => $optionsRows
-                ->map(fn ($row) => $row->user?->name)
+                ->map(fn ($row) => $this->resolveAdminClienteResponsables($row))
+                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
+                ->flatMap(fn ($value) => collect(explode(', ', $value)))
                 ->filter()
                 ->unique()
                 ->sort()
                 ->values(),
+
 
             'condition_names' => $optionsRows
                 ->map(fn ($row) => $row->condition?->name)
@@ -192,9 +205,12 @@ class AdminPreventiveReportController extends Controller
             'selectedYear' => $year,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
+            'totalReportsGenerated' => $totalReportsGenerated,
+            'totalReportsFiltered' => $totalReportsFiltered,
             'isReadOnly' => $this->isReadOnlyRole($user),
             'roleKey' => $user->role?->key,
         ]);
+
     }
 
     public function general(Client $client, Request $request): View

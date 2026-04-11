@@ -261,14 +261,20 @@ class InspectorReportController extends Controller
 
         $diagnostics = $component->diagnostics()
             ->where('diagnostics.status', true)
+            ->where('diagnostics.element_type_id', $element->element_type_id)
             ->orderBy('diagnostics.name')
             ->get([
                 'diagnostics.id',
+                'diagnostics.client_id',
+                'diagnostics.element_type_id',
                 'diagnostics.name',
+                'diagnostics.description',
+                'diagnostics.status',
             ]);
 
         return response()->json($diagnostics);
     }
+
 
     public function getPendingDiagnostics(Element $element): JsonResponse
     {
@@ -383,6 +389,13 @@ class InspectorReportController extends Controller
                 ->withErrors(['diagnostic_id' => 'El diagnóstico no pertenece al componente seleccionado.'])
                 ->withInput();
         }
+        if ((int) $diagnostic->element_type_id !== (int) $element->element_type_id) {
+            return back()
+                ->withErrors(['diagnostic_id' => 'El diagnóstico no pertenece al tipo de activo del elemento seleccionado.'])
+                ->withInput();
+        }
+
+
 
         $isBeltEstado =
             mb_strtolower(trim((string) $component->name)) === 'banda' &&
