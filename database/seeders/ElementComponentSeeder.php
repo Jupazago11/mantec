@@ -11,6 +11,7 @@ class ElementComponentSeeder extends Seeder
     public function run(): void
     {
         $elements = Element::query()
+            ->with('area:id,client_id')
             ->where('status', true)
             ->get();
 
@@ -19,20 +20,25 @@ class ElementComponentSeeder extends Seeder
             return;
         }
 
-        $componentIds = Component::query()
-            ->where('status', true)
-            ->pluck('id')
-            ->values()
-            ->all();
-
-        if (empty($componentIds)) {
-            $this->command?->warn('No hay componentes para relacionar.');
-            return;
-        }
-
         $relatedCount = 0;
 
         foreach ($elements as $element) {
+            $clientId = $element->area?->client_id;
+            $elementTypeId = $element->element_type_id;
+
+            if (!$clientId || !$elementTypeId) {
+                $this->command?->warn("Activo {$element->id} omitido: no tiene cliente o tipo de activo válido.");
+                continue;
+            }
+
+            $componentIds = Component::query()
+                ->where('status', true)
+                ->where('client_id', $clientId)
+                ->where('element_type_id', $elementTypeId)
+                ->pluck('id')
+                ->values()
+                ->all();
+
             $element->components()->sync($componentIds);
             $relatedCount++;
         }

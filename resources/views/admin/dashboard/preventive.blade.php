@@ -4,77 +4,51 @@
 @section('header_title', 'Dashboard')
 
 @section('content')
-    @php
-        $roleLabels = [
-            'superadmin' => 'SuperAdmin',
-            'admin_global' => 'Administrador global',
-            'admin' => 'Administrador',
-            'admin_cliente' => 'Administrador cliente',
-            'observador' => 'Observador',
-            'observador_cliente' => 'Observador cliente',
-        ];
-
-        $roleDescriptions = [
-            'superadmin' => 'Visualizas todos los reportes preventivos del sistema por cliente, tipo de activo y año.',
-            'admin_global' => 'Visualizas todos los reportes preventivos del sistema por cliente, tipo de activo y año.',
-            'admin' => 'Visualizas los reportes preventivos de tus clientes asignados por cliente, tipo de activo y año.',
-            'admin_cliente' => 'Visualizas los reportes preventivos de tus clientes, especialidades y áreas permitidas.',
-            'observador' => 'Visualizas los reportes preventivos en modo consulta para todos los clientes y tipos de activo.',
-            'observador_cliente' => 'Visualizas los reportes preventivos en modo consulta solo para tus clientes y especialidades asignadas.',
-        ];
-
-        $roleLabel = $roleLabels[$roleKey] ?? 'Usuario';
-        $roleDescription = $roleDescriptions[$roleKey] ?? 'Consulta de reportes preventivos.';
-    @endphp
-
     <div class="space-y-10">
-        <div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
-            <p class="mt-2 text-slate-600">
-                {{ $roleDescription }}
-            </p>
-
-            <div class="mt-4 flex flex-wrap items-center gap-3">
-                <span class="inline-flex items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
-                    Rol: {{ $roleLabel }}
-                </span>
-
-                @if($isReadOnly)
-                    <span class="inline-flex items-center rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800">
-                        Modo solo lectura
-                    </span>
-                @endif
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+                <h2 class="text-3xl font-bold tracking-tight text-slate-900">Dashboard preventivo</h2>
+                <p class="mt-2 text-slate-600">
+                    Consulta reportes preventivos generales por cliente y reportes por tipo de activo, organizados por año.
+                </p>
             </div>
+
+            @if($isReadOnly)
+                <div class="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">
+                    Modo observador: solo lectura
+                </div>
+            @endif
         </div>
 
         @if($generalReportModules->isEmpty() && $reportModules->isEmpty())
             <div class="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <h3 class="text-lg font-semibold text-slate-900">No hay módulos disponibles</h3>
                 <p class="mt-2 text-sm text-slate-500">
-                    No se encontraron reportes o configuraciones visibles para tu perfil en este momento.
+                    No se encontraron clientes o tipos de activo disponibles para este usuario.
                 </p>
             </div>
         @endif
-@if($generalReportModules->isNotEmpty())
+
+        @if($generalReportModules->isNotEmpty())
             <div class="space-y-4">
-                <div class="flex items-center justify-between gap-4">
-                    <div>
-                        <h3 class="text-lg font-semibold text-slate-900">Reportes generales por cliente</h3>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Consulta consolidada por cliente y por año.
-                        </p>
-                    </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Reportes generales por cliente</h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Cada tarjeta abre el consolidado general del cliente para el año indicado.
+                    </p>
                 </div>
 
                 <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     @foreach($generalReportModules as $module)
                         <a
-                            href="{{ route('admin.preventive-reports.general', $module['client_id']) . '?year=' . $module['year'] }}"
+                            href="{{ route('admin.preventive-reports.general', ['client' => $module['client_id'], 'year' => $module['year']]) }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             class="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                         >
-                            <div class="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-orange-50 opacity-100"></div>
+                            <div class="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-orange-50"></div>
 
-                            <div class="relative">
+                            <div class="relative space-y-6">
                                 <div class="flex items-start justify-between gap-4">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -91,9 +65,21 @@
                                     </div>
                                 </div>
 
-                                <div class="mt-8 flex items-center justify-between">
+                                <div>
+                                    @if($module['has_records'])
+                                        <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                                            Con registros
+                                        </span>
+                                    @else
+                                        <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                            Sin registros aún
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center justify-between">
                                     <span class="inline-flex items-center rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-[#b83f29]">
-                                        {{ $isReadOnly ? 'Ver reporte' : 'Abrir reporte' }}
+                                        Ver reporte general
                                     </span>
 
                                     <span class="text-sm font-semibold text-slate-400 transition group-hover:text-slate-600">
@@ -106,24 +92,31 @@
                 </div>
             </div>
         @endif
-@if($reportModules->isNotEmpty())
+
+        @if($reportModules->isNotEmpty())
             <div class="space-y-4">
                 <div>
                     <h3 class="text-lg font-semibold text-slate-900">Reportes por tipo de activo</h3>
                     <p class="mt-1 text-sm text-slate-500">
-                        Consulta detallada por tipo de activo, cliente y año.
+                        Cada tarjeta abre el reporte preventivo filtrado por cliente, tipo de activo y año.
                     </p>
                 </div>
 
                 <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     @foreach($reportModules as $module)
                         <a
-                            href="{{ route('admin.preventive-reports.show', [$module['client_id'], $module['element_type_id']]) . '?year=' . $module['year'] }}"
+                            href="{{ route('admin.preventive-reports.show', [
+                                'client' => $module['client_id'],
+                                'elementType' => $module['element_type_id'],
+                                'year' => $module['year'],
+                            ]) }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             class="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                         >
-                            <div class="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-slate-50 opacity-100"></div>
+                            <div class="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-slate-50"></div>
 
-                            <div class="relative">
+                            <div class="relative space-y-6">
                                 <div class="flex items-start justify-between gap-4">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -144,9 +137,21 @@
                                     </div>
                                 </div>
 
-                                <div class="mt-8 flex items-center justify-between">
+                                <div>
+                                    @if($module['has_records'])
+                                        <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                                            Con registros
+                                        </span>
+                                    @else
+                                        <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                            Sin registros aún
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center justify-between">
                                     <span class="inline-flex items-center rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-[#b83f29]">
-                                        {{ $isReadOnly ? 'Ver reportes' : 'Abrir reportes' }}
+                                        Ver reportes
                                     </span>
 
                                     <span class="text-sm font-semibold text-slate-400 transition group-hover:text-slate-600">

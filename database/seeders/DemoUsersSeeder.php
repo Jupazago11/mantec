@@ -27,11 +27,11 @@ class DemoUsersSeeder extends Seeder
         |--------------------------------------------------------------------------
         */
         $adminEmpresa = User::updateOrCreate(
-            ['username' => 'luis.montoya'],
+            ['username' => 'admin.corona'],
             [
-                'name' => 'Luis Montoya',
-                'document' => '1037977052',
-                'email' => 'lui@gmail.com',
+                'name' => 'Persona X',
+                'document' => '1',
+                'email' => 'xxx@gmail.com',
                 'password' => Hash::make('123456'),
                 'role_id' => $roles['admin'],
                 'status' => true,

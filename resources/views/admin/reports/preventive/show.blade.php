@@ -18,6 +18,8 @@
 
             return $value !== null && $value !== '';
         };
+
+        $clearFiltersUrl = route('admin.preventive-reports.show', [$client->id, $elementType->id]) . '?year=' . $currentYear;
     @endphp
 
     <div class="min-h-screen p-4">
@@ -35,14 +37,34 @@
             @endphp
 
             <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                <div class="flex items-center justify-between gap-4">
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-                        Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }} {{ $currentYear }}
-                    </h1>
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight text-slate-900">
+                            Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }} {{ $currentYear }}
+                        </h1>
+
+                        <div class="mt-3 flex flex-wrap items-center gap-3">
+                            <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                Año: {{ $currentYear }}
+                            </span>
+
+                            @if(!empty($roleKey))
+                                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                    Rol: {{ $roleKey }}
+                                </span>
+                            @endif
+
+                            @if($isReadOnly ?? false)
+                                <span class="inline-flex items-center rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                                    Modo solo lectura
+                                </span>
+                            @endif
+                        </div>
+                    </div>
 
                     @if($hasAnyActiveFilter)
                         <a
-                            href="{{ route('admin.preventive-reports.show', [$client->id, $elementType->id]) }}"
+                            href="{{ $clearFiltersUrl }}"
                             class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
                             Limpiar filtros
@@ -51,7 +73,9 @@
                 </div>
             </div>
 
-            <form id="filtersForm" method="GET" class="hidden"></form>
+            <form id="filtersForm" method="GET" class="hidden">
+                <input type="hidden" name="year" value="{{ $currentYear }}">
+            </form>
 
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="overflow-x-auto">
@@ -232,135 +256,140 @@
                                 </th>
                             </tr>
                         </thead>
+<tbody class="divide-y divide-slate-200 bg-white">
+    @forelse($reports as $report)
+        @php
+            $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
+        @endphp
 
-                        <tbody class="divide-y divide-slate-200 bg-white">
-                            @forelse($reports as $report)
-                                @php
-                                    $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
-                                @endphp
+        <tr class="align-top hover:bg-slate-50">
+            <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
+                {{ $report->element?->name ?? '—' }}
+            </td>
 
-                                <tr class="align-top hover:bg-slate-50">
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
-                                        {{ $report->element?->name ?? '—' }}
-                                    </td>
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600">
+                —
+            </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600">
-                                        —
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm text-slate-700">
-                                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            {{ $report->component?->name ?? '—' }}
-                                        </div>
-                                        <div class="mt-1">
-                                            {{ $report->diagnostic?->name ?? '—' }}
-                                        </div>
-                                    </td>
-
-                                    <td class="max-w-[380px] px-3 py-3 text-sm leading-5 text-slate-700">
-                                        {!! (($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
-                                            ? nl2br(e(ltrim((string) $report->recommendation)))
-                                            : '—' !!}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        @if($report->files->count() > 0)
-                                            <a
-                                                href="{{ route('admin.preventive-reports.evidence', $report) }}"
-                                                target="_blank"
-                                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                                                title="Ver evidencia"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
-                                                </svg>
-                                            </a>
-                                        @else
-                                            <span class="text-slate-400">—</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        {{ $report->condition?->code ?? '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
-                                        {{ $report->orden ?: '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
-                                        {{ $report->aviso ?: '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        {{ $report->user?->name ?? '—' }}
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm text-slate-700">
-                                        @if($report->created_at)
-                                            <div>{{ $report->created_at->format('Y-m-d') }}</div>
-                                            <div class="text-xs text-slate-500">{{ $report->created_at->format('H:i') }}</div>
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm text-slate-700" id="execution-date-{{ $report->id }}">
-                                        @if($isDone && $report->execution_date)
-                                            {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm">
-                                        @if($report->condition)
-                                            <span
-                                                class="inline-flex rounded-lg px-3 py-1 font-medium"
-                                                style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
-                                            >
-                                                {{ $report->condition->name }}
-                                            </span>
-                                        @else
-                                            <span class="text-slate-700">—</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm">
-                                        <label
-                                            id="execution-badge-{{ $report->id }}"
-                                            class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                class="execution-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                data-id="{{ $report->id }}"
-                                                {{ $isDone ? 'checked' : '' }}
-                                            >
-                                            <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
-                                        </label>
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
-                                        {{ $report->week }}
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="14" class="px-3 py-10 text-center text-sm text-slate-500">
-                                        No hay reportes para este tipo de activo en el año actual.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+            <td class="px-3 py-3 text-sm text-slate-700">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {{ $report->component?->name ?? '—' }}
                 </div>
+                <div class="mt-1">
+                    {{ $report->diagnostic?->name ?? '—' }}
+                </div>
+            </td>
 
-                @if($reports->hasPages())
-                    <div class="border-t border-slate-200 px-4 py-3">
-                        {{ $reports->links() }}
-                    </div>
+            <td class="max-w-[380px] px-3 py-3 text-sm leading-5 text-slate-700">
+                {!! (($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
+                    ? nl2br(e(ltrim((string) $report->recommendation)))
+                    : '—' !!}
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                @if($report->files->count() > 0)
+                    <a
+                        href="{{ route('admin.preventive-reports.evidence', $report) }}"
+                        target="_blank"
+                        class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                        title="Ver evidencia"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
+                        </svg>
+                    </a>
+                @else
+                    <span class="text-slate-400">—</span>
                 @endif
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->condition?->code ?? '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                {{ $report->orden ?: '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                {{ $report->aviso ?: '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->user?->name ?? '—' }}
+            </td>
+
+            <td class="px-3 py-3 text-sm text-slate-700">
+                @if($report->created_at)
+                    <div>{{ $report->created_at->format('Y-m-d') }}</div>
+                    <div class="text-xs text-slate-500">{{ $report->created_at->format('H:i') }}</div>
+                @else
+                    —
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm text-slate-700" id="execution-date-{{ $report->id }}">
+                @if($isDone && $report->execution_date)
+                    {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
+                @else
+                    —
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm">
+                @if($report->condition)
+                    <span
+                        class="inline-flex rounded-lg px-3 py-1 font-medium"
+                        style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
+                    >
+                        {{ $report->condition->name }}
+                    </span>
+                @else
+                    <span class="text-slate-700">—</span>
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm">
+                @if($isReadOnly ?? false)
+                    <span
+                        id="execution-badge-{{ $report->id }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                    >
+                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                    </span>
+                @else
+                    <label
+                        id="execution-badge-{{ $report->id }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                    >
+                        <input
+                            type="checkbox"
+                            class="execution-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                            data-id="{{ $report->id }}"
+                            {{ $isDone ? 'checked' : '' }}
+                        >
+                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                    </label>
+                @endif
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
+                {{ $report->week }}
+            </td>
+        </tr>
+    @empty
+        <tr>
+            <td colspan="14" class="px-3 py-10 text-center text-sm text-slate-500">
+                No hay reportes para este tipo de activo en el año seleccionado.
+            </td>
+        </tr>
+    @endforelse
+</tbody>
+@if($reports->hasPages())
+    <div class="border-t border-slate-200 px-4 py-3">
+        {{ $reports->appends(['year' => $currentYear])->links() }}
+    </div>
+@endif
             </div>
         </div>
     </div>
@@ -392,6 +421,7 @@
 
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const isReadOnly = @json($isReadOnly ?? false);
 
         const filterOptions = {
             element_names: {
@@ -480,6 +510,12 @@
             const form = document.getElementById('filtersForm');
             form.innerHTML = '';
 
+            const yearInput = document.createElement('input');
+            yearInput.type = 'hidden';
+            yearInput.name = 'year';
+            yearInput.value = @json($currentYear);
+            form.appendChild(yearInput);
+
             const addHidden = (name, value) => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -543,8 +579,7 @@
             popover.style.top = `${top}px`;
             popover.style.left = `${left}px`;
         }
-
-        function renderChecklist(body, config, selectedValues, objectMode = false) {
+function renderChecklist(body, config, selectedValues, objectMode = false) {
             const searchId = `search_${config.inputName}`;
             const listId = `list_${config.inputName}`;
 
@@ -565,7 +600,6 @@
 
             const renderList = () => {
                 const term = search.value.toLowerCase().trim();
-
                 let items = config.options;
 
                 if (objectMode) {
@@ -678,8 +712,14 @@
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
         }
+const isReadOnly = @json($isReadOnly ?? false);
 
         async function toggleExecution(checkbox) {
+            if (isReadOnly) {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
             const reportId = checkbox.dataset.id;
             const isChecked = checkbox.checked;
 
@@ -716,6 +756,7 @@
                     badge.querySelector('span').textContent = 'PENDIENTE';
                     dateCell.textContent = '—';
                 }
+
             } catch (error) {
                 checkbox.checked = !isChecked;
                 alert(error.message);
@@ -726,6 +767,12 @@
             cb.addEventListener('change', function () {
                 toggleExecution(this);
             });
+
+            // 🔒 Bloqueo visual si es solo lectura
+            if (isReadOnly) {
+                cb.disabled = true;
+                cb.classList.add('cursor-not-allowed', 'opacity-60');
+            }
         });
 
         document.addEventListener('click', function (event) {
@@ -737,6 +784,6 @@
                 closeFilterPopover();
             }
         });
-    </script>
+</script>
 </body>
 </html>

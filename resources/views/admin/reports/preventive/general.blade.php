@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Reporte preventivo general</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -26,56 +27,73 @@
 
                 return $value !== null && $value !== '';
             });
+
+        $clearFiltersUrl = route('admin.preventive-reports.general', $client->id) . '?year=' . $currentYear;
     @endphp
 
     <div class="min-h-screen p-4">
-        <div class="mx-auto max-w-[1800px] space-y-4">
+        <div class="mx-auto max-w-[1900px] space-y-4">
 
             <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 class="text-2xl font-bold tracking-tight text-slate-900">
                             Reporte preventivo general Planta {{ $client->name }} {{ $currentYear }}
                         </h1>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Visualización consolidada de todos los tipos de activos del cliente.
-                        </p>
-                    </div>
 
-                    <div class="flex flex-col items-stretch gap-3 lg:items-end">
-                        @if($hasAnyActiveFilter)
-                            <a
-                                href="{{ route('admin.preventive-reports.general', ['client' => $client->id]) }}"
-                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                                Limpiar filtros
-                            </a>
-                        @endif
+                        <div class="mt-3 flex flex-wrap items-center gap-3">
+                            <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                Año: {{ $currentYear }}
+                            </span>
 
-                        <div class="grid gap-2 sm:grid-cols-2">
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Total generados
+                            @if(!empty($roleKey))
+                                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                    Rol: {{ $roleKey }}
+                                </span>
+                            @endif
+
+                            @if($isReadOnly ?? false)
+                                <span class="inline-flex items-center rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                                    Modo solo lectura
+                                </span>
+                            @endif
+                        </div>
+
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Total generado
                                 </div>
-                                <div class="mt-1 text-lg font-bold text-slate-900">
-                                    {{ number_format($totalReportsGenerated, 0, ',', '.') }}
+                                <div class="mt-1 text-xl font-bold text-slate-900">
+                                    {{ $totalReportsGenerated ?? 0 }}
                                 </div>
                             </div>
 
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Total con filtros
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Total filtrado
                                 </div>
-                                <div class="mt-1 text-lg font-bold text-slate-900">
-                                    {{ number_format($totalReportsFiltered, 0, ',', '.') }}
+                                <div class="mt-1 text-xl font-bold text-slate-900">
+                                    {{ $totalReportsFiltered ?? 0 }}
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    @if($hasAnyActiveFilter)
+                        <a
+                            href="{{ $clearFiltersUrl }}"
+                            class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                            Limpiar filtros
+                        </a>
+                    @endif
                 </div>
             </div>
 
-            <form id="filtersForm" method="GET" class="hidden"></form>
+            <form id="filtersForm" method="GET" class="hidden">
+                <input type="hidden" name="year" value="{{ $currentYear }}">
+            </form>
 
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="overflow-x-auto">
@@ -88,6 +106,19 @@
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'element_type_names')"
                                             class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </th>
+
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-center gap-2">
+                                        <span>Área</span>
+                                        <button type="button"
+                                            onclick="openFilterPopover(event, 'area_names')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -132,6 +163,10 @@
                                             </svg>
                                         </button>
                                     </div>
+                                </th>
+
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Evidencia
                                 </th>
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -186,7 +221,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
                                     <div class="flex items-center gap-2">
                                         <span>Fecha de reporte</span>
                                         <button type="button"
@@ -199,7 +234,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
                                     <div class="flex items-center gap-2">
                                         <span>Fecha de ejecución</span>
                                         <button type="button"
@@ -212,7 +247,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
                                     <div class="flex items-center gap-2">
                                         <span>Condición del activo</span>
                                         <button type="button"
@@ -225,7 +260,7 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 leading-4">
                                     <div class="flex items-center gap-2">
                                         <span>Ejecución orden</span>
                                         <button type="button"
@@ -252,115 +287,144 @@
                                 </th>
                             </tr>
                         </thead>
+<tbody class="divide-y divide-slate-200 bg-white">
+    @forelse($reports as $report)
+        @php
+            $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
+        @endphp
 
-                        <tbody class="divide-y divide-slate-200 bg-white">
-                            @forelse($reports as $report)
-                                @php
-                                    $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
-                                @endphp
+        <tr class="align-top hover:bg-slate-50">
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->element?->elementType?->name ?? '—' }}
+            </td>
 
-                                <tr class="align-top hover:bg-slate-50">
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        {{ $report->element?->elementType?->name ?? '—' }}
-                                    </td>
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->element?->area?->name ?? '—' }}
+            </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
-                                        {{ $report->element?->name ?? '—' }}
-                                    </td>
+            <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
+                {{ $report->element?->name ?? '—' }}
+            </td>
 
-                                    <td class="px-3 py-3 text-sm text-slate-700">
-                                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            {{ $report->component?->name ?? '—' }}
-                                        </div>
-                                        <div class="mt-1">
-                                            {{ $report->diagnostic?->name ?? '—' }}
-                                        </div>
-                                    </td>
-
-                                    <td class="max-w-[380px] px-3 py-3 text-sm leading-5 text-slate-700">
-                                        {!! (($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
-                                            ? nl2br(e(ltrim((string) $report->recommendation)))
-                                            : '—' !!}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        {{ $report->condition?->code ?? '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
-                                        {{ $report->orden ?: '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
-                                        {{ $report->aviso ?: '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
-                                        {{ $report->user?->name ?? '—' }}
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm text-slate-700">
-                                        @if($report->created_at)
-                                            <div>{{ $report->created_at->format('Y-m-d') }}</div>
-                                            <div class="text-xs text-slate-500">{{ $report->created_at->format('H:i') }}</div>
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm text-slate-700">
-                                        @if($isDone && $report->execution_date)
-                                            {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm">
-                                        @if($report->condition)
-                                            <span
-                                                class="inline-flex rounded-lg px-3 py-1 font-medium"
-                                                style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
-                                            >
-                                                {{ $report->condition->name }}
-                                            </span>
-                                        @else
-                                            <span class="text-slate-700">—</span>
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-3 text-sm">
-                                        @if($isDone)
-                                            <span class="inline-flex rounded-xl bg-green-100 px-3 py-2 text-xs font-semibold text-green-700">
-                                                REALIZADO
-                                            </span>
-                                        @else
-                                            <span class="inline-flex rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800">
-                                                PENDIENTE
-                                            </span>
-                                        @endif
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
-                                        {{ $report->week }}
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="13" class="px-3 py-10 text-center text-sm text-slate-500">
-                                        No hay reportes para el cliente en el año actual.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+            <td class="px-3 py-3 text-sm text-slate-700">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {{ $report->component?->name ?? '—' }}
                 </div>
+                <div class="mt-1">
+                    {{ $report->diagnostic?->name ?? '—' }}
+                </div>
+            </td>
 
-                @if($reports->hasPages())
-                    <div class="border-t border-slate-200 px-4 py-3">
-                        {{ $reports->links() }}
-                    </div>
+            <td class="max-w-[380px] px-3 py-3 text-sm leading-5 text-slate-700">
+                {!! (($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
+                    ? nl2br(e(ltrim((string) $report->recommendation)))
+                    : '—' !!}
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                @if($report->files->count() > 0)
+                    <a
+                        href="{{ route('admin.preventive-reports.evidence', $report) }}"
+                        target="_blank"
+                        class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                        title="Ver evidencia"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
+                        </svg>
+                    </a>
+                @else
+                    <span class="text-slate-400">—</span>
                 @endif
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->condition?->code ?? '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                {{ $report->orden ?: '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                {{ $report->aviso ?: '—' }}
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->user?->name ?? '—' }}
+            </td>
+
+            <td class="px-3 py-3 text-sm text-slate-700">
+                @if($report->created_at)
+                    <div>{{ $report->created_at->format('Y-m-d') }}</div>
+                    <div class="text-xs text-slate-500">{{ $report->created_at->format('H:i') }}</div>
+                @else
+                    —
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm text-slate-700" id="execution-date-{{ $report->id }}">
+                @if($isDone && $report->execution_date)
+                    {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
+                @else
+                    —
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm">
+                @if($report->condition)
+                    <span
+                        class="inline-flex rounded-lg px-3 py-1 font-medium"
+                        style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
+                    >
+                        {{ $report->condition->name }}
+                    </span>
+                @else
+                    <span class="text-slate-700">—</span>
+                @endif
+            </td>
+
+            <td class="px-3 py-3 text-sm">
+                @if($isReadOnly ?? false)
+                    <span
+                        id="execution-badge-{{ $report->id }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                    >
+                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                    </span>
+                @else
+                    <label
+                        id="execution-badge-{{ $report->id }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                    >
+                        <input
+                            type="checkbox"
+                            class="execution-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                            data-id="{{ $report->id }}"
+                            {{ $isDone ? 'checked' : '' }}
+                        >
+                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                    </label>
+                @endif
+            </td>
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
+                {{ $report->week }}
+            </td>
+        </tr>
+    @empty
+        <tr>
+            <td colspan="15" class="px-3 py-10 text-center text-sm text-slate-500">
+                No hay reportes para este cliente en el año seleccionado.
+            </td>
+        </tr>
+    @endforelse
+</tbody>
+@if($reports->hasPages())
+    <div class="border-t border-slate-200 px-4 py-3">
+        {{ $reports->appends(['year' => $currentYear])->links() }}
+    </div>
+@endif
             </div>
         </div>
     </div>
@@ -391,12 +455,21 @@
     </div>
 
     <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const isReadOnly = @json($isReadOnly ?? false);
+
         const filterOptions = {
             element_type_names: {
                 type: 'checklist',
                 title: 'Tipo de activo',
                 inputName: 'element_type_names',
                 options: @json($filterOptions['element_type_names']),
+            },
+            area_names: {
+                type: 'checklist',
+                title: 'Área',
+                inputName: 'area_names',
+                options: @json($filterOptions['area_names']),
             },
             element_names: {
                 type: 'checklist',
@@ -479,6 +552,12 @@
             const form = document.getElementById('filtersForm');
             form.innerHTML = '';
 
+            const yearInput = document.createElement('input');
+            yearInput.type = 'hidden';
+            yearInput.name = 'year';
+            yearInput.value = @json($currentYear);
+            form.appendChild(yearInput);
+
             const addHidden = (name, value) => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -538,8 +617,7 @@
             popover.style.top = `${top}px`;
             popover.style.left = `${left}px`;
         }
-
-        function renderChecklist(body, config, selectedValues, objectMode = false) {
+function renderChecklist(body, config, selectedValues, objectMode = false) {
             const searchId = `search_${config.inputName}`;
             const listId = `list_${config.inputName}`;
 
@@ -560,7 +638,6 @@
 
             const renderList = () => {
                 const term = search.value.toLowerCase().trim();
-
                 let items = config.options;
 
                 if (objectMode) {
@@ -673,6 +750,65 @@
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
         }
+async function toggleExecution(checkbox) {
+            if (isReadOnly) {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+
+            const reportId = checkbox.dataset.id;
+            const isChecked = checkbox.checked;
+
+            const badge = document.getElementById(`execution-badge-${reportId}`);
+            const dateCell = document.getElementById(`execution-date-${reportId}`);
+
+            try {
+                const response = await fetch(`/admin/preventive-reports/report-details/${reportId}/toggle-execution`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        is_checked: isChecked ? 1 : 0
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'No fue posible actualizar el estado.');
+                }
+
+                if (isChecked) {
+                    badge.classList.remove('bg-amber-100', 'text-amber-800');
+                    badge.classList.add('bg-green-100', 'text-green-700');
+                    badge.querySelector('span').textContent = 'REALIZADO';
+                    dateCell.textContent = data.execution_date ? data.execution_date.substring(0, 10) : '—';
+                } else {
+                    badge.classList.remove('bg-green-100', 'text-green-700');
+                    badge.classList.add('bg-amber-100', 'text-amber-800');
+                    badge.querySelector('span').textContent = 'PENDIENTE';
+                    dateCell.textContent = '—';
+                }
+
+            } catch (error) {
+                checkbox.checked = !isChecked;
+                alert(error.message);
+            }
+        }
+
+        document.querySelectorAll('.execution-checkbox').forEach(cb => {
+            cb.addEventListener('change', function () {
+                toggleExecution(this);
+            });
+
+            if (isReadOnly) {
+                cb.disabled = true;
+                cb.classList.add('cursor-not-allowed', 'opacity-60');
+            }
+        });
 
         document.addEventListener('click', function (event) {
             const popover = document.getElementById('filterPopover');
@@ -683,6 +819,6 @@
                 closeFilterPopover();
             }
         });
-    </script>
+</script>
 </body>
 </html>

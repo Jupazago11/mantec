@@ -230,7 +230,7 @@ class AdminElementController extends Controller
                 ->withInput();
         }
 
-        Element::create([
+        $element = Element::create([
             'area_id' => $validated['area_id'],
             'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
@@ -238,6 +238,20 @@ class AdminElementController extends Controller
             'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
             'status' => (bool) $validated['status'],
         ]);
+
+        $defaultComponentIds = Component::query()
+            ->where('client_id', $validated['client_id'])
+            ->where('element_type_id', $validated['element_type_id'])
+            ->where('status', true)
+            ->where('is_default', true)
+            ->pluck('id')
+            ->values()
+            ->all();
+
+        if (!empty($defaultComponentIds)) {
+            $element->components()->sync($defaultComponentIds);
+        }
+
 
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))

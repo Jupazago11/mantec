@@ -137,14 +137,21 @@
                             <label class="mb-2 block text-sm font-medium text-slate-700">Tipo de activo</label>
                             <select
                                 name="element_type_id"
+                                id="create_element_type_id"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             >
+
                                 <option value="">Seleccione un tipo</option>
                                 @foreach($elementTypes as $elementType)
-                                    <option value="{{ $elementType->id }}" @selected(old('element_type_id') == $elementType->id)>
+                                    <option
+                                        value="{{ $elementType->id }}"
+                                        data-client-id="{{ $elementType->client_id }}"
+                                        @selected(old('element_type_id') == $elementType->id)
+                                    >
                                         {{ $elementType->name }}
                                     </option>
                                 @endforeach
+
                             </select>
 
                             @error('element_type_id')
@@ -419,10 +426,12 @@
 
                                         <td class="px-4 py-3 text-right">
                                             <div class="flex justify-end gap-2">
-<button
+                                                <button
                                                     type="button"
                                                     onclick="openComponentsModal(
                                                         '{{ $element->id }}',
+                                                        '{{ $element->area?->client_id ?? '' }}',
+                                                        '{{ $element->element_type_id ?? '' }}',
                                                         @js($element->area?->name ?? '—'),
                                                         @js($element->elementType?->name ?? '—'),
                                                         @js($element->name),
@@ -433,6 +442,7 @@
                                                 >
                                                     Componentes
                                                 </button>
+
 
                                                 <button
                                                     type="button"
@@ -980,8 +990,11 @@
 
             const clientId = checkbox.checked ? checkbox.value : '';
             document.getElementById('selected_client_id').value = clientId;
+
             filterCreateAreasByClient(clientId);
+            filterCreateElementTypesByClient(clientId);
         }
+
 
         function filterEditFieldsByArea(areaId) {
             const areaSelect = document.getElementById('edit_element_area_id');
@@ -1024,15 +1037,25 @@
             modal.classList.add('hidden');
         }
 
-        function openComponentsModal(elementId, areaName, typeName, elementName, actionUrl, selectedComponentIds) {
+        function openComponentsModal(elementId, clientId, elementTypeId, areaName, typeName, elementName, actionUrl, selectedComponentIds) {
             document.getElementById('componentsForm').action = actionUrl;
             document.getElementById('components_area_name').textContent = areaName ?? '—';
             document.getElementById('components_type_name').textContent = typeName ?? '—';
             document.getElementById('components_element_name').textContent = elementName ?? '—';
 
+            filterComponentsChecklist(clientId, elementTypeId);
+
             const selectedSet = new Set((selectedComponentIds ?? []).map(String));
 
             document.querySelectorAll('[data-component-checkbox]').forEach((checkbox) => {
+                const item = checkbox.closest('[data-component-item]');
+                const hidden = item?.classList.contains('hidden');
+
+                if (hidden) {
+                    checkbox.checked = false;
+                    return;
+                }
+
                 checkbox.checked = selectedSet.has(String(checkbox.value));
             });
 
@@ -1040,6 +1063,7 @@
             modal.classList.remove('hidden');
             modal.classList.add('flex');
         }
+
 
         function closeComponentsModal() {
             const modal = document.getElementById('componentsModal');
@@ -1075,6 +1099,51 @@
             }
         });
 
+        function filterComponentsChecklist(clientId, elementTypeId) {
+            document.querySelectorAll('[data-component-item]').forEach(item => {
+                const itemClientId = item.dataset.clientId ?? '';
+                const itemElementTypeId = item.dataset.elementTypeId ?? '';
+                const checkbox = item.querySelector('[data-component-checkbox]');
+
+                const visible =
+                    String(itemClientId) === String(clientId) &&
+                    String(itemElementTypeId) === String(elementTypeId);
+
+                item.classList.toggle('hidden', !visible);
+
+                if (!visible && checkbox) {
+                    checkbox.checked = false;
+                }
+            });
+        }
+
+
+        function filterCreateElementTypesByClient(clientId) {
+            const select = document.getElementById('create_element_type_id');
+            if (!select) return;
+
+            const currentValue = select.value;
+
+            Array.from(select.options).forEach(option => {
+                if (!option.value) {
+                    option.hidden = false;
+                    return;
+                }
+
+                option.hidden = clientId
+                    ? String(option.dataset.clientId) !== String(clientId)
+                    : false;
+            });
+
+            if (currentValue) {
+                const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
+                if (selectedOption && selectedOption.hidden) {
+                    select.value = '';
+                }
+            }
+        }
+
+
         document.addEventListener('DOMContentLoaded', function () {
             const selectedClient = document.getElementById('selected_client_id');
             const editAreaSelect = document.getElementById('edit_element_area_id');
@@ -1085,9 +1154,12 @@
                 });
 
                 filterCreateAreasByClient(selectedClient.value);
+                filterCreateElementTypesByClient(selectedClient.value);
             } else {
                 filterCreateAreasByClient('');
+                filterCreateElementTypesByClient('');
             }
+
 
             if (editAreaSelect) {
                 editAreaSelect.addEventListener('change', function () {
