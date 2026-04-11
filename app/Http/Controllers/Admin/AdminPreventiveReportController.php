@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\ExecutionStatus;
 use App\Models\ReportDetail;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -268,6 +269,12 @@ class AdminPreventiveReportController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        $reports->getCollection()->transform(function ($report) {
+            $report->responsable_names = $this->resolveAdminClienteResponsables($report);
+            return $report;
+        });
+
+
         $optionsRows = (clone $baseQuery)
             ->with([
                 'user:id,name',
@@ -365,12 +372,22 @@ class AdminPreventiveReportController extends Controller
                 ->sort()
                 ->values(),
 
-            'responsable_names' => $optionsRows
+            'inspector_names' => $optionsRows
                 ->map(fn ($row) => $row->user?->name)
                 ->filter()
                 ->unique()
                 ->sort()
                 ->values(),
+
+            'responsable_names' => $optionsRows
+                ->map(fn ($row) => $this->resolveAdminClienteResponsables($row))
+                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
+                ->flatMap(fn ($value) => collect(explode(', ', $value)))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
 
             'condition_names' => $optionsRows
                 ->map(fn ($row) => $row->condition?->name)
@@ -393,13 +410,14 @@ class AdminPreventiveReportController extends Controller
 
         $activeFilters = [
             'element_type_names' => $request->input('element_type_names', []),
-            'element_names' => $request->input('element_names', []),
             'area_names' => $request->input('area_names', []),
+            'element_names' => $request->input('element_names', []),
             'diagnostic_pairs' => $request->input('diagnostic_pairs', []),
             'recommendation_values' => $request->input('recommendation_values', []),
             'condition_codes' => $request->input('condition_codes', []),
             'orden_values' => $request->input('orden_values', []),
             'aviso_values' => $request->input('aviso_values', []),
+            'inspector_names' => $request->input('inspector_names', []),
             'responsable_names' => $request->input('responsable_names', []),
             'condition_names' => $request->input('condition_names', []),
             'execution_statuses' => $request->input('execution_statuses', []),
@@ -409,6 +427,7 @@ class AdminPreventiveReportController extends Controller
             'execution_date_from' => $request->input('execution_date_from'),
             'execution_date_to' => $request->input('execution_date_to'),
         ];
+
 
         return view('admin.reports.preventive.general', compact(
             'client',
@@ -572,6 +591,14 @@ class AdminPreventiveReportController extends Controller
             });
         }
 
+
+        $areaNames = array_filter((array) $request->input('area_names', []));
+        if (!empty($areaNames)) {
+            $query->whereHas('element.area', function ($q) use ($areaNames) {
+                $q->whereIn('name', $areaNames);
+            });
+        }
+
         $diagnosticPairs = array_filter((array) $request->input('diagnostic_pairs', []));
         if (!empty($diagnosticPairs)) {
             $query->where(function ($outer) use ($diagnosticPairs) {
@@ -627,12 +654,46 @@ class AdminPreventiveReportController extends Controller
             $query->whereIn('aviso', $avisoValues);
         }
 
-        $responsableNames = array_filter((array) $request->input('responsable_names', []));
-        if (!empty($responsableNames)) {
-            $query->whereHas('user', function ($q) use ($responsableNames) {
-                $q->whereIn('name', $responsableNames);
+        $inspectorNames = array_filter((array) $request->input('inspector_names', []));
+        if (!empty($inspectorNames)) {
+            $query->whereHas('user', function ($q) use ($inspectorNames) {
+                $q->whereIn('name', $inspectorNames);
             });
         }
+
+        $responsableNames = array_filter((array) $request->input('responsable_names', []));
+        if (!empty($responsableNames)) {
+            $query->where(function ($outerQuery) use ($responsableNames) {
+                foreach ($responsableNames as $responsableName) {
+                    $outerQuery->orWhere(function ($innerQuery) use ($responsableName) {
+                        $innerQuery->whereExists(function ($subQuery) use ($responsableName) {
+                            $subQuery->selectRaw('1')
+                                ->from('users')
+                                ->join('roles', 'roles.id', '=', 'users.role_id')
+                                ->join('client_user', 'client_user.user_id', '=', 'users.id')
+                                ->join('user_client_element_type', function ($join) {
+                                    $join->on('user_client_element_type.user_id', '=', 'users.id')
+                                        ->on('user_client_element_type.client_id', '=', 'client_user.client_id');
+                                })
+                                ->join('user_client_element_type_areas', function ($join) {
+                                    $join->on('user_client_element_type_areas.user_id', '=', 'users.id')
+                                        ->on('user_client_element_type_areas.client_id', '=', 'user_client_element_type.client_id')
+                                        ->on('user_client_element_type_areas.element_type_id', '=', 'user_client_element_type.element_type_id');
+                                })
+                                ->join('elements', 'elements.id', '=', 'report_details.element_id')
+                                ->join('areas', 'areas.id', '=', 'elements.area_id')
+                                ->whereColumn('client_user.client_id', 'areas.client_id')
+                                ->whereColumn('user_client_element_type.element_type_id', 'elements.element_type_id')
+                                ->whereColumn('user_client_element_type_areas.area_id', 'areas.id')
+                                ->where('roles.key', 'admin_cliente')
+                                ->where('users.status', true)
+                                ->where('users.name', $responsableName);
+                        });
+                    });
+                }
+            });
+        }
+
 
         if ($request->filled('report_date_from')) {
             $query->whereDate('created_at', '>=', $request->input('report_date_from'));
@@ -685,6 +746,51 @@ class AdminPreventiveReportController extends Controller
         if (!empty($weeks)) {
             $query->whereIn('week', $weeks);
         }
+    }
+
+    private function resolveAdminClienteResponsables(ReportDetail $report): string
+    {
+        $clientId = $report->element?->area?->client_id;
+        $elementTypeId = $report->element?->element_type_id;
+        $areaId = $report->element?->area_id;
+
+        if (!$clientId || !$elementTypeId || !$areaId) {
+            return '—';
+        }
+
+        $names = User::query()
+            ->select('users.name')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.key', 'admin_cliente')
+            ->where('users.status', true)
+            ->whereExists(function ($query) use ($clientId) {
+                $query->selectRaw('1')
+                    ->from('client_user')
+                    ->whereColumn('client_user.user_id', 'users.id')
+                    ->where('client_user.client_id', $clientId);
+            })
+            ->whereExists(function ($query) use ($clientId, $elementTypeId) {
+                $query->selectRaw('1')
+                    ->from('user_client_element_type')
+                    ->whereColumn('user_client_element_type.user_id', 'users.id')
+                    ->where('user_client_element_type.client_id', $clientId)
+                    ->where('user_client_element_type.element_type_id', $elementTypeId);
+            })
+            ->whereExists(function ($query) use ($clientId, $elementTypeId, $areaId) {
+                $query->selectRaw('1')
+                    ->from('user_client_element_type_areas')
+                    ->whereColumn('user_client_element_type_areas.user_id', 'users.id')
+                    ->where('user_client_element_type_areas.client_id', $clientId)
+                    ->where('user_client_element_type_areas.element_type_id', $elementTypeId)
+                    ->where('user_client_element_type_areas.area_id', $areaId);
+            })
+            ->orderBy('users.name')
+            ->pluck('users.name')
+            ->unique()
+            ->values()
+            ->all();
+
+        return !empty($names) ? implode(', ', $names) : '—';
     }
 
 
