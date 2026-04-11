@@ -37,6 +37,11 @@ class ElementType extends Model
         return $this->hasMany(Element::class);
     }
 
+    public function diagnostics(): HasMany
+    {
+        return $this->hasMany(Diagnostic::class);
+    }
+
     public function allowedUsers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'user_client_element_type')

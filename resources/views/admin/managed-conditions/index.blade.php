@@ -165,7 +165,7 @@
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Severidad</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Criticidad</label>
                             <input
                                 type="number"
                                 name="severity"
@@ -319,7 +319,7 @@
                                     </th>
 
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Severidad
+                                        Criticidad
                                     </th>
 
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -594,7 +594,7 @@
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Severidad</label>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Criticidad</label>
                     <input
                         type="number"
                         name="severity"

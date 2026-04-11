@@ -28,7 +28,7 @@
         <div>
             <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de diagnósticos</h2>
             <p class="mt-2 text-slate-600">
-                Crea y administra los diagnósticos disponibles para cada cliente asignado.
+                Crea y administra los diagnósticos disponibles para cada cliente y tipo de activo.
             </p>
         </div>
 
@@ -56,75 +56,113 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo diagnóstico</h3>
                     <p class="mt-1 text-sm text-slate-500">
                         Registra un diagnóstico para uno de tus clientes.
                     </p>
 
-                    <form method="POST" action="{{ route('admin.managed-diagnostics.store') }}" class="mt-6 space-y-5">
+                    <form
+                        method="POST"
+                        action="{{ route('admin.managed-diagnostics.store') }}"
+                        class="mt-6 space-y-5"
+                    >
                         @csrf
 
-                        @if($showClientColumn)
-                            <div>
-                                <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                                <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
-                                    @foreach($clients as $client)
-                                        <label class="flex items-center gap-3 text-sm text-slate-700">
-                                            <input
-                                                type="checkbox"
-                                                name="client_id_checkbox"
-                                                value="{{ $client->id }}"
-                                                class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                {{ old('client_id') == $client->id ? 'checked' : '' }}
-                                                onchange="handleSingleClientSelection(this)"
-                                            >
-                                            {{ $client->name }}
-                                        </label>
-                                    @endforeach
-                                </div>
-                                <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id') }}">
-                                @error('client_id')
-                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        @else
-                            <div>
-                                <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                                <input
-                                    type="text"
-                                    value="{{ $singleClient?->name }}"
-                                    disabled
-                                    class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700"
-                                >
-                                <input type="hidden" name="client_id" value="{{ $singleClient?->id }}">
-                            </div>
-                        @endif
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">
+                                Cliente
+                            </label>
+
+                            <select
+                                name="client_id"
+                                id="create_client_id"
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                required
+                            >
+                                <option value="">Seleccione un cliente</option>
+
+                                @foreach($clients as $client)
+                                    <option
+                                        value="{{ $client->id }}"
+                                        @selected(old('client_id', $singleClient?->id) == $client->id)
+                                    >
+                                        {{ $client->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            @error('client_id')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+<div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">
+                                Tipo de activo
+                            </label>
+
+                            <select
+                                name="element_type_id"
+                                id="create_element_type_id"
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                required
+                            >
+                                <option value="">Seleccione un tipo de activo</option>
+
+                                @foreach($elementTypes as $elementType)
+                                    <option
+                                        value="{{ $elementType->id }}"
+                                        data-client-id="{{ $elementType->client_id }}"
+                                        @selected(old('element_type_id') == $elementType->id)
+                                    >
+                                        @if($showClientColumn)
+                                            {{ $elementType->name }}
+                                        @else
+                                            {{ $elementType->name }}
+                                        @endif
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            @error('element_type_id')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">
+                                Nombre del diagnóstico
+                            </label>
+
                             <input
                                 type="text"
                                 name="name"
                                 value="{{ old('name') }}"
+                                placeholder="Ej: Alineación, Temperatura..."
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                                placeholder="Ej. Mal estado"
+                                required
                             >
+
                             @error('name')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Estado</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">
+                                Estado
+                            </label>
+
                             <select
                                 name="status"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                required
                             >
-                                <option value="1" @selected(old('status', '1') == '1')>Activo</option>
-                                <option value="0" @selected(old('status') == '0')>Inactivo</option>
+                                <option value="1" @selected(old('status', 1) == 1)>Activo</option>
+                                <option value="0" @selected(old('status') == 0)>Inactivo</option>
                             </select>
+
                             @error('status')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
@@ -132,6 +170,9 @@
 
                         @foreach(($activeFilters['client_ids'] ?? []) as $value)
                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                        @endforeach
+                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
                         @endforeach
                         @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
                             <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
@@ -141,12 +182,14 @@
                         @endforeach
                         <input type="hidden" name="redirect_page" value="{{ request('page', 1) }}">
 
-                        <button
-                            type="submit"
-                            class="inline-flex w-full items-center justify-center rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                        >
-                            Guardar diagnóstico
-                        </button>
+                        <div class="pt-2">
+                            <button
+                                type="submit"
+                                class="w-full rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b63c28]"
+                            >
+                                Crear diagnóstico
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -154,7 +197,9 @@
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
-                            <h3 class="text-lg font-semibold text-slate-900">Listado de diagnósticos</h3>
+                            <h3 class="text-lg font-semibold text-slate-900">
+                                Listado de diagnósticos
+                            </h3>
 
                             @if($hasAnyActiveFilter)
                                 <a
@@ -192,6 +237,21 @@
 
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <div class="flex items-center gap-2">
+                                            <span>Tipo de activo</span>
+                                            <button
+                                                type="button"
+                                                onclick="openFilterPopover(event, 'element_type_ids')"
+                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </th>
+
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        <div class="flex items-center gap-2">
                                             <span>Nombre</span>
                                             <button
                                                 type="button"
@@ -204,7 +264,6 @@
                                             </button>
                                         </div>
                                     </th>
-
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <div class="flex items-center gap-2">
                                             <span>Estado</span>
@@ -227,7 +286,7 @@
                             </thead>
 
                             <tbody class="divide-y divide-slate-200 bg-white">
-@forelse($diagnostics as $diagnostic)
+                                @forelse($diagnostics as $diagnostic)
                                     @php
                                         $hasDependencies = (($diagnostic->components_count ?? 0) + ($diagnostic->report_details_count ?? 0)) > 0;
                                     @endphp
@@ -238,6 +297,10 @@
                                                 {{ $diagnostic->client?->name ?? '—' }}
                                             </td>
                                         @endif
+
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                                            {{ $diagnostic->elementType?->name ?? '—' }}
+                                        </td>
 
                                         <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
                                             {{ $diagnostic->name }}
@@ -254,7 +317,6 @@
                                                 </span>
                                             @endif
                                         </td>
-
                                         <td class="whitespace-nowrap px-5 py-3 text-right">
                                             <div class="flex justify-end gap-2">
                                                 <button
@@ -262,6 +324,7 @@
                                                     onclick="openEditDiagnosticModal(
                                                         '{{ $diagnostic->id }}',
                                                         '{{ $diagnostic->client_id }}',
+                                                        '{{ $diagnostic->element_type_id }}',
                                                         @js($diagnostic->name),
                                                         '{{ $diagnostic->status ? 1 : 0 }}',
                                                         '{{ route('admin.managed-diagnostics.update', $diagnostic) }}'
@@ -282,6 +345,9 @@
 
                                                         @foreach(($activeFilters['client_ids'] ?? []) as $value)
                                                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                                                        @endforeach
+                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
                                                         @endforeach
                                                         @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
                                                             <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
@@ -305,9 +371,11 @@
                                                     >
                                                         @csrf
                                                         @method('PATCH')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
+@foreach(($activeFilters['client_ids'] ?? []) as $value)
                                                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                                                        @endforeach
+                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
                                                         @endforeach
                                                         @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
                                                             <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
@@ -330,7 +398,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $showClientColumn ? 4 : 3 }}" class="px-5 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="{{ $showClientColumn ? 5 : 4 }}" class="px-5 py-10 text-center text-sm text-slate-500">
                                             No hay diagnósticos registrados todavía.
                                         </td>
                                     </tr>
@@ -348,7 +416,8 @@
             </div>
         </div>
     </div>
-<div id="editDiagnosticModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
+
+    <div id="editDiagnosticModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-slate-900">Editar diagnóstico</h3>
@@ -358,8 +427,7 @@
             <form id="editDiagnosticForm" method="POST" class="space-y-5 p-6">
                 @csrf
                 @method('PUT')
-
-                @if($showClientColumn)
+@if($showClientColumn)
                     <div>
                         <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
                         <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
@@ -392,6 +460,30 @@
                 @endif
 
                 <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Tipo de activo</label>
+                    <select
+                        name="element_type_id"
+                        id="edit_diagnostic_element_type_id"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        required
+                    >
+                        <option value="">Seleccione un tipo de activo</option>
+                        @foreach($elementTypes as $elementType)
+                            <option
+                                value="{{ $elementType->id }}"
+                                data-client-id="{{ $elementType->client_id }}"
+                            >
+                                @if($showClientColumn)
+                                    {{ $elementType->client?->name }} - {{ $elementType->name }}
+                                @else
+                                    {{ $elementType->name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
                     <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
                     <input
                         type="text"
@@ -415,6 +507,9 @@
 
                 @foreach(($activeFilters['client_ids'] ?? []) as $value)
                     <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                    <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
                 @endforeach
                 @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
                     <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
@@ -470,6 +565,7 @@
             </button>
         </div>
     </div>
+
 <script>
     const filterOptions = {
         @if($showClientColumn)
@@ -480,6 +576,12 @@
             options: @json($filterOptions['client_ids']),
         },
         @endif
+        element_type_ids: {
+            type: 'checklist_object',
+            title: 'Tipo de activo',
+            inputName: 'element_type_ids',
+            options: @json($filterOptions['element_type_ids']),
+        },
         diagnostic_names: {
             type: 'checklist',
             title: 'Nombre',
@@ -524,6 +626,56 @@
         const popover = document.getElementById('filterPopover');
         popover.classList.add('hidden');
         currentPopoverKey = null;
+    }
+
+    function filterCreateDiagnosticElementTypesByClient(clientId) {
+        const elementTypeSelect = document.getElementById('create_element_type_id');
+        if (!elementTypeSelect) return;
+
+        const currentValue = elementTypeSelect.value;
+
+        Array.from(elementTypeSelect.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                return;
+            }
+
+            option.hidden = clientId
+                ? String(option.dataset.clientId) !== String(clientId)
+                : false;
+        });
+
+        if (currentValue) {
+            const selectedOption = elementTypeSelect.querySelector(`option[value="${currentValue}"]`);
+            if (selectedOption && selectedOption.hidden) {
+                elementTypeSelect.value = '';
+            }
+        }
+    }
+
+    function filterEditDiagnosticElementTypesByClient(clientId) {
+        const elementTypeSelect = document.getElementById('edit_diagnostic_element_type_id');
+        if (!elementTypeSelect) return;
+
+        const currentValue = elementTypeSelect.value;
+
+        Array.from(elementTypeSelect.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                return;
+            }
+
+            option.hidden = clientId
+                ? String(option.dataset.clientId) !== String(clientId)
+                : false;
+        });
+
+        if (currentValue) {
+            const selectedOption = elementTypeSelect.querySelector(`option[value="${currentValue}"]`);
+            if (selectedOption && selectedOption.hidden) {
+                elementTypeSelect.value = '';
+            }
+        }
     }
 
     function openFilterPopover(event, key) {
@@ -647,18 +799,6 @@
             .replaceAll("'", '&#039;');
     }
 
-    function handleSingleClientSelection(checkbox) {
-        const all = document.querySelectorAll('.client-single-checkbox');
-        all.forEach(item => {
-            if (item !== checkbox) {
-                item.checked = false;
-            }
-        });
-
-        const clientId = checkbox.checked ? checkbox.value : '';
-        document.getElementById('selected_client_id').value = clientId;
-    }
-
     function handleSingleClientSelectionEdit(checkbox) {
         const all = document.querySelectorAll('.edit-client-single-checkbox');
         all.forEach(item => {
@@ -669,9 +809,11 @@
 
         const clientId = checkbox.checked ? checkbox.value : '';
         document.getElementById('edit_diagnostic_client_id').value = clientId;
+
+        filterEditDiagnosticElementTypesByClient(clientId);
     }
 
-    function openEditDiagnosticModal(id, clientId, name, status, actionUrl) {
+    function openEditDiagnosticModal(id, clientId, elementTypeId, name, status, actionUrl) {
         document.getElementById('editDiagnosticForm').action = actionUrl;
         document.getElementById('edit_diagnostic_client_id').value = clientId ?? '';
         document.getElementById('edit_diagnostic_name').value = name ?? '';
@@ -680,6 +822,13 @@
         document.querySelectorAll('.edit-client-single-checkbox').forEach(cb => {
             cb.checked = parseInt(cb.value) === parseInt(clientId);
         });
+
+        filterEditDiagnosticElementTypesByClient(clientId);
+
+        const elementTypeSelect = document.getElementById('edit_diagnostic_element_type_id');
+        if (elementTypeSelect) {
+            elementTypeSelect.value = elementTypeId ?? '';
+        }
 
         const modal = document.getElementById('editDiagnosticModal');
         modal.classList.remove('hidden');
@@ -693,12 +842,19 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        const selectedClient = document.getElementById('selected_client_id');
+        const clientSelect = document.getElementById('create_client_id');
 
-        if (selectedClient && selectedClient.value) {
-            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
+        if (clientSelect) {
+            filterCreateDiagnosticElementTypesByClient(clientSelect.value);
+
+            clientSelect.addEventListener('change', function () {
+                filterCreateDiagnosticElementTypesByClient(this.value);
             });
+        }
+
+        const editClientIdInput = document.getElementById('edit_diagnostic_client_id');
+        if (editClientIdInput && editClientIdInput.value) {
+            filterEditDiagnosticElementTypesByClient(editClientIdInput.value);
         }
     });
 

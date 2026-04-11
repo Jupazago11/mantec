@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Diagnostic;
+use App\Models\ElementType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,6 +20,13 @@ class AdminDiagnosticController extends Controller
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
+        $elementTypes = ElementType::query()
+            ->whereIn('client_id', $clients->pluck('id'))
+            ->where('status', true)
+            ->with('client')
+            ->orderBy('name')
+            ->get();
+
         $selectedClientIds = $showClientColumn
             ? collect($request->input('client_ids', []))
                 ->filter()
@@ -26,6 +34,15 @@ class AdminDiagnosticController extends Controller
                 ->values()
                 ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
+
+
+        $selectedElementTypeIds = collect($request->input('element_type_ids', []))
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+
 
         $selectedDiagnosticNames = collect($request->input('diagnostic_names', []))
             ->filter()
@@ -40,12 +57,18 @@ class AdminDiagnosticController extends Controller
             ->all();
 
         $baseQuery = Diagnostic::query()
-            ->with(['client'])
+            ->with(['client', 'elementType'])
             ->withCount(['components', 'reportDetails'])
             ->whereIn('client_id', $clients->pluck('id'));
 
-        if (!empty($selectedClientIds)) {
-            $baseQuery->whereIn('client_id', $selectedClientIds);
+
+        if (!empty($selectedElementTypeIds)) {
+            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
+        }
+
+
+        if (!empty($selectedElementTypeIds)) {
+            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
         }
 
         if (!empty($selectedDiagnosticNames)) {
@@ -58,6 +81,7 @@ class AdminDiagnosticController extends Controller
 
         $diagnostics = (clone $baseQuery)
             ->orderBy('client_id')
+            ->orderBy('element_type_id')
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
@@ -68,6 +92,22 @@ class AdminDiagnosticController extends Controller
                 'label' => $client->name,
             ])->values()
             : collect();
+
+
+        $elementTypeFilterOptions = $elementTypes->map(fn ($elementType) => [
+            'value' => (string) $elementType->id,
+            'label' => $showClientColumn
+                ? (($elementType->client?->name ?? '—') . ' - ' . $elementType->name)
+                : $elementType->name,
+        ])->values();
+
+
+        $elementTypeFilterOptions = $elementTypes->map(fn ($elementType) => [
+            'value' => (string) $elementType->id,
+            'label' => $showClientColumn
+                ? (($elementType->client?->name ?? '—') . ' - ' . $elementType->name)
+                : $elementType->name,
+        ])->values();
 
         $diagnosticNameFilterOptions = Diagnostic::query()
             ->whereIn('client_id', $clients->pluck('id'))
@@ -84,24 +124,30 @@ class AdminDiagnosticController extends Controller
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
+            'element_type_ids' => $elementTypeFilterOptions,
             'diagnostic_names' => $diagnosticNameFilterOptions,
             'statuses' => $statusFilterOptions,
         ];
 
+
         $activeFilters = [
             'client_ids' => $selectedClientIds,
+            'element_type_ids' => $selectedElementTypeIds,
             'diagnostic_names' => $selectedDiagnosticNames,
             'statuses' => $selectedStatuses,
         ];
+
 
         return view('admin.managed-diagnostics.index', compact(
             'clients',
             'singleClient',
             'showClientColumn',
+            'elementTypes',
             'diagnostics',
             'filterOptions',
             'activeFilters'
         ));
+
     }
 
     public function store(Request $request): RedirectResponse
@@ -110,25 +156,41 @@ class AdminDiagnosticController extends Controller
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'name' => ['required', 'string', 'max:255'],
             'status' => ['required', 'boolean'],
         ]);
 
+        $elementTypeBelongs = ElementType::query()
+            ->where('id', $validated['element_type_id'])
+            ->where('client_id', $validated['client_id'])
+            ->exists();
+
+        if (!$elementTypeBelongs) {
+            return back()
+                ->withErrors([
+                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                ])
+                ->withInput();
+        }
+
         $exists = Diagnostic::query()
             ->where('client_id', $validated['client_id'])
+            ->where('element_type_id', $validated['element_type_id'])
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
         if ($exists) {
             return back()
                 ->withErrors([
-                    'name' => 'Ya existe un diagnóstico con ese nombre para el cliente seleccionado.',
+                    'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
                 ])
                 ->withInput();
         }
 
         Diagnostic::create([
             'client_id' => $validated['client_id'],
+            'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
             'status' => (bool) $validated['status'],
         ]);
@@ -146,26 +208,42 @@ class AdminDiagnosticController extends Controller
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'name' => ['required', 'string', 'max:255'],
             'status' => ['required', 'boolean'],
         ]);
 
+        $elementTypeBelongs = ElementType::query()
+            ->where('id', $validated['element_type_id'])
+            ->where('client_id', $validated['client_id'])
+            ->exists();
+
+        if (!$elementTypeBelongs) {
+            return back()
+                ->withErrors([
+                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                ])
+                ->withInput();
+        }
+
         $exists = Diagnostic::query()
             ->where('id', '!=', $diagnostic->id)
             ->where('client_id', $validated['client_id'])
+            ->where('element_type_id', $validated['element_type_id'])
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
             ->exists();
 
         if ($exists) {
             return back()
                 ->withErrors([
-                    'name' => 'Ya existe un diagnóstico con ese nombre para el cliente seleccionado.',
+                    'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
                 ])
                 ->withInput();
         }
 
         $diagnostic->update([
             'client_id' => $validated['client_id'],
+            'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
             'status' => (bool) $validated['status'],
         ]);
@@ -174,7 +252,8 @@ class AdminDiagnosticController extends Controller
             ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
             ->with('success', 'Diagnóstico actualizado correctamente.');
     }
-public function destroy(Request $request, Diagnostic $diagnostic): RedirectResponse
+
+    public function destroy(Request $request, Diagnostic $diagnostic): RedirectResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -247,6 +326,19 @@ public function destroy(Request $request, Diagnostic $diagnostic): RedirectRespo
         foreach ((array) $request->input('redirect_client_ids', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['client_ids'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_element_type_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['element_type_ids'][] = $value;
+            }
+        }
+
+
+        foreach ((array) $request->input('redirect_element_type_ids', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['element_type_ids'][] = $value;
             }
         }
 

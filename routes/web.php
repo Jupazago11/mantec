@@ -136,7 +136,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/managed-component-diagnostics', [AdminComponentDiagnosticController::class, 'store'])->name('managed-component-diagnostics.store');
         Route::get('/cd/clients/{client}/element-types', [AdminComponentDiagnosticController::class, 'getElementTypes'])->name('cd.clients.element-types');
         Route::get('/cd/element-types/{elementType}/components', [AdminComponentDiagnosticController::class, 'getComponents'])->name('cd.element-types.components');
-        Route::get('/cd/clients/{client}/diagnostics', [AdminComponentDiagnosticController::class, 'getDiagnostics'])->name('cd.clients.diagnostics');
+        Route::get('/cd/clients/{client}/element-types/{elementType}/diagnostics', [AdminComponentDiagnosticController::class, 'getDiagnostics'])->name('cd.clients.element-types.diagnostics');
         Route::get('/cd/components/{component}/assigned', [AdminComponentDiagnosticController::class, 'getAssigned'])->name('cd.components.assigned');
 
         // Activos

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Reportes preventivos</title>
+    <title>Reporte preventivo por tipo de activo</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -19,57 +19,76 @@
             return $value !== null && $value !== '';
         };
 
+        $hasAnyActiveFilter =
+            collect($activeFilters)->contains(function ($value) {
+                if (is_array($value)) {
+                    return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+                }
+
+                return $value !== null && $value !== '';
+            });
+
         $clearFiltersUrl = route('admin.preventive-reports.show', [$client->id, $elementType->id]) . '?year=' . $currentYear;
     @endphp
 
     <div class="min-h-screen p-4">
-        <div class="mx-auto max-w-[1800px] space-y-4">
-
-            @php
-                $hasAnyActiveFilter =
-                    collect($activeFilters)->contains(function ($value) {
-                        if (is_array($value)) {
-                            return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-                        }
-
-                        return $value !== null && $value !== '';
-                    });
-            @endphp
+        <div class="mx-auto max-w-[1900px] space-y-4">
 
             <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="min-w-0">
                         <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-                            Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }} {{ $currentYear }}
+                            Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }}
                         </h1>
 
-                        <div class="mt-3 flex flex-wrap items-center gap-3">
-                            <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                                Año: {{ $currentYear }}
-                            </span>
-
-                            @if(!empty($roleKey))
-                                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                                    Rol: {{ $roleKey }}
-                                </span>
-                            @endif
-
-                            @if($isReadOnly ?? false)
+                        @if($isReadOnly ?? false)
+                            <div class="mt-3">
                                 <span class="inline-flex items-center rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
                                     Modo solo lectura
                                 </span>
-                            @endif
-                        </div>
+                            </div>
+                        @endif
                     </div>
 
-                    @if($hasAnyActiveFilter)
-                        <a
-                            href="{{ $clearFiltersUrl }}"
-                            class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                        >
-                            Limpiar filtros
-                        </a>
-                    @endif
+                    <div class="flex flex-col items-start gap-3 xl:items-end">
+                        <div class="flex flex-wrap gap-3 xl:justify-end">
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Año
+                                </div>
+                                <div class="mt-1 text-xl font-bold text-slate-900">
+                                    {{ $currentYear }}
+                                </div>
+                            </div>
+
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Total generado
+                                </div>
+                                <div class="mt-1 text-xl font-bold text-slate-900">
+                                    {{ $totalReportsGenerated ?? 0 }}
+                                </div>
+                            </div>
+
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Total filtrado
+                                </div>
+                                <div class="mt-1 text-xl font-bold text-slate-900">
+                                    {{ $totalReportsFiltered ?? 0 }}
+                                </div>
+                            </div>
+                        </div>
+
+                        @if($hasAnyActiveFilter)
+                            <a
+                                href="{{ $clearFiltersUrl }}"
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                                Limpiar filtros
+                            </a>
+                        @endif
+                    </div>
                 </div>
             </div>
 
@@ -79,9 +98,22 @@
 
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200">
+<table class="min-w-full divide-y divide-slate-200">
                         <thead class="bg-slate-50">
                             <tr>
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-center gap-2">
+                                        <span>Área</span>
+                                        <button type="button"
+                                            onclick="openFilterPopover(event, 'area_names')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </th>
+
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Nombre del activo</span>
@@ -97,10 +129,10 @@
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
-                                        <span>ID almacén</span>
+                                        <span>Ubicación Técnica</span>
                                         <button type="button"
-                                            onclick="openFilterPopover(event, 'warehouse_ids')"
-                                            class="rounded p-1 transition hover:bg-slate-200 text-slate-400">
+                                            onclick="openFilterPopover(event, 'warehouse_codes')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -170,6 +202,18 @@
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'aviso_values')"
                                             class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </th>
+<th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-center gap-2">
+                                        <span>Inspector</span>
+                                        <button type="button"
+                                            onclick="openFilterPopover(event, 'inspector_names')"
+                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -263,12 +307,17 @@
         @endphp
 
         <tr class="align-top hover:bg-slate-50">
+
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->element?->area?->name ?? '—' }}
+            </td>
+
             <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-900">
                 {{ $report->element?->name ?? '—' }}
             </td>
 
-            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-600">
-                —
+            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                {{ $report->element?->warehouse_code ?? '—' }}
             </td>
 
             <td class="px-3 py-3 text-sm text-slate-700">
@@ -295,15 +344,14 @@
                         title="Ver evidencia"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
+                            <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Z"/>
                         </svg>
                     </a>
                 @else
                     <span class="text-slate-400">—</span>
                 @endif
             </td>
-
-            <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+<td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
                 {{ $report->condition?->code ?? '—' }}
             </td>
 
@@ -317,6 +365,10 @@
 
             <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
                 {{ $report->user?->name ?? '—' }}
+            </td>
+
+            <td class="px-3 py-3 text-sm text-slate-700">
+                {{ $report->responsable_names ?? '—' }}
             </td>
 
             <td class="px-3 py-3 text-sm text-slate-700">
@@ -335,8 +387,7 @@
                     —
                 @endif
             </td>
-
-            <td class="px-3 py-3 text-sm">
+<td class="px-3 py-3 text-sm">
                 @if($report->condition)
                     <span
                         class="inline-flex rounded-lg px-3 py-1 font-medium"
@@ -379,7 +430,7 @@
         </tr>
     @empty
         <tr>
-            <td colspan="14" class="px-3 py-10 text-center text-sm text-slate-500">
+            <td colspan="16" class="px-3 py-10 text-center text-sm text-slate-500">
                 No hay reportes para este tipo de activo en el año seleccionado.
             </td>
         </tr>
@@ -390,6 +441,7 @@
         {{ $reports->appends(['year' => $currentYear])->links() }}
     </div>
 @endif
+                </table>
             </div>
         </div>
     </div>
@@ -405,15 +457,19 @@
         <div id="filterPopoverBody" class="space-y-4 p-4"></div>
 
         <div class="flex justify-between border-t border-slate-200 px-4 py-3">
-            <button type="button"
+            <button
+                type="button"
                 onclick="clearCurrentFilter()"
-                class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
                 Limpiar
             </button>
 
-            <button type="button"
+            <button
+                type="button"
                 onclick="applyCurrentFilter()"
-                class="rounded-lg bg-[#d94d33] px-3 py-2 text-xs font-semibold text-white hover:bg-[#b83f29]">
+                class="rounded-lg bg-[#d94d33] px-3 py-2 text-xs font-semibold text-white hover:bg-[#b83f29]"
+            >
                 Aplicar
             </button>
         </div>
@@ -424,52 +480,65 @@
         const isReadOnly = @json($isReadOnly ?? false);
 
         const filterOptions = {
+            area_names: {
+                type: 'checklist',
+                title: 'Área',
+                inputName: 'area_names',
+                options: @json($filterOptions['area_names'] ?? []),
+            },
             element_names: {
                 type: 'checklist',
                 title: 'Nombre del activo',
                 inputName: 'element_names',
-                options: @json($filterOptions['element_names']),
+                options: @json($filterOptions['element_names'] ?? []),
             },
-            warehouse_ids: {
-                type: 'empty',
+            warehouse_codes: {
+                type: 'checklist',
                 title: 'ID almacén',
-                message: 'No hay valores disponibles todavía para esta columna.',
+                inputName: 'warehouse_codes',
+                options: @json($filterOptions['warehouse_codes'] ?? []),
             },
             diagnostic_pairs: {
                 type: 'checklist_object',
                 title: 'Diagnóstico',
                 inputName: 'diagnostic_pairs',
-                options: @json($filterOptions['diagnostic_pairs']),
+                options: @json($filterOptions['diagnostic_pairs'] ?? []),
             },
             recommendation_values: {
                 type: 'checklist',
                 title: 'Recomendación',
                 inputName: 'recommendation_values',
-                options: @json($filterOptions['recommendation_values']),
+                options: @json($filterOptions['recommendation_values'] ?? []),
             },
             condition_codes: {
                 type: 'checklist',
                 title: 'Condición',
                 inputName: 'condition_codes',
-                options: @json($filterOptions['condition_codes']),
+                options: @json($filterOptions['condition_codes'] ?? []),
             },
             orden_values: {
                 type: 'checklist',
                 title: 'Orden',
                 inputName: 'orden_values',
-                options: @json($filterOptions['orden_values']),
+                options: @json($filterOptions['orden_values'] ?? []),
             },
             aviso_values: {
                 type: 'checklist',
                 title: 'Aviso',
                 inputName: 'aviso_values',
-                options: @json($filterOptions['aviso_values']),
+                options: @json($filterOptions['aviso_values'] ?? []),
+            },
+            inspector_names: {
+                type: 'checklist',
+                title: 'Inspector',
+                inputName: 'inspector_names',
+                options: @json($filterOptions['inspector_names'] ?? []),
             },
             responsable_names: {
                 type: 'checklist',
                 title: 'Responsable',
                 inputName: 'responsable_names',
-                options: @json($filterOptions['responsable_names']),
+                options: @json($filterOptions['responsable_names'] ?? []),
             },
             report_date_range: {
                 type: 'date_range',
@@ -487,19 +556,19 @@
                 type: 'checklist',
                 title: 'Condición del activo',
                 inputName: 'condition_names',
-                options: @json($filterOptions['condition_names']),
+                options: @json($filterOptions['condition_names'] ?? []),
             },
             execution_statuses: {
                 type: 'checklist',
                 title: 'Ejecución orden',
                 inputName: 'execution_statuses',
-                options: @json($filterOptions['execution_statuses']),
+                options: @json($filterOptions['execution_statuses'] ?? []),
             },
             weeks: {
                 type: 'checklist',
                 title: 'Semana',
                 inputName: 'weeks',
-                options: @json($filterOptions['weeks']),
+                options: @json($filterOptions['weeks'] ?? []),
             },
         };
 
@@ -545,16 +614,14 @@
             currentPopoverKey = key;
 
             const config = filterOptions[key];
+            if (!config) return;
+
             const popover = document.getElementById('filterPopover');
             const title = document.getElementById('filterPopoverTitle');
             const body = document.getElementById('filterPopoverBody');
 
             title.textContent = config.title;
             body.innerHTML = '';
-
-            if (config.type === 'empty') {
-                body.innerHTML = `<p class="text-sm text-slate-500">${config.message}</p>`;
-            }
 
             if (config.type === 'checklist') {
                 const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
@@ -579,7 +646,8 @@
             popover.style.top = `${top}px`;
             popover.style.left = `${left}px`;
         }
-function renderChecklist(body, config, selectedValues, objectMode = false) {
+
+        function renderChecklist(body, config, selectedValues, objectMode = false) {
             const searchId = `search_${config.inputName}`;
             const listId = `list_${config.inputName}`;
 
@@ -600,10 +668,10 @@ function renderChecklist(body, config, selectedValues, objectMode = false) {
 
             const renderList = () => {
                 const term = search.value.toLowerCase().trim();
-                let items = config.options;
+                let items = config.options ?? [];
 
                 if (objectMode) {
-                    items = items.filter(item => item.label.toLowerCase().includes(term));
+                    items = items.filter(item => String(item.label ?? '').toLowerCase().includes(term));
                 } else {
                     items = items.filter(item => String(item).toLowerCase().includes(term));
                 }
@@ -712,7 +780,6 @@ function renderChecklist(body, config, selectedValues, objectMode = false) {
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
         }
-const isReadOnly = @json($isReadOnly ?? false);
 
         async function toggleExecution(checkbox) {
             if (isReadOnly) {
@@ -756,7 +823,6 @@ const isReadOnly = @json($isReadOnly ?? false);
                     badge.querySelector('span').textContent = 'PENDIENTE';
                     dateCell.textContent = '—';
                 }
-
             } catch (error) {
                 checkbox.checked = !isChecked;
                 alert(error.message);
@@ -768,7 +834,6 @@ const isReadOnly = @json($isReadOnly ?? false);
                 toggleExecution(this);
             });
 
-            // 🔒 Bloqueo visual si es solo lectura
             if (isReadOnly) {
                 cb.disabled = true;
                 cb.classList.add('cursor-not-allowed', 'opacity-60');
@@ -784,6 +849,6 @@ const isReadOnly = @json($isReadOnly ?? false);
                 closeFilterPopover();
             }
         });
-</script>
+    </script>
 </body>
 </html>

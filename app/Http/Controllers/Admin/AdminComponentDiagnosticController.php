@@ -53,18 +53,24 @@ class AdminComponentDiagnosticController extends Controller
         return response()->json($data);
     }
 
-    public function getDiagnostics(Client $client): JsonResponse
+    public function getDiagnostics(Client $client, ElementType $elementType): JsonResponse
     {
-        $this->authorizeClient($client->id);
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $data = Diagnostic::query()
+        abort_unless(in_array((int) $client->id, $allowedClientIds, true), 403);
+        abort_unless((int) $elementType->client_id === (int) $client->id, 404);
+
+        $diagnostics = Diagnostic::query()
             ->where('client_id', $client->id)
+            ->where('element_type_id', $elementType->id)
             ->where('status', true)
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return response()->json($data);
+        return response()->json($diagnostics);
     }
+
+
 
     public function getAssigned(Component $component): JsonResponse
     {
@@ -84,24 +90,40 @@ class AdminComponentDiagnosticController extends Controller
         ]);
 
         $component = Component::query()->findOrFail($validated['component_id']);
-        $this->authorizeClient($component->client_id);
+
+        $allowedClientIds = $this->getScopedClients()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+
+        abort_unless(in_array((int) $component->client_id, $allowedClientIds, true), 403);
 
         $diagnosticIds = collect($validated['diagnostics'] ?? [])
             ->map(fn ($id) => (int) $id)
             ->unique()
-            ->values()
-            ->all();
+            ->values();
 
-        $validDiagnosticIds = Diagnostic::query()
-            ->where('client_id', $component->client_id)
-            ->whereIn('id', $diagnosticIds)
-            ->pluck('id')
-            ->all();
+        if ($diagnosticIds->isNotEmpty()) {
+            $validDiagnosticCount = Diagnostic::query()
+                ->whereIn('id', $diagnosticIds->all())
+                ->where('client_id', $component->client_id)
+                ->where('element_type_id', $component->element_type_id)
+                ->count();
 
-        $component->diagnostics()->sync($validDiagnosticIds);
+            if ($validDiagnosticCount !== $diagnosticIds->count()) {
+                return back()
+                    ->withErrors([
+                        'diagnostics' => 'Uno o más diagnósticos no pertenecen al cliente y tipo de activo del componente seleccionado.',
+                    ])
+                    ->withInput();
+            }
+        }
+
+        $component->diagnostics()->sync($diagnosticIds->all());
 
         return back()->with('success', 'Diagnósticos asignados correctamente.');
     }
+
     private function getScopedClients()
     {
         $user = Auth::user();

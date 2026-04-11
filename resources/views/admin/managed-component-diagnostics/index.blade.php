@@ -95,7 +95,8 @@
                                 class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4"
                             >
                                 <p class="text-sm text-slate-500">
-                                    Selecciona primero un cliente para cargar los diagnósticos.
+                                    Selecciona primero un cliente y un tipo de activo para cargar los diagnósticos.
+
                                 </p>
                             </div>
                         </div>
@@ -227,7 +228,8 @@
 
         try {
             await loadTypes();
-            await loadDiagnostics();
+            resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
+
         } catch (error) {
             console.error(error);
             resetDiagnostics('Ocurrió un error al cargar la información.');
@@ -295,7 +297,10 @@
                 return;
             }
 
+            await loadDiagnostics();
             await loadAssigned();
+            
+
         } catch (error) {
             console.error(error);
             resetDiagnostics('No fue posible cargar los componentes.');
@@ -304,21 +309,22 @@
 
     async function loadDiagnostics() {
         const clientId = getClientId();
+        const elementTypeId = getElementTypeId();
 
-        if (!clientId) {
-            resetDiagnostics();
+        if (!clientId || !elementTypeId) {
+            resetDiagnostics('Selecciona primero cliente y tipo de activo para cargar los diagnósticos.');
             return;
         }
 
         const container = document.getElementById('diagnostics_list');
 
         try {
-            const data = await fetchJson(`/admin/cd/clients/${clientId}/diagnostics`);
+            const data = await fetchJson(`/admin/cd/clients/${clientId}/element-types/${elementTypeId}/diagnostics`);
 
             container.innerHTML = '';
 
             if (data.length === 0) {
-                resetDiagnostics('Este cliente no tiene diagnósticos activos disponibles.');
+                resetDiagnostics('Este tipo de activo no tiene diagnósticos activos disponibles.');
                 return;
             }
 
@@ -340,6 +346,7 @@
             resetDiagnostics('No fue posible cargar los diagnósticos.');
         }
     }
+
 
     async function loadAssigned() {
         const componentId = getComponentId();
@@ -396,7 +403,7 @@
 
                 try {
                     await loadTypes();
-                    await loadDiagnostics();
+                    resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
                 } catch (error) {
                     console.error(error);
                     resetDiagnostics('Ocurrió un error al cargar la información.');
