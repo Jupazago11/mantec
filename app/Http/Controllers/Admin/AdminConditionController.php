@@ -150,12 +150,30 @@ class AdminConditionController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_condition_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        $preferredElementTypeId = old('element_type_id');
+
+        if (!$preferredElementTypeId) {
+            $preferredElementTypeId = session('preferred_condition_element_type_id');
+        }
+
         return view('admin.managed-conditions.index', [
             'clients' => $clients,
             'singleClient' => $singleClient,
             'showClientColumn' => $showClientColumn,
             'conditions' => $conditions,
             'elementTypes' => $elementTypes,
+            'preferredClientId',
+            'preferredElementTypeId',
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
         ]);
@@ -217,7 +235,11 @@ class AdminConditionController extends Controller
 
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Condición creada correctamente.');
+            ->with([
+                'success' => 'Condición creada correctamente.',
+                'preferred_condition_client_id' => (string) $validated['client_id'],
+                'preferred_condition_element_type_id' => (string) $validated['element_type_id'],
+            ]);
     }
 
     public function update(Request $request, Condition $condition): RedirectResponse

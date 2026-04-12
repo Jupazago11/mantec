@@ -61,7 +61,7 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo componente</h3>
                     <p class="mt-1 text-sm text-slate-500">
@@ -90,14 +90,19 @@
                                                 name="client_id_checkbox"
                                                 value="{{ $client->id }}"
                                                 class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                {{ old('client_id') == $client->id ? 'checked' : '' }}
+                                                @checked((string) old('client_id', $preferredClientId ?? '') === (string) $client->id)
                                                 onchange="handleSingleClientSelection(this)"
                                             >
                                             {{ $client->name }}
                                         </label>
                                     @endforeach
                                 </div>
-                                <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id') }}">
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="selected_client_id"
+                                    value="{{ old('client_id', $preferredClientId ?? '') }}"
+                                >
                             </div>
                         @endif
 
@@ -113,9 +118,10 @@
                                     <option
                                         value="{{ $elementType->id }}"
                                         @selected(
-                                            old('element_type_id')
-                                                ? old('element_type_id') == $elementType->id
-                                                : ($singleCreateElementType && $singleCreateElementType->id == $elementType->id)
+                                            (string) $elementType->id === (string) old(
+                                                'element_type_id',
+                                                $preferredElementTypeId ?? ($singleCreateElementType->id ?? '')
+                                            )
                                         )
                                     >
                                         {{ $elementType->name }}
@@ -147,8 +153,8 @@
                                 name="is_default"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             >
-                                <option value="1" @selected(old('is_default') == '1')>Sí</option>
-                                <option value="0" @selected(old('is_default', '0') == '0')>No</option>
+                                <option value="1" @selected(old('is_default', '1') == '1')>Sí</option>
+                                <option value="0" @selected(old('is_default') == '0')>No</option>
                             </select>
                         </div>
 
@@ -842,6 +848,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         const selectedClient = document.getElementById('selected_client_id');
         const createSelect = document.getElementById('element_type_id');
+        const preferredElementTypeId = @json(old('element_type_id', $preferredElementTypeId ?? ($singleCreateElementType->id ?? '')));
 
         if (selectedClient && selectedClient.value) {
             document.querySelectorAll('.client-single-checkbox').forEach(cb => {
@@ -849,12 +856,12 @@
             });
 
             @if($singleClient)
-                populateElementTypeSelect(createSelect, preloadedCreateElementTypes, '{{ old('element_type_id', $singleCreateElementType?->id) }}');
+                populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
             @else
-                loadElementTypes(selectedClient.value, 'element_type_id', '{{ old('element_type_id') }}');
+                loadElementTypes(selectedClient.value, 'element_type_id', preferredElementTypeId);
             @endif
         } else if (@json((bool) $singleClient)) {
-            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, '{{ old('element_type_id', $singleCreateElementType?->id) }}');
+            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
         }
     });
 

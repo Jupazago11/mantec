@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Carbon\Carbon;
 use App\Support\ReportFilePathBuilder;
 
 class InspectorReportController extends Controller
@@ -282,8 +283,9 @@ class InspectorReportController extends Controller
 
         abort_unless($this->userCanAccessElement($user, $element), 403);
 
-        $week = now()->weekOfYear;
-        $year = now()->year;
+        $now = Carbon::now();
+        $week = (int) $now->isoWeek();
+        $year = (int) $now->isoWeekYear();
 
         $expected = $element->components()
             ->with(['diagnostics' => function ($query) {
@@ -325,6 +327,56 @@ class InspectorReportController extends Controller
             'items' => $pending,
         ]);
     }
+
+
+    public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userCanAccessElement($user, $element), 403);
+
+        $now = Carbon::now();
+        $week = (int) $now->isoWeek();
+        $year = (int) $now->isoWeekYear();
+
+        $expected = $element->components()
+            ->with(['diagnostics' => function ($query) use ($element) {
+                $query->where('diagnostics.status', true)
+                    ->where('diagnostics.element_type_id', $element->element_type_id)
+                    ->orderBy('diagnostics.name');
+            }])
+            ->where('components.status', true)
+            ->where('components.element_type_id', $element->element_type_id)
+            ->orderBy('components.name')
+            ->get();
+
+        $doneKeys = ReportDetail::where('element_id', $element->id)
+            ->where('week', $week)
+            ->where('year', $year)
+            ->get(['component_id', 'diagnostic_id'])
+            ->map(fn ($row) => $row->component_id . '-' . $row->diagnostic_id)
+            ->flip();
+
+        $items = [];
+
+        foreach ($expected as $component) {
+            foreach ($component->diagnostics as $diagnostic) {
+                $key = $component->id . '-' . $diagnostic->id;
+
+                $items[] = [
+                    'component_id' => (int) $component->id,
+                    'component_name' => $component->name,
+                    'diagnostic_id' => (int) $diagnostic->id,
+                    'diagnostic_name' => $diagnostic->name,
+                    'status' => $doneKeys->has($key) ? 'DONE' : 'PENDING',
+                ];
+            }
+        }
+
+        return response()->json($items);
+    }
+
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -423,8 +475,9 @@ class InspectorReportController extends Controller
                 ->withInput();
         }
 
-        $currentWeek = now()->weekOfYear;
-        $currentYear = now()->year;
+        $now = Carbon::now();
+        $currentWeek = (int) $now->isoWeek();
+        $currentYear = (int) $now->isoWeekYear();
 
         $existingReport = ReportDetail::where('element_id', $element->id)
             ->where('component_id', $component->id)

@@ -85,7 +85,10 @@
                                 >
                                     <option value="">Seleccione un cliente</option>
                                     @foreach($clients as $client)
-                                        <option value="{{ $client->id }}" @selected(old('client_id') == $client->id)>
+                                        <option 
+                                            value="{{ $client->id }}" 
+                                            @selected((string) $client->id === (string) old('client_id', $preferredClientId ?? ''))
+                                        >
                                             {{ $client->name }}
                                         </option>
                                     @endforeach
@@ -99,6 +102,7 @@
                                 type="text"
                                 name="name"
                                 value="{{ old('name') }}"
+                                id="area_name"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                 placeholder="Ej. Producción"
                             >
@@ -209,7 +213,7 @@
                             </thead>
 
                             <tbody class="divide-y divide-slate-200 bg-white">
-@forelse($areas as $area)
+                                @forelse($areas as $area)
                                     @php
                                         $hasDependencies = ($area->elements_count ?? 0) > 0;
                                     @endphp
@@ -670,6 +674,21 @@
             closeFilterPopover();
             closeEditAreaModal();
         }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('area_name');
+
+        if (!input) return;
+
+        input.addEventListener('input', function () {
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+
+            this.value = this.value.toUpperCase();
+
+            this.setSelectionRange(start, end);
+        });
     });
 </script>
 

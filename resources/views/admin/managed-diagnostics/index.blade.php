@@ -70,34 +70,63 @@
                     >
                         @csrf
 
+                        @if($singleClient)
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-slate-700">
+                                    Cliente
+                                </label>
+
+                                <div class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                    {{ $singleClient->name }}
+                                </div>
+
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="create_client_id"
+                                    value="{{ $singleClient->id }}"
+                                >
+
+                                @error('client_id')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        @else
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-slate-700">
+                                    Cliente
+                                </label>
+
+                                <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
+                                    @foreach($clients as $client)
+                                        <label class="flex items-center gap-3 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="client_id_checkbox"
+                                                value="{{ $client->id }}"
+                                                class="create-client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                @checked((string) old('client_id', $preferredClientId ?? '') === (string) $client->id)
+                                                onchange="handleCreateDiagnosticClientSelection(this)"
+                                            >
+                                            {{ $client->name }}
+                                        </label>
+                                    @endforeach
+                                </div>
+
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="create_client_id"
+                                    value="{{ old('client_id', $preferredClientId ?? '') }}"
+                                >
+
+                                @error('client_id')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        @endif
+
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">
-                                Cliente
-                            </label>
-
-                            <select
-                                name="client_id"
-                                id="create_client_id"
-                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                                required
-                            >
-                                <option value="">Seleccione un cliente</option>
-
-                                @foreach($clients as $client)
-                                    <option
-                                        value="{{ $client->id }}"
-                                        @selected(old('client_id', $singleClient?->id) == $client->id)
-                                    >
-                                        {{ $client->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-
-                            @error('client_id')
-                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-<div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">
                                 Tipo de activo
                             </label>
@@ -114,13 +143,9 @@
                                     <option
                                         value="{{ $elementType->id }}"
                                         data-client-id="{{ $elementType->client_id }}"
-                                        @selected(old('element_type_id') == $elementType->id)
+                                        @selected((string) old('element_type_id', $preferredElementTypeId ?? '') === (string) $elementType->id)
                                     >
-                                        @if($showClientColumn)
-                                            {{ $elementType->name }}
-                                        @else
-                                            {{ $elementType->name }}
-                                        @endif
+                                        {{ $elementType->name }}
                                     </option>
                                 @endforeach
                             </select>
@@ -159,8 +184,8 @@
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                 required
                             >
-                                <option value="1" @selected(old('status', 1) == 1)>Activo</option>
-                                <option value="0" @selected(old('status') == 0)>Inactivo</option>
+                                <option value="1" @selected(old('status', '1') == '1')>Activo</option>
+                                <option value="0" @selected(old('status') == '0')>Inactivo</option>
                             </select>
 
                             @error('status')
@@ -193,7 +218,7 @@
                     </form>
                 </div>
             </div>
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
@@ -371,7 +396,7 @@
                                                     >
                                                         @csrf
                                                         @method('PATCH')
-@foreach(($activeFilters['client_ids'] ?? []) as $value)
+                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
                                                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                                                         @endforeach
                                                         @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
@@ -427,7 +452,7 @@
             <form id="editDiagnosticForm" method="POST" class="space-y-5 p-6">
                 @csrf
                 @method('PUT')
-@if($showClientColumn)
+                @if($showClientColumn)
                     <div>
                         <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
                         <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
@@ -628,11 +653,9 @@
         currentPopoverKey = null;
     }
 
-    function filterCreateDiagnosticElementTypesByClient(clientId) {
+    function filterCreateDiagnosticElementTypesByClient(clientId, selectedElementTypeId = '') {
         const elementTypeSelect = document.getElementById('create_element_type_id');
         if (!elementTypeSelect) return;
-
-        const currentValue = elementTypeSelect.value;
 
         Array.from(elementTypeSelect.options).forEach(option => {
             if (!option.value) {
@@ -640,17 +663,35 @@
                 return;
             }
 
-            option.hidden = clientId
-                ? String(option.dataset.clientId) !== String(clientId)
+            const matchesClient = clientId
+                ? String(option.dataset.clientId) === String(clientId)
                 : false;
+
+            option.hidden = !matchesClient;
+
+            if (!matchesClient) {
+                option.selected = false;
+            }
         });
 
-        if (currentValue) {
-            const selectedOption = elementTypeSelect.querySelector(`option[value="${currentValue}"]`);
-            if (selectedOption && selectedOption.hidden) {
-                elementTypeSelect.value = '';
+        if (selectedElementTypeId) {
+            const selectedOption = Array.from(elementTypeSelect.options).find(option =>
+                option.value &&
+                String(option.value) === String(selectedElementTypeId) &&
+                String(option.dataset.clientId) === String(clientId)
+            );
+
+            if (selectedOption) {
+                elementTypeSelect.value = String(selectedElementTypeId);
+                return;
             }
         }
+
+        const firstVisibleOption = Array.from(elementTypeSelect.options).find(option =>
+            option.value && !option.hidden
+        );
+
+        elementTypeSelect.value = firstVisibleOption ? firstVisibleOption.value : '';
     }
 
     function filterEditDiagnosticElementTypesByClient(clientId) {
@@ -676,6 +717,25 @@
                 elementTypeSelect.value = '';
             }
         }
+    }
+
+    function handleCreateDiagnosticClientSelection(checkbox) {
+        const all = document.querySelectorAll('.create-client-single-checkbox');
+
+        all.forEach(item => {
+            if (item !== checkbox) {
+                item.checked = false;
+            }
+        });
+
+        const clientId = checkbox.checked ? checkbox.value : '';
+        const hiddenClientInput = document.getElementById('create_client_id');
+
+        if (hiddenClientInput) {
+            hiddenClientInput.value = clientId;
+        }
+
+        filterCreateDiagnosticElementTypesByClient(clientId, '');
     }
 
     function openFilterPopover(event, key) {
@@ -842,14 +902,20 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        const clientSelect = document.getElementById('create_client_id');
+        const hiddenClientInput = document.getElementById('create_client_id');
+        const preferredElementTypeId = @json(old('element_type_id', $preferredElementTypeId ?? ''));
 
-        if (clientSelect) {
-            filterCreateDiagnosticElementTypesByClient(clientSelect.value);
-
-            clientSelect.addEventListener('change', function () {
-                filterCreateDiagnosticElementTypesByClient(this.value);
+        if (hiddenClientInput && hiddenClientInput.value) {
+            document.querySelectorAll('.create-client-single-checkbox').forEach(cb => {
+                cb.checked = String(cb.value) === String(hiddenClientInput.value);
             });
+
+            filterCreateDiagnosticElementTypesByClient(hiddenClientInput.value, preferredElementTypeId);
+        } else if (@json((bool) $singleClient)) {
+            filterCreateDiagnosticElementTypesByClient(
+                @json((string) ($singleClient->id ?? '')),
+                preferredElementTypeId
+            );
         }
 
         const editClientIdInput = document.getElementById('edit_diagnostic_client_id');
@@ -879,5 +945,7 @@
             closeEditDiagnosticModal();
         }
     });
+    
 </script>
+
 @endsection

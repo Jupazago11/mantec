@@ -21,9 +21,34 @@ class AdminComponentDiagnosticController extends Controller
 
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_component_diagnostic_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        $preferredElementTypeId = old('element_type_id');
+
+        if (!$preferredElementTypeId) {
+            $preferredElementTypeId = session('preferred_component_diagnostic_element_type_id');
+        }
+
+        $preferredComponentId = old('component_id');
+
+        if (!$preferredComponentId) {
+            $preferredComponentId = session('preferred_component_diagnostic_component_id');
+        }
+
         return view('admin.managed-component-diagnostics.index', compact(
             'clients',
-            'singleClient'
+            'singleClient',
+            'preferredClientId',
+            'preferredElementTypeId',
+            'preferredComponentId'
         ));
     }
 
@@ -121,7 +146,14 @@ class AdminComponentDiagnosticController extends Controller
 
         $component->diagnostics()->sync($diagnosticIds->all());
 
-        return back()->with('success', 'Diagnósticos asignados correctamente.');
+        return redirect()
+            ->route('admin.managed-component-diagnostics.index')
+            ->with([
+                'success' => 'Diagnósticos asignados correctamente.',
+                'preferred_component_diagnostic_client_id' => (string) $component->client_id,
+                'preferred_component_diagnostic_element_type_id' => (string) $component->element_type_id,
+                'preferred_component_diagnostic_component_id' => (string) $component->id,
+            ]);
     }
 
     private function getScopedClients()

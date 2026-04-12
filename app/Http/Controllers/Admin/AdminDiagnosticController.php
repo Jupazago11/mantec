@@ -51,7 +51,7 @@ class AdminDiagnosticController extends Controller
             ->all();
 
         $selectedStatuses = collect($request->input('statuses', []))
-            ->filter()
+            ->filter(fn ($status) => $status !== null && $status !== '')
             ->map(fn ($status) => (string) $status)
             ->values()
             ->all();
@@ -61,11 +61,9 @@ class AdminDiagnosticController extends Controller
             ->withCount(['components', 'reportDetails'])
             ->whereIn('client_id', $clients->pluck('id'));
 
-
-        if (!empty($selectedElementTypeIds)) {
-            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
+        if (!empty($selectedClientIds)) {
+            $baseQuery->whereIn('client_id', $selectedClientIds);
         }
-
 
         if (!empty($selectedElementTypeIds)) {
             $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
@@ -77,7 +75,7 @@ class AdminDiagnosticController extends Controller
 
         if (!empty($selectedStatuses)) {
             $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
-        }
+}
 
         $diagnostics = (clone $baseQuery)
             ->orderBy('client_id')
@@ -137,6 +135,22 @@ class AdminDiagnosticController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_diagnostic_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        $preferredElementTypeId = old('element_type_id');
+
+        if (!$preferredElementTypeId) {
+            $preferredElementTypeId = session('preferred_diagnostic_element_type_id');
+        }
+
 
         return view('admin.managed-diagnostics.index', compact(
             'clients',
@@ -145,7 +159,9 @@ class AdminDiagnosticController extends Controller
             'elementTypes',
             'diagnostics',
             'filterOptions',
-            'activeFilters'
+            'activeFilters',
+            'preferredClientId',
+            'preferredElementTypeId'
         ));
 
     }
@@ -197,7 +213,11 @@ class AdminDiagnosticController extends Controller
 
         return redirect()
             ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Diagnóstico creado correctamente.');
+            ->with([
+                'success' => 'Diagnóstico creado correctamente.',
+                'preferred_diagnostic_client_id' => (string) $validated['client_id'],
+                'preferred_diagnostic_element_type_id' => (string) $validated['element_type_id'],
+            ]);
     }
 
     public function update(Request $request, Diagnostic $diagnostic): RedirectResponse

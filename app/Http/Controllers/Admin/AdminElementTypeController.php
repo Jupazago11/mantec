@@ -94,13 +94,32 @@ class AdminElementTypeController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_element_type_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        if (
+            !$preferredClientId &&
+            !$showClientColumn &&
+            $clients->count() === 1
+        ) {
+            $preferredClientId = (string) $clients->first()->id;
+        }
+
         return view('admin.managed-element-types.index', compact(
             'clients',
             'singleClient',
             'showClientColumn',
             'elementTypes',
             'filterOptions',
-            'activeFilters'
+            'activeFilters',
+            'preferredClientId'
         ));
     }
 
@@ -134,7 +153,10 @@ class AdminElementTypeController extends Controller
 
         return redirect()
             ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Tipo de activo creado correctamente.');
+            ->with([
+                'success' => 'Tipo de activo creado correctamente.',
+                'preferred_element_type_client_id' => (string) $validated['client_id'],
+            ]);
     }
 
     public function update(Request $request, ElementType $elementType): RedirectResponse
@@ -174,7 +196,7 @@ class AdminElementTypeController extends Controller
             ->with('success', 'Tipo de activo actualizado correctamente.');
     }
 
-public function destroy(Request $request, ElementType $elementType): RedirectResponse
+    public function destroy(Request $request, ElementType $elementType): RedirectResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 

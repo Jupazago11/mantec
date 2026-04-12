@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Panel administrativo')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
     <div x-data="{ sidebarOpen: false }" class="flex h-full">

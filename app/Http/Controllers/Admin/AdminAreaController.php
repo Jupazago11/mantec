@@ -98,6 +98,24 @@ class AdminAreaController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_area_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        if (
+            !$preferredClientId &&
+            !$showClientColumn &&
+            $clients->count() === 1
+        ) {
+            $preferredClientId = (string) $clients->first()->id;
+        }
+
         return view('admin.managed-areas.index', [
             'areas' => $areas,
             'clients' => $clients,
@@ -105,6 +123,7 @@ class AdminAreaController extends Controller
             'singleClient' => $singleClient,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
+            'preferredClientId' => $preferredClientId,
         ]);
     }
 
@@ -141,7 +160,10 @@ class AdminAreaController extends Controller
 
         return redirect()
             ->route('admin.managed-areas.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Área creada correctamente.');
+            ->with([
+                'success' => 'Área creada correctamente.',
+                'preferred_area_client_id' => (string) $validated['client_id'],
+            ]);
     }
 
     public function update(Request $request, Area $area): RedirectResponse

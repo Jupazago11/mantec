@@ -124,11 +124,39 @@ class AdminComponentController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $preferredClientId = old('client_id');
+
+        if (!$preferredClientId) {
+            $preferredClientId = session('preferred_component_client_id');
+        }
+
+        if (!$preferredClientId && $singleClient) {
+            $preferredClientId = (string) $singleClient->id;
+        }
+
+        if (
+            !$preferredClientId &&
+            !$showClientColumn &&
+            $clients->count() === 1
+        ) {
+            $preferredClientId = (string) $clients->first()->id;
+        }
+
+        $preferredElementTypeId = old('element_type_id');
+
+        if (!$preferredElementTypeId) {
+            $preferredElementTypeId = session('preferred_component_element_type_id');
+        }
+
+
+
         $createElementTypes = collect();
 
-        if ($singleClient) {
+        $createClientId = $singleClient?->id ?? $preferredClientId;
+
+        if ($createClientId) {
             $createElementTypes = ElementType::query()
-                ->where('client_id', $singleClient->id)
+                ->where('client_id', $createClientId)
                 ->where('status', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'client_id']);
@@ -142,6 +170,8 @@ class AdminComponentController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'createElementTypes' => $createElementTypes,
+            'preferredClientId' => $preferredClientId,
+            'preferredElementTypeId' => $preferredElementTypeId,
         ]);
     }
 
@@ -193,7 +223,11 @@ class AdminComponentController extends Controller
 
         return redirect()
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Componente creado correctamente.');
+            ->with([
+                'success' => 'Componente creado correctamente.',
+                'preferred_component_client_id' => (string) $validated['client_id'],
+                'preferred_component_element_type_id' => (string) $validated['element_type_id'],
+            ]);
     }
 
     public function update(Request $request, Component $component): RedirectResponse
@@ -248,7 +282,8 @@ class AdminComponentController extends Controller
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
             ->with('success', 'Componente actualizado correctamente.');
     }
-public function destroy(Request $request, Component $component): RedirectResponse
+
+    public function destroy(Request $request, Component $component): RedirectResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 

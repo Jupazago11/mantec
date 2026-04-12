@@ -89,14 +89,19 @@
                                                 name="client_id_checkbox"
                                                 value="{{ $client->id }}"
                                                 class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                {{ old('client_id') == $client->id ? 'checked' : '' }}
+                                                @checked((string) old('client_id', $preferredClientId ?? '') === (string) $client->id)
                                                 onchange="handleSingleClientSelection(this)"
                                             >
                                             {{ $client->name }}
                                         </label>
                                     @endforeach
                                 </div>
-                                <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id') }}">
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    id="selected_client_id"
+                                    value="{{ old('client_id', $preferredClientId ?? '') }}"
+                                >
                             </div>
                         @endif
 
@@ -105,6 +110,7 @@
                             <input
                                 type="text"
                                 name="name"
+                                id="element_type_name"
                                 value="{{ old('name') }}"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                 placeholder="Ej. Banda transportadora"
@@ -677,6 +683,18 @@
                 cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
             });
         }
+
+        const input = document.getElementById('element_type_name');
+
+        if (!input) return;
+
+        input.addEventListener('input', function () {
+            let value = this.value;
+
+            if (value.length === 0) return;
+
+            this.value = value.charAt(0).toUpperCase() + value.slice(1);
+        });
     });
 
     document.addEventListener('click', function (event) {

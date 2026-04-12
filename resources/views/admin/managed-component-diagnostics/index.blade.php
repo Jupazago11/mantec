@@ -45,7 +45,7 @@
                                 <div class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                                     {{ $singleClient->name }}
                                 </div>
-                                <input type="hidden" id="client_id" value="{{ $singleClient->id }}">
+                                <input type="hidden" id="client_id" value="{{ old('client_id', $preferredClientId ?? $singleClient->id) }}">
                             </div>
                         @else
                             <div>
@@ -57,13 +57,14 @@
                                                 type="checkbox"
                                                 value="{{ $client->id }}"
                                                 class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                @checked((string) old('client_id', $preferredClientId ?? '') === (string) $client->id)
                                                 onchange="selectClient(this)"
                                             >
                                             {{ $client->name }}
                                         </label>
                                     @endforeach
                                 </div>
-                                <input type="hidden" id="client_id">
+                                <input type="hidden" id="client_id" value="{{ old('client_id', $preferredClientId ?? '') }}">
                             </div>
                         @endif
 
@@ -87,6 +88,8 @@
                                 <option value="">Seleccione un componente</option>
                             </select>
                         </div>
+                        <input type="hidden" id="preferred_element_type_id" value="{{ old('element_type_id', $preferredElementTypeId ?? '') }}">
+                        <input type="hidden" id="preferred_component_id" value="{{ old('component_id', $preferredComponentId ?? '') }}">
 
                         <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">Diagnósticos</label>
@@ -227,16 +230,14 @@
         resetDiagnostics('Cargando diagnósticos...');
 
         try {
-            await loadTypes();
-            resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
-
+            await loadTypes('', '');
         } catch (error) {
             console.error(error);
             resetDiagnostics('Ocurrió un error al cargar la información.');
         }
     }
 
-    async function loadTypes() {
+    async function loadTypes(selectedElementTypeId = '', selectedComponentId = '') {
         const clientId = getClientId();
 
         resetSelect('element_type_id', 'Seleccione un tipo de activo');
@@ -256,11 +257,27 @@
                 const option = document.createElement('option');
                 option.value = item.id;
                 option.textContent = item.name;
+
+                if (String(selectedElementTypeId) === String(item.id)) {
+                    option.selected = true;
+                }
+
                 select.appendChild(option);
             });
 
+            if (!selectedElementTypeId && data.length === 1) {
+                select.value = String(data[0].id);
+            }
+
             if (data.length === 0) {
                 resetDiagnostics('Este cliente no tiene tipos de activo disponibles.');
+                return;
+            }
+
+            if (select.value) {
+                await loadComponents(selectedComponentId);
+            } else {
+                resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
             }
         } catch (error) {
             console.error(error);
@@ -268,7 +285,7 @@
         }
     }
 
-    async function loadComponents() {
+    async function loadComponents(selectedComponentId = '') {
         const elementTypeId = getElementTypeId();
 
         resetSelect('component_id', 'Seleccione un componente');
@@ -277,6 +294,7 @@
             document.querySelectorAll('[name="diagnostics[]"]').forEach(checkbox => {
                 checkbox.checked = false;
             });
+            resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
             return;
         }
 
@@ -289,8 +307,17 @@
                 const option = document.createElement('option');
                 option.value = item.id;
                 option.textContent = item.name;
+
+                if (String(selectedComponentId) === String(item.id)) {
+                    option.selected = true;
+                }
+
                 select.appendChild(option);
             });
+
+            if (!selectedComponentId && data.length === 1) {
+                select.value = String(data[0].id);
+            }
 
             if (data.length === 0) {
                 resetDiagnostics('Este tipo de activo no tiene componentes disponibles.');
@@ -299,8 +326,6 @@
 
             await loadDiagnostics();
             await loadAssigned();
-            
-
         } catch (error) {
             console.error(error);
             resetDiagnostics('No fue posible cargar los componentes.');
@@ -372,44 +397,33 @@
     document.addEventListener('DOMContentLoaded', async function () {
         const elementTypeSelect = document.getElementById('element_type_id');
         const componentSelect = document.getElementById('component_id');
+        const preferredElementTypeId = document.getElementById('preferred_element_type_id')?.value ?? '';
+        const preferredComponentId = document.getElementById('preferred_component_id')?.value ?? '';
 
         if (elementTypeSelect) {
-            elementTypeSelect.addEventListener('change', loadComponents);
+            elementTypeSelect.addEventListener('change', async function () {
+                await loadComponents('');
+            });
         }
 
         if (componentSelect) {
             componentSelect.addEventListener('change', loadAssigned);
         }
 
-        @if($singleClient)
-            const clientInput = document.getElementById('client_id');
+        const currentClientId = getClientId();
 
-            if (clientInput) {
-                clientInput.value = '{{ $singleClient->id }}';
-            }
+        if (currentClientId) {
+            markSingleClientCheckbox(currentClientId);
 
             try {
-                await loadTypes();
-                await loadDiagnostics();
+                await loadTypes(preferredElementTypeId, preferredComponentId);
             } catch (error) {
                 console.error(error);
                 resetDiagnostics('Ocurrió un error al cargar la información.');
             }
-        @else
-            const currentClientId = getClientId();
-
-            if (currentClientId) {
-                markSingleClientCheckbox(currentClientId);
-
-                try {
-                    await loadTypes();
-                    resetDiagnostics('Selecciona un tipo de activo para cargar los diagnósticos.');
-                } catch (error) {
-                    console.error(error);
-                    resetDiagnostics('Ocurrió un error al cargar la información.');
-                }
-            }
-        @endif
+        } else {
+            resetDiagnostics();
+        }
     });
 </script>
 @endsection

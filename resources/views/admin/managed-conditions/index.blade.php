@@ -78,14 +78,14 @@
                                                 name="client_id_checkbox"
                                                 value="{{ $client->id }}"
                                                 class="client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                {{ old('client_id') == $client->id ? 'checked' : '' }}
+                                                @checked((string) old('client_id', $preferredClientId ?? '') === (string) $client->id)
                                                 onchange="handleSingleClientSelection(this)"
                                             >
                                             {{ $client->name }}
                                         </label>
                                     @endforeach
                                 </div>
-                                <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id') }}">
+                                <input type="hidden" name="client_id" id="selected_client_id" value="{{ old('client_id', $preferredClientId ?? '') }}">
                                 @error('client_id')
                                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                                 @enderror
@@ -112,7 +112,7 @@
                                     <option
                                         value="{{ $elementType->id }}"
                                         data-client-id="{{ $elementType->client_id }}"
-                                        @selected(old('element_type_id') == $elementType->id)
+                                        @selected((string) old('element_type_id', $preferredElementTypeId ?? '') === (string) $elementType->id)
                                     >
                                         {{ $elementType->name }}
                                     </option>
@@ -165,7 +165,29 @@
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Criticidad</label>
+                            <div class="flex items-center gap-2">
+                                <label class="block text-sm font-medium text-slate-700">
+                                    Criticidad
+                                </label>
+
+                                <div class="relative group">
+                                    <!-- Icono -->
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                        class="h-4 w-4 text-slate-400 cursor-pointer"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+                                    </svg>
+
+                                    <!-- Tooltip -->
+                                    <div class="pointer-events-none absolute left-0 top-6 z-10 w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600 shadow-lg opacity-0 transition group-hover:opacity-100">
+                                        <p><strong>0:</strong> Condición informativa (no afecta indicadores).</p>
+                                        <p class="mt-1"><strong>1 en adelante:</strong> Se utiliza para cálculo de indicadores y niveles de criticidad.</p>
+                                    </div>
+                                </div>
+                            </div>
                             <input
                                 type="number"
                                 name="severity"
