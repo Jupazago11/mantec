@@ -175,6 +175,14 @@ class InspectorOfflineCatalogController extends Controller
                 'diagnostic_id',
             ]);
 
+        $componentConditionRelations = DB::table('component_conditions')
+            ->whereIn('component_id', $components->pluck('id'))
+            ->whereIn('condition_id', $conditions->pluck('id'))
+            ->get([
+                'component_id',
+                'condition_id',
+            ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Catálogo offline cargado correctamente.',
@@ -257,6 +265,12 @@ class InspectorOfflineCatalogController extends Controller
                 return [
                     'component_id' => (int) $item->component_id,
                     'diagnostic_id' => (int) $item->diagnostic_id,
+                ];
+            })->values(),
+            'component_condition_relations' => $componentConditionRelations->map(function ($item) {
+                return [
+                    'component_id' => (int) $item->component_id,
+                    'condition_id' => (int) $item->condition_id,
                 ];
             })->values(),
         ]);
