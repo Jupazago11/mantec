@@ -138,8 +138,7 @@
                                                     >
                                                     <span>{{ $elementType->name }}</span>
                                                 </label>
-
-                                                <div
+                                                                                                <div
                                                     class="create-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
                                                     data-client-id="{{ $client->id }}"
                                                     data-element-type-id="{{ $elementType->id }}"
@@ -242,8 +241,7 @@
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Usuario
                                 </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
                                         <span>Rol</span>
                                         <button
@@ -310,6 +308,7 @@
             ->groupBy(fn($item) => $item->pivot->client_id);
 
         $isSelf = (int) $user->id === (int) $authUserId;
+        $canSelfEditProfile = $isSelf && in_array($authRoleKey, ['superadmin', 'admin_global'], true);
 
         $canManage = false;
 
@@ -333,8 +332,7 @@
         <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
             {{ $user->username }}
         </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
             {{ $user->role?->name ?? '—' }}
         </td>
 
@@ -402,6 +400,7 @@
                             ->toArray(),
                         'action' => route('admin.managed-users.update', $user),
                         'is_self' => $isSelf,
+                        'can_self_edit_profile' => $canSelfEditProfile,
                         'can_manage' => $canManage,
                     ];
                 @endphp
@@ -412,9 +411,9 @@
                         class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                         onclick='openEditUserModal(@json($editPayload))'
                     >
-                        Cambiar contraseña
+                        {{ $canSelfEditProfile ? 'Editar perfil' : 'Cambiar contraseña' }}
                     </button>
-@elseif($canManage)
+                @elseif($canManage)
                     <button
                         type="button"
                         class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
@@ -429,8 +428,7 @@
                     >
                         @csrf
                         @method('PATCH')
-
-                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                                                @foreach(($activeFilters['client_ids'] ?? []) as $value)
                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                         @endforeach
                         @foreach(($activeFilters['names'] ?? []) as $value)
@@ -518,8 +516,7 @@
                         @endforeach
                     </select>
                 </div>
-
-                <div id="edit_clients_wrapper">
+                                <div id="edit_clients_wrapper">
                     <label class="mb-2 block text-sm font-medium text-slate-700">Clientes</label>
                     <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
                         @foreach($clients as $client)
@@ -536,7 +533,8 @@
                         @endforeach
                     </div>
                 </div>
-<div id="edit_specialized_permissions_wrapper" class="hidden">
+
+                <div id="edit_specialized_permissions_wrapper" class="hidden">
                     <label class="mb-2 block text-sm font-medium text-slate-700">
                         Tipos de activo permitidos por cliente
                     </label>
@@ -617,8 +615,7 @@
                     <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
                 @endforeach
                 <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
-
-                <div class="flex justify-end gap-3 border-t border-slate-200 pt-4 shrink-0">
+                                <div class="flex justify-end gap-3 border-t border-slate-200 pt-4 shrink-0">
                     <button
                         type="button"
                         onclick="closeEditUserModal()"
@@ -666,6 +663,7 @@
         </button>
     </div>
 </div>
+
 <script>
     const filterOptions = {
         @if($showClientColumn)
@@ -705,8 +703,7 @@
         const option = select.options[select.selectedIndex];
         return option ? option.dataset.roleKey : '';
     }
-
-    function roleUsesSpecialization(roleKey) {
+        function roleUsesSpecialization(roleKey) {
         return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
     }
 
@@ -821,7 +818,7 @@
             });
         });
 
-        setEditReadOnlyMode(!!user.is_self);
+        setEditReadOnlyMode(!!user.is_self, !!user.can_self_edit_profile);
         toggleSpecializedPermissions('edit');
 
         const modal = document.getElementById('editUserModal');
@@ -829,7 +826,7 @@
         modal.classList.add('flex');
     }
 
-    function setEditReadOnlyMode(isSelf) {
+    function setEditReadOnlyMode(isSelf, canSelfEditProfile = false) {
         const readonlyMessage = document.getElementById('edit_readonly_message');
         const roleWrapper = document.getElementById('edit_role_wrapper');
         const clientsWrapper = document.getElementById('edit_clients_wrapper');
@@ -840,24 +837,37 @@
         const usernameInput = document.getElementById('edit_username');
         const roleSelect = document.getElementById('edit_role_id');
 
-        if (readonlyMessage) readonlyMessage.classList.toggle('hidden', !isSelf);
+        const lockOnlyPasswordMode = isSelf && !canSelfEditProfile;
+
+        if (readonlyMessage) {
+            if (lockOnlyPasswordMode) {
+                readonlyMessage.textContent = 'Para tu propio usuario solo puedes cambiar la contraseña.';
+                readonlyMessage.classList.remove('hidden');
+            } else if (isSelf && canSelfEditProfile) {
+                readonlyMessage.textContent = 'Puedes actualizar tus datos personales y contraseña, pero no tu rol ni permisos.';
+                readonlyMessage.classList.remove('hidden');
+            } else {
+                readonlyMessage.classList.add('hidden');
+            }
+        }
+
         if (roleWrapper) roleWrapper.classList.toggle('hidden', isSelf);
         if (clientsWrapper) clientsWrapper.classList.toggle('hidden', isSelf);
         if (specializedWrapper) specializedWrapper.classList.toggle('hidden', isSelf);
 
         if (nameInput) {
-            nameInput.readOnly = isSelf;
-            nameInput.classList.toggle('bg-slate-100', isSelf);
+            nameInput.readOnly = lockOnlyPasswordMode;
+            nameInput.classList.toggle('bg-slate-100', lockOnlyPasswordMode);
         }
 
         if (documentInput) {
-            documentInput.readOnly = isSelf;
-            documentInput.classList.toggle('bg-slate-100', isSelf);
+            documentInput.readOnly = lockOnlyPasswordMode;
+            documentInput.classList.toggle('bg-slate-100', lockOnlyPasswordMode);
         }
 
         if (usernameInput) {
-            usernameInput.readOnly = isSelf;
-            usernameInput.classList.toggle('bg-slate-100', isSelf);
+            usernameInput.readOnly = lockOnlyPasswordMode;
+            usernameInput.classList.toggle('bg-slate-100', lockOnlyPasswordMode);
         }
 
         if (roleSelect) {

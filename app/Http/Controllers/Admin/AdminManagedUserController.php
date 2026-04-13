@@ -38,21 +38,40 @@ class AdminManagedUserController extends Controller
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
         $showClientColumn = $clients->count() > 1;
 
-        $assignableRoleKeys = [
-            'admin',
-            'admin_cliente',
-            'inspector',
-            'observador',
-            'observador_cliente',
-        ];
+        $assignableRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
+            ? [
+                'admin_global',
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ]
+            : [
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ];
 
-        $visibleRoleKeys = [
-            'admin',
-            'admin_cliente',
-            'inspector',
-            'observador',
-            'observador_cliente',
-        ];
+        $visibleRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
+            ? [
+                'superadmin',
+                'admin_global',
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ]
+            : [
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ];
 
         $assignableRoles = Role::query()
             ->whereIn('key', $assignableRoleKeys)
@@ -227,13 +246,22 @@ class AdminManagedUserController extends Controller
                 ->all();
         }
 
-        $assignableRoleKeys = [
-            'admin',
-            'admin_cliente',
-            'inspector',
-            'observador',
-            'observador_cliente',
-        ];
+        $assignableRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
+            ? [
+                'admin_global',
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ]
+            : [
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ];
 
         $specializedRoleKeys = [
             'admin_cliente',
@@ -320,6 +348,31 @@ class AdminManagedUserController extends Controller
         abort_unless($this->canViewUser($authUser, $user), 403);
 
         if ((int) $user->id === (int) $authUser->id) {
+            if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+                $validated = $request->validate([
+                    'name' => ['required', 'string', 'max:255'],
+                    'document' => ['nullable', 'string', 'max:255'],
+                    'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
+                    'password' => ['nullable', 'string', 'min:6'],
+                ]);
+
+                $payload = [
+                    'name' => trim($validated['name']),
+                    'document' => $validated['document'] ? trim($validated['document']) : null,
+                    'username' => trim($validated['username']),
+                ];
+
+                if (!empty($validated['password'])) {
+                    $payload['password'] = Hash::make($validated['password']);
+                }
+
+                $user->update($payload);
+
+                return redirect()
+                    ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
+                    ->with('success', 'Tu perfil fue actualizado correctamente.');
+            }
+
             $validated = $request->validate([
                 'password' => ['required', 'string', 'min:6'],
             ], [
@@ -349,13 +402,22 @@ class AdminManagedUserController extends Controller
                 ->all();
         }
 
-        $assignableRoleKeys = [
-            'admin',
-            'admin_cliente',
-            'inspector',
-            'observador',
-            'observador_cliente',
-        ];
+        $assignableRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
+            ? [
+                'admin_global',
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ]
+            : [
+                'admin',
+                'admin_cliente',
+                'inspector',
+                'observador',
+                'observador_cliente',
+            ];
 
         $specializedRoleKeys = [
             'admin_cliente',

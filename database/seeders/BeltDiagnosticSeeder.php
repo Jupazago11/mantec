@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Client;
 use App\Models\Diagnostic;
+use App\Models\ElementType;
 use Illuminate\Database\Seeder;
 
 class BeltDiagnosticSeeder extends Seeder
@@ -12,6 +13,11 @@ class BeltDiagnosticSeeder extends Seeder
     {
         $client = Client::query()
             ->where('name', 'CORONA')
+            ->firstOrFail();
+
+        $elementType = ElementType::query()
+            ->where('client_id', $client->id)
+            ->where('name', 'Banda transportadora')
             ->firstOrFail();
 
         $diagnostics = [
@@ -57,6 +63,7 @@ class BeltDiagnosticSeeder extends Seeder
             Diagnostic::updateOrCreate(
                 [
                     'client_id' => $client->id,
+                    'element_type_id' => $elementType->id,
                     'name' => trim($item['name']),
                 ],
                 [
