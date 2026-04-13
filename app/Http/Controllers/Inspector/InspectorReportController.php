@@ -96,13 +96,7 @@ class InspectorReportController extends Controller
                     $selectedElement = $elements->firstWhere('id', $selectedElementId);
 
                     if ($selectedElement) {
-                        $conditions = Condition::query()
-                            ->where('client_id', $selectedClientId)
-                            ->where('element_type_id', $selectedElement->element_type_id)
-                            ->where('status', true)
-                            ->orderBy('severity')
-                            ->orderBy('name')
-                            ->get();
+                        $conditions = collect();
                     }
                 }
             }
@@ -169,7 +163,7 @@ class InspectorReportController extends Controller
         return response()->json($areas);
     }
 
-    public function getConditionsByElement(Element $element): JsonResponse
+    public function getConditionsByElement(Request $request, Element $element): JsonResponse
     {
         $user = Auth::user();
 
@@ -177,20 +171,33 @@ class InspectorReportController extends Controller
 
         abort_unless($this->userCanAccessElement($user, $element), 403);
 
-        $conditions = Condition::query()
-            ->where('client_id', $element->area->client_id)
-            ->where('element_type_id', $element->element_type_id)
-            ->where('status', true)
-            ->orderBy('severity')
-            ->orderBy('name')
+        $componentId = (int) $request->query('component_id');
+
+        if (!$componentId) {
+            return response()->json([]);
+        }
+
+        abort_unless(
+            $element->components()->where('components.id', $componentId)->exists(),
+            403
+        );
+
+        $component = Component::findOrFail($componentId);
+
+        $conditions = $component->conditions()
+            ->where('conditions.status', true)
+            ->where('conditions.client_id', $element->area->client_id)
+            ->where('conditions.element_type_id', $element->element_type_id)
+            ->orderBy('conditions.severity')
+            ->orderBy('conditions.name')
             ->get([
-                'id',
-                'client_id',
-                'element_type_id',
-                'name',
-                'code',
-                'severity',
-                'color',
+                'conditions.id',
+                'conditions.client_id',
+                'conditions.element_type_id',
+                'conditions.name',
+                'conditions.code',
+                'conditions.severity',
+                'conditions.color',
             ]);
 
         return response()->json($conditions);

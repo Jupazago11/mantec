@@ -435,15 +435,16 @@ async function loadElements(preserveElementId = null) {
         ) {
             elementSelect.value = String(preserveElementId);
             await loadComponents();
-            await loadConditions();
         }
     } catch (error) {
         console.error(error);
     }
 }
+
 async function loadComponents() {
     resetSelect(componentSelect, 'Seleccione un componente');
     resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
     if (!elementSelect || !elementSelect.value) {
@@ -474,14 +475,20 @@ async function loadComponents() {
 async function loadConditions() {
     resetSelect(conditionSelect, 'Seleccione una condición');
 
-    if (!elementSelect || !elementSelect.value) {
+    if (
+        !elementSelect || !elementSelect.value ||
+        !componentSelect || !componentSelect.value
+    ) {
         return;
     }
 
     try {
-        const response = await fetch(`/inspector/elements/${elementSelect.value}/conditions`, {
-            headers: { 'Accept': 'application/json' }
-        });
+        const response = await fetch(
+            `/inspector/elements/${elementSelect.value}/conditions?component_id=${componentSelect.value}`,
+            {
+                headers: { 'Accept': 'application/json' }
+            }
+        );
 
         if (!response.ok) {
             throw new Error(`Error cargando condiciones: ${response.status}`);
@@ -493,7 +500,7 @@ async function loadConditions() {
             conditionSelect.innerHTML += `<option value="${condition.id}">${condition.code}</option>`;
         });
     } catch (error) {
-        console.error(error);
+        console.error('loadConditions error:', error);
     }
 }
 
@@ -585,13 +592,13 @@ if (areaSelect) {
 if (elementSelect) {
     elementSelect.addEventListener('change', async () => {
         await loadComponents();
-        await loadConditions();
     });
 }
 
 if (componentSelect) {
     componentSelect.addEventListener('change', async () => {
         await loadDiagnostics();
+        await loadConditions();
         updateBeltChangeVisibility();
     });
 }
@@ -608,5 +615,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadAreas(selectedAreaId, selectedElementId);
     }
 });
+
 </script>
 @endsection

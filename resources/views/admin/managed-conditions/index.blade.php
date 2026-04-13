@@ -426,6 +426,18 @@
                                             <div class="flex justify-end gap-2">
                                                 <button
                                                     type="button"
+                                                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                                    onclick="openComponentConditionModal(
+                                                        '{{ $condition->id }}',
+                                                        @js($condition->client?->name ?? '—'),
+                                                        @js($condition->elementType?->name ?? '—'),
+                                                        @js($condition->name)
+                                                    )"
+                                                >
+                                                    Componentes
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                                                     data-code="{{ $condition->code }}"
                                                     data-name="{{ $condition->name }}"
@@ -709,7 +721,74 @@
             </button>
         </div>
     </div>
+    <div id="componentConditionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
+        <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-slate-900">Asociar componentes</h3>
+                <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeComponentConditionModal()">✕</button>
+            </div>
 
+            <form id="componentConditionForm" method="POST" class="space-y-5 p-6">
+                @csrf
+
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</div>
+                        <div id="cc_client_name" class="mt-1 text-sm text-slate-900"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de activo</div>
+                        <div id="cc_element_type_name" class="mt-1 text-sm text-slate-900"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Condición</div>
+                        <div id="cc_condition_name" class="mt-1 text-sm text-slate-900"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Componentes disponibles</label>
+                    <div
+                        id="cc_components_container"
+                        class="grid max-h-[420px] gap-3 overflow-y-auto rounded-xl border border-slate-200 p-4 md:grid-cols-2"
+                    ></div>
+                </div>
+
+                @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                    <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                    <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['codes'] ?? []) as $value)
+                    <input type="hidden" name="redirect_codes[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['names'] ?? []) as $value)
+                    <input type="hidden" name="redirect_names[]" value="{{ $value }}">
+                @endforeach
+                @foreach(($activeFilters['statuses'] ?? []) as $value)
+                    <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
+                @endforeach
+                <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
+
+                <div class="flex justify-end gap-3">
+                    <button
+                        type="button"
+                        onclick="closeComponentConditionModal()"
+                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                    >
+                        Guardar componentes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
     <script>
         const filterOptions = {
             @if($showClientColumn)
@@ -1019,7 +1098,8 @@
 
         document.addEventListener('click', function (event) {
             const popover = document.getElementById('filterPopover');
-            const modal = document.getElementById('editConditionModal');
+            const editModal = document.getElementById('editConditionModal');
+            const componentModal = document.getElementById('componentConditionModal');
 
             if (!popover.classList.contains('hidden')) {
                 if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
@@ -1027,8 +1107,12 @@
                 }
             }
 
-            if (modal.classList.contains('flex') && event.target === modal) {
+            if (editModal.classList.contains('flex') && event.target === editModal) {
                 closeEditConditionModal();
+            }
+
+            if (componentModal.classList.contains('flex') && event.target === componentModal) {
+                closeComponentConditionModal();
             }
         });
 
@@ -1036,7 +1120,85 @@
             if (event.key === 'Escape') {
                 closeFilterPopover();
                 closeEditConditionModal();
+                closeComponentConditionModal();
             }
         });
+
+        async function openComponentConditionModal(conditionId, clientName, elementTypeName, conditionName) {
+            const modal = document.getElementById('componentConditionModal');
+            const form = document.getElementById('componentConditionForm');
+            const container = document.getElementById('cc_components_container');
+
+            document.getElementById('cc_client_name').textContent = clientName ?? '—';
+            document.getElementById('cc_element_type_name').textContent = elementTypeName ?? '—';
+            document.getElementById('cc_condition_name').textContent = conditionName ?? '—';
+
+            form.action = `/admin/managed-conditions/${conditionId}/components`;
+
+            container.innerHTML = `
+                <div class="text-sm text-slate-500 md:col-span-2">Cargando componentes...</div>
+            `;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            try {
+                const response = await fetch(`/admin/managed-conditions/${conditionId}/components`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await response.json();
+
+                container.innerHTML = '';
+
+                if (!data.components || data.components.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-sm text-slate-500 md:col-span-2">No hay componentes disponibles.</div>
+                    `;
+                    return;
+                }
+
+                data.components.forEach(component => {
+                    const checked = data.assigned_ids.includes(component.id);
+
+                    const item = document.createElement('label');
+                    item.className = 'flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700';
+
+                    item.innerHTML = `
+                        <input
+                            type="checkbox"
+                            name="component_ids[]"
+                            value="${component.id}"
+                            ${checked ? 'checked' : ''}
+                            class="mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                        >
+                        <span>${escapeHtml(String(component.name))}</span>
+                    `;
+
+                    container.appendChild(item);
+                });
+
+            } catch (error) {
+                console.error(error);
+                container.innerHTML = `
+                    <div class="text-sm text-red-500 md:col-span-2">Error cargando componentes.</div>
+                `;
+            }
+        }
+
+        function closeComponentConditionModal() {
+            const modal = document.getElementById('componentConditionModal');
+            const container = document.getElementById('cc_components_container');
+
+            if (container) {
+                container.innerHTML = '';
+            }
+
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+        }
     </script>
 @endsection

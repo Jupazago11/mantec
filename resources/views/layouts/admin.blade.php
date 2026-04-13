@@ -8,7 +8,21 @@
     <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
-    <div x-data="{ sidebarOpen: false }" class="flex h-full">
+    <div
+        x-data="{
+            sidebarOpen: false,
+            sidebarCollapsed: localStorage.getItem('admin_sidebar_collapsed') === '1',
+            toggleSidebarCollapse() {
+                this.sidebarCollapsed = !this.sidebarCollapsed;
+                localStorage.setItem('admin_sidebar_collapsed', this.sidebarCollapsed ? '1' : '0');
+            },
+            showSidebar() {
+                this.sidebarCollapsed = false;
+                localStorage.setItem('admin_sidebar_collapsed', '0');
+            }
+        }"
+        class="flex h-full"
+    >
         @include('components.admin.sidebar')
 
         <div class="flex min-w-0 flex-1 flex-col">

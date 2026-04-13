@@ -40,6 +40,16 @@ class Condition extends Model
         return $this->hasMany(ReportDetail::class);
     }
 
+    public function components()
+    {
+        return $this->belongsToMany(
+            Component::class,
+            'component_conditions',
+            'condition_id',
+            'component_id'
+        )->withTimestamps();
+    }
+
     public function hasDependencies(): bool
     {
         return $this->reportDetails()->exists();

@@ -8,8 +8,11 @@
 @endphp
 
 <aside
-    class="fixed inset-y-0 left-0 z-50 w-72 transform border-r border-slate-200 bg-white transition-transform duration-300 lg:static lg:translate-x-0"
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+    class="fixed inset-y-0 left-0 z-50 border-r border-slate-200 bg-white transition-all duration-300 lg:static lg:translate-x-0"
+    :class="[
+        sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 lg:translate-x-0',
+        sidebarCollapsed ? 'lg:w-0 lg:min-w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-72'
+    ]"
 >
     <div class="flex h-full flex-col">
         <div class="flex items-center justify-between border-b border-slate-200 px-6 py-5">
@@ -29,6 +32,18 @@
                 </p>
             </div>
 
+            <div class="flex items-center gap-2">
+            <button
+                type="button"
+                class="hidden text-slate-500 lg:inline-flex"
+                @click="toggleSidebarCollapse()"
+                title="Ocultar menú"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+
             <button
                 type="button"
                 class="text-slate-500 lg:hidden"
@@ -36,6 +51,7 @@
             >
                 ✕
             </button>
+        </div>
         </div>
 
         <div class="flex-1 overflow-y-auto px-4 py-6">

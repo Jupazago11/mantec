@@ -36,6 +36,12 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        $roleKey = $user->role?->key;
+
+        if ($roleKey === 'inspector') {
+            return redirect()->route('inspector.reports.index');
+        }
+
         return redirect()->route('admin.dashboard');
     }
 

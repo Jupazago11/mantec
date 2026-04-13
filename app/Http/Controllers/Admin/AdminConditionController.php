@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\Component;
 use App\Models\Condition;
 use App\Models\ElementType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -371,6 +373,69 @@ class AdminConditionController extends Controller
             ->where('clients.status', true)
             ->orderBy('clients.name')
             ->get(['clients.id', 'clients.name']);
+    }
+
+    public function getComponents(Condition $condition): JsonResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+
+        $components = Component::query()
+            ->where('client_id', $condition->client_id)
+            ->where('element_type_id', $condition->element_type_id)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $assignedIds = $condition->components()
+            ->pluck('components.id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        return response()->json([
+            'components' => $components,
+            'assigned_ids' => $assignedIds,
+        ]);
+    }
+
+    public function syncComponents(Request $request, Condition $condition): RedirectResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+
+        $validated = $request->validate([
+            'component_ids' => ['nullable', 'array'],
+            'component_ids.*' => ['integer', 'exists:components,id'],
+        ]);
+
+        $componentIds = collect($validated['component_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($componentIds)) {
+            $validCount = Component::query()
+                ->whereIn('id', $componentIds)
+                ->where('client_id', $condition->client_id)
+                ->where('element_type_id', $condition->element_type_id)
+                ->count();
+
+            if ($validCount !== count($componentIds)) {
+                return back()->withErrors([
+                    'component_ids' => 'Uno o más componentes no pertenecen al cliente o tipo de activo de la condición.',
+                ]);
+            }
+        }
+
+        $condition->components()->sync($componentIds);
+
+        return redirect()
+            ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
+            ->with('success', 'Componentes de la condición actualizados correctamente.');
     }
 
     private function buildRedirectQuery(Request $request): array

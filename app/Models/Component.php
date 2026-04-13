@@ -45,6 +45,15 @@ class Component extends Model
         )->withTimestamps();
     }
 
+    public function conditions()
+    {
+        return $this->belongsToMany(
+            \App\Models\Condition::class,
+            'component_conditions',
+            'component_id',
+            'condition_id'
+        )->withTimestamps();
+    }
 
     public function elements()
     {

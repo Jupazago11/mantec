@@ -5,8 +5,23 @@
                 type="button"
                 class="text-slate-600 lg:hidden"
                 @click="sidebarOpen = true"
+                title="Abrir menú"
             >
                 ☰
+            </button>
+
+            <button
+                type="button"
+                class="hidden rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 lg:inline-flex"
+                x-show="sidebarCollapsed"
+                x-cloak
+                @click="showSidebar()"
+                title="Mostrar menú"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                Menú
             </button>
 
             <div>

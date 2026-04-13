@@ -123,6 +123,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/managed-conditions/{condition}', [AdminConditionController::class, 'update'])->name('managed-conditions.update');
         Route::delete('/managed-conditions/{condition}', [AdminConditionController::class, 'destroy'])->name('managed-conditions.destroy');
         Route::patch('/managed-conditions/{condition}/toggle-status', [AdminConditionController::class, 'toggleStatus'])->name('managed-conditions.toggle-status');
+        Route::get('/managed-conditions/{condition}/components', [AdminConditionController::class, 'getComponents'])->name('managed-conditions.components');
+        Route::post('/managed-conditions/{condition}/components', [AdminConditionController::class, 'syncComponents'])->name('managed-conditions.components.sync');
 
         // Componentes
         Route::get('/managed-components', [AdminComponentController::class, 'index'])->name('managed-components.index');
