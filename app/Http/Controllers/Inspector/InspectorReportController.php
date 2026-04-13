@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inspector;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\Client;
+use App\Models\User;
 use App\Models\Component;
 use App\Models\Condition;
 use App\Models\Diagnostic;
@@ -376,6 +377,83 @@ class InspectorReportController extends Controller
         return response()->json($items);
     }
 
+    public function getWeeklyElementsStatus(Request $request, Area $area): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userCanAccessArea($user, $area), 403);
+
+        $elementTypeId = (int) $request->query('element_type_id');
+
+        if (!$elementTypeId) {
+            return response()->json([
+                'message' => 'El parámetro element_type_id es obligatorio.'
+            ], 422);
+        }
+
+        $now = Carbon::now();
+        $week = (int) $now->isoWeek();
+        $year = (int) $now->isoWeekYear();
+
+        $elements = Element::query()
+            ->where('area_id', $area->id)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->with(['components' => function ($query) use ($elementTypeId) {
+                $query->where('components.status', true)
+                    ->where('components.element_type_id', $elementTypeId)
+                    ->with(['diagnostics' => function ($q) use ($elementTypeId) {
+                        $q->where('diagnostics.status', true)
+                            ->where('diagnostics.element_type_id', $elementTypeId)
+                            ->orderBy('diagnostics.name');
+                    }])
+                    ->orderBy('components.name');
+            }])
+            ->orderBy('name')
+            ->get();
+
+        $doneRows = ReportDetail::query()
+            ->whereIn('element_id', $elements->pluck('id'))
+            ->where('week', $week)
+            ->where('year', $year)
+            ->get(['element_id', 'component_id', 'diagnostic_id']);
+
+        $doneKeys = $doneRows
+            ->map(fn ($row) => $row->element_id . '-' . $row->component_id . '-' . $row->diagnostic_id)
+            ->flip();
+
+        $items = $elements->map(function ($element) use ($doneKeys) {
+            $expectedCount = 0;
+            $doneCount = 0;
+
+            foreach ($element->components as $component) {
+                foreach ($component->diagnostics as $diagnostic) {
+                    $expectedCount++;
+
+                    $key = $element->id . '-' . $component->id . '-' . $diagnostic->id;
+
+                    if ($doneKeys->has($key)) {
+                        $doneCount++;
+                    }
+                }
+            }
+
+            $status = ($expectedCount > 0 && $doneCount === $expectedCount)
+                ? 'DONE'
+                : 'PENDING';
+
+            return [
+                'element_id' => (int) $element->id,
+                'element_name' => $element->name,
+                'status' => $status,
+                'expected_count' => $expectedCount,
+                'done_count' => $doneCount,
+            ];
+        })->values();
+
+        return response()->json($items);
+    }
+
 
     public function store(Request $request): RedirectResponse
     {
@@ -638,5 +716,26 @@ class InspectorReportController extends Controller
 
         return $this->userHasClientAccess($user, $element->area->client_id)
             && $user->hasElementTypeAccess($element->area->client_id, $element->element_type_id);
+    }
+
+    private function userCanAccessArea(User $user, Area $area): bool
+    {
+        if (in_array($user->role->key ?? null, ['superadmin', 'admin_global', 'admin'])) {
+            return true;
+        }
+
+        if (($user->role->key ?? null) === 'admin_cliente') {
+            return $user->clients()->where('clients.id', $area->client_id)->exists();
+        }
+
+        if (($user->role->key ?? null) === 'observador_cliente') {
+            return $user->clients()->where('clients.id', $area->client_id)->exists();
+        }
+
+        if (($user->role->key ?? null) === 'inspector') {
+            return $user->clients()->where('clients.id', $area->client_id)->exists();
+        }
+
+        return false;
     }
 }

@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/report-details/{reportDetail}/files', [InspectorSyncFileController::class, 'store']);
 
         Route::get('/elements/{element}/weekly-diagnostic-status', [InspectorReportController::class, 'getWeeklyDiagnosticStatus']);
+        Route::get('/areas/{area}/weekly-elements-status', [InspectorReportController::class, 'getWeeklyElementsStatus']);
 
     });
 });
