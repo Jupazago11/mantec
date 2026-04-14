@@ -6,6 +6,7 @@
     <title>@yield('title', 'Panel administrativo')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
     <div
@@ -35,5 +36,12 @@
     </div>
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 </html>

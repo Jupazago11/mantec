@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminManagedUserController;
 use App\Http\Controllers\Admin\AdminAreaController;
 use App\Http\Controllers\Admin\AdminElementTypeController;
 use App\Http\Controllers\Admin\AdminDiagnosticController;
+use App\Http\Controllers\Admin\AdminManagedGroupController;
 use App\Http\Controllers\Admin\AdminConditionController;
 use App\Http\Controllers\Admin\AdminComponentController;
 use App\Http\Controllers\Admin\AdminComponentDiagnosticController;
@@ -148,6 +149,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/managed-elements/{element}/components', [AdminElementController::class, 'syncComponents'])->name('managed-elements.components.sync');
         Route::delete('/managed-elements/{element}', [AdminElementController::class, 'destroy'])->name('managed-elements.destroy');
         Route::patch('/managed-elements/{element}/toggle-status', [AdminElementController::class, 'toggleStatus'])->name('managed-elements.toggle-status');
+
+        // Agrupaciones
+        Route::get('/managed-groups', [AdminManagedGroupController::class, 'index'])->name('managed-groups.index');
+        Route::post('/managed-groups', [AdminManagedGroupController::class, 'store'])->name('managed-groups.store');
+        Route::put('/managed-groups/{group}', [AdminManagedGroupController::class, 'update'])->name('managed-groups.update');
+        Route::patch('/managed-groups/{group}/toggle-status', [AdminManagedGroupController::class, 'toggleStatus'])->name('managed-groups.toggle-status');
+        Route::delete('/managed-groups/{group}', [AdminManagedGroupController::class, 'destroy'])->name('managed-groups.destroy');
+        Route::post('/managed-groups/{group}/elements', [AdminManagedGroupController::class, 'syncElements'])->name('managed-groups.elements.sync');
+
+
 
         // AJAX compartido
         Route::get('/clients/{client}/areas', [AdminElementController::class, 'getAreasByClient'])->name('clients.areas');

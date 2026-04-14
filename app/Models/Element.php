@@ -9,6 +9,7 @@ class Element extends Model
     protected $fillable = [
         'area_id',
         'element_type_id',
+        'group_id',
         'name',
         'code',
         'warehouse_code',
@@ -22,6 +23,11 @@ class Element extends Model
     public function area()
     {
         return $this->belongsTo(Area::class);
+    }
+
+    public function group()
+    {
+        return $this->belongsTo(Group::class);
     }
 
     public function elementType()

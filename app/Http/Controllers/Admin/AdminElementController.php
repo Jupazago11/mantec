@@ -7,6 +7,7 @@ use App\Models\Area;
 use App\Models\Client;
 use App\Models\Component;
 use App\Models\Element;
+use App\Models\Group;
 use App\Models\ElementType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class AdminElementController extends Controller
     public function index(Request $request): View
     {
         $clients = $this->getScopedClients();
+        $clientIds = $clients->pluck('id')->all();
 
         $showClientColumn = $clients->count() > 1;
         $singleClient = $clients->count() === 1 ? $clients->first() : null;
@@ -29,14 +31,21 @@ class AdminElementController extends Controller
             ->orderBy('name')
             ->get();
 
-        $elementTypes = ElementType::query()
-            ->whereIn('client_id', $clients->pluck('id'))
+         $elementTypes = ElementType::query()
+            ->whereIn('client_id', $clientIds)
             ->where('status', true)
             ->orderBy('name')
             ->get();
 
+        $groupsByClient = Group::query()
+            ->whereIn('client_id', $clientIds)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get()
+            ->groupBy('client_id');
+
         $components = Component::query()
-            ->whereIn('client_id', $clients->pluck('id'))
+            ->whereIn('client_id', $clientIds)
             ->where('status', true)
             ->orderBy('name')
             ->get();
@@ -80,7 +89,7 @@ class AdminElementController extends Controller
             ->all();
 
         $baseQuery = Element::query()
-            ->with(['area.client', 'elementType', 'components'])
+            ->with(['area.client', 'elementType', 'group', 'components'])
             ->withCount(['components', 'reportDetails'])
             ->whereHas('area', function ($query) use ($clients) {
                 $query->whereIn('client_id', $clients->pluck('id'));
@@ -184,6 +193,7 @@ class AdminElementController extends Controller
             'elementTypes' => $elementTypes,
             'components' => $components,
             'elements' => $elements,
+            'groupsByClient' => $groupsByClient,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'showClientColumn' => $showClientColumn,
@@ -199,6 +209,7 @@ class AdminElementController extends Controller
             'area_id' => ['required', 'integer', 'exists:areas,id'],
             'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'name' => ['required', 'string', 'max:255'],
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'code' => ['nullable', 'string', 'max:255'],
             'warehouse_code' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'boolean'],
@@ -218,6 +229,17 @@ class AdminElementController extends Controller
                 ->withInput();
         }
 
+        if (!empty($validated['group_id'])) {
+            $group = Group::findOrFail($validated['group_id']);
+
+            if ((int) $group->client_id !== (int) $validated['client_id']) {
+                return back()
+                    ->withErrors(['group_id' => 'La agrupación no pertenece al cliente seleccionado.'])
+                    ->withInput();
+            }
+        }
+
+
         $exists = Element::query()
             ->where('area_id', $validated['area_id'])
             ->where('element_type_id', $validated['element_type_id'])
@@ -234,6 +256,7 @@ class AdminElementController extends Controller
             'area_id' => $validated['area_id'],
             'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
+            'group_id' => !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
             'code' => $validated['code'] ? trim($validated['code']) : null,
             'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
             'status' => (bool) $validated['status'],
@@ -269,6 +292,7 @@ class AdminElementController extends Controller
             'area_id' => ['required', 'integer', 'exists:areas,id'],
             'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
             'name' => ['required', 'string', 'max:255'],
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'code' => ['nullable', 'string', 'max:255'],
             'warehouse_code' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'boolean'],
@@ -283,6 +307,17 @@ class AdminElementController extends Controller
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente del área seleccionada.'])
                 ->withInput();
         }
+
+        if (!empty($validated['group_id'])) {
+            $group = Group::findOrFail($validated['group_id']);
+
+            if ((int) $group->client_id !== (int) $area->client_id) {
+                return back()
+                    ->withErrors(['group_id' => 'La agrupación no pertenece al cliente del área seleccionada.'])
+                    ->withInput();
+            }
+        }
+
 
         $exists = Element::query()
             ->where('id', '!=', $element->id)
@@ -301,6 +336,7 @@ class AdminElementController extends Controller
             'area_id' => $validated['area_id'],
             'element_type_id' => $validated['element_type_id'],
             'name' => trim($validated['name']),
+            'group_id' => !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
             'code' => $validated['code'] ? trim($validated['code']) : null,
             'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
             'status' => (bool) $validated['status'],
@@ -311,7 +347,7 @@ class AdminElementController extends Controller
             ->with('success', 'Activo actualizado correctamente.');
     }
 
-public function destroy(Request $request, Element $element): RedirectResponse
+    public function destroy(Request $request, Element $element): RedirectResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 

@@ -31,6 +31,11 @@ class Client extends Model
         return $this->hasMany(Area::class);
     }
 
+    public function groups()
+    {
+        return $this->hasMany(Group::class);
+    }
+
     public function elementTypes(): HasMany
     {
         return $this->hasMany(ElementType::class);

@@ -22,6 +22,8 @@
 
                 return $value !== null && $value !== '';
             });
+
+        $singleClientId = $clients->count() === 1 ? $clients->first()?->id : null;
     @endphp
 
     <div class="space-y-8">
@@ -56,7 +58,7 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
-<!-- FORMULARIO -->
+            {{-- FORMULARIO --}}
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo activo</h3>
@@ -132,7 +134,6 @@
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-
                         <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">Tipo de activo</label>
                             <select
@@ -140,7 +141,6 @@
                                 id="create_element_type_id"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             >
-
                                 <option value="">Seleccione un tipo</option>
                                 @foreach($elementTypes as $elementType)
                                     <option
@@ -151,14 +151,14 @@
                                         {{ $elementType->name }}
                                     </option>
                                 @endforeach
-
                             </select>
 
                             @error('element_type_id')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-<div>
+
+                        <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
                             <input
                                 type="text"
@@ -187,7 +187,7 @@
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Código de almacén</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Ubicación técnica</label>
                             <input
                                 type="text"
                                 name="warehouse_code"
@@ -244,7 +244,8 @@
                     </form>
                 </div>
             </div>
-<!-- LISTADO -->
+
+            {{-- LISTADO --}}
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
@@ -298,6 +299,10 @@
                                                 </svg>
                                             </button>
                                         </div>
+                                    </th>
+
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        Agrupación
                                     </th>
 
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -374,7 +379,6 @@
                                 </tr>
                             </thead>
 
-
                             <tbody class="divide-y divide-slate-200 bg-white">
                                 @forelse($elements as $element)
                                     @php
@@ -390,6 +394,10 @@
 
                                         <td class="px-4 py-3 text-sm text-slate-700">
                                             {{ $element->area?->name ?? '—' }}
+                                        </td>
+
+                                        <td class="px-4 py-3 text-sm text-slate-700">
+                                            {{ $element->group?->name ?? '—' }}
                                         </td>
 
                                         <td class="px-4 py-3 text-sm text-slate-700">
@@ -442,7 +450,6 @@
                                                 >
                                                     Componentes
                                                 </button>
-
 
                                                 <button
                                                     type="button"
@@ -498,7 +505,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $showClientColumn ? 9 : 8 }}" class="px-4 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="{{ $showClientColumn ? 10 : 9 }}" class="px-4 py-10 text-center text-sm text-slate-500">
                                             No hay activos registrados todavía.
                                         </td>
                                     </tr>
@@ -516,7 +523,8 @@
             </div>
         </div>
     </div>
-{{-- MODAL EDITAR --}}
+
+    {{-- MODAL EDITAR --}}
     <div id="editElementModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -549,7 +557,7 @@
                 </div>
 
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Código de almacén</label>
+                    <label class="mb-2 block text-sm font-medium text-slate-700">Ubicación Técnica</label>
                     <input
                         type="text"
                         name="warehouse_code"
@@ -576,6 +584,8 @@
                         @endforeach
                     </select>
                 </div>
+
+
 
                 <div>
                     <label class="mb-2 block text-sm font-medium text-slate-700">Tipo de activo</label>
@@ -765,408 +775,403 @@
     </div>
 
     <script>
-        const filterOptions = {
-            @if($showClientColumn)
-            client_ids: {
-                type: 'checklist_object',
-                title: 'Cliente',
-                inputName: 'client_ids',
-                options: @json($filterOptions['client_ids']),
-            },
-            @endif
-            area_ids: {
-                type: 'checklist_object',
-                title: 'Área',
-                inputName: 'area_ids',
-                options: @json($filterOptions['area_ids']),
-            },
-            element_type_ids: {
-                type: 'checklist_object',
-                title: 'Tipo',
-                inputName: 'element_type_ids',
-                options: @json($filterOptions['element_type_ids']),
-            },
-            names: {
-                type: 'checklist',
-                title: 'Nombre',
-                inputName: 'names',
-                options: @json($filterOptions['names']),
-            },
-            warehouse_codes: {
-                type: 'checklist',
-                title: 'Código almacén',
-                inputName: 'warehouse_codes',
-                options: @json($filterOptions['warehouse_codes']),
-            },
-            statuses: {
-                type: 'checklist_object',
-                title: 'Estado',
-                inputName: 'statuses',
-                options: @json($filterOptions['statuses']),
-            },
+    const filterOptions = {
+        @if($showClientColumn)
+        client_ids: {
+            type: 'checklist_object',
+            title: 'Cliente',
+            inputName: 'client_ids',
+            options: @json($filterOptions['client_ids']),
+        },
+        @endif
+        area_ids: {
+            type: 'checklist_object',
+            title: 'Área',
+            inputName: 'area_ids',
+            options: @json($filterOptions['area_ids']),
+        },
+        element_type_ids: {
+            type: 'checklist_object',
+            title: 'Tipo',
+            inputName: 'element_type_ids',
+            options: @json($filterOptions['element_type_ids']),
+        },
+        names: {
+            type: 'checklist',
+            title: 'Nombre',
+            inputName: 'names',
+            options: @json($filterOptions['names']),
+        },
+        warehouse_codes: {
+            type: 'checklist',
+            title: 'Código almacén',
+            inputName: 'warehouse_codes',
+            options: @json($filterOptions['warehouse_codes']),
+        },
+        statuses: {
+            type: 'checklist_object',
+            title: 'Estado',
+            inputName: 'statuses',
+            options: @json($filterOptions['statuses']),
+        },
+    };
+
+    const activeFilters = @json($activeFilters);
+    let currentPopoverKey = null;
+
+    function buildFiltersForm() {
+        const form = document.getElementById('filtersForm');
+        form.innerHTML = '';
+
+        const addHidden = (name, value) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value ?? '';
+            form.appendChild(input);
         };
 
-        const activeFilters = @json($activeFilters);
-        let currentPopoverKey = null;
-
-        function buildFiltersForm() {
-            const form = document.getElementById('filtersForm');
-            form.innerHTML = '';
-
-            const addHidden = (name, value) => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = value ?? '';
-                form.appendChild(input);
-            };
-
-            Object.entries(activeFilters).forEach(([key, value]) => {
-                if (Array.isArray(value)) {
-                    value.filter(item => item !== null && item !== '').forEach(item => {
-                        addHidden(`${key}[]`, item);
-                    });
-                } else if (value !== null && value !== '') {
-                    addHidden(key, value);
-                }
-            });
-        }
-
-        function closeFilterPopover() {
-            const popover = document.getElementById('filterPopover');
-            popover.classList.add('hidden');
-            currentPopoverKey = null;
-        }
-
-        function openFilterPopover(event, key) {
-            currentPopoverKey = key;
-
-            const config = filterOptions[key];
-            const popover = document.getElementById('filterPopover');
-            const title = document.getElementById('filterPopoverTitle');
-            const body = document.getElementById('filterPopoverBody');
-
-            title.textContent = config.title;
-            body.innerHTML = '';
-
-            if (config.type === 'checklist') {
-                const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
-                renderChecklist(body, config, values, false);
-            }
-
-            if (config.type === 'checklist_object') {
-                const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
-                renderChecklist(body, config, values, true);
-            }
-
-            popover.classList.remove('hidden');
-
-            const rect = event.currentTarget.getBoundingClientRect();
-            const top = rect.bottom + window.scrollY + 8;
-            const left = Math.max(16, Math.min(window.innerWidth - 360, rect.left + window.scrollX - 280));
-
-            popover.style.top = `${top}px`;
-            popover.style.left = `${left}px`;
-        }
-
-        function renderChecklist(body, config, selectedValues, objectMode = false) {
-            const searchId = `search_${config.inputName}`;
-            const listId = `list_${config.inputName}`;
-
-            body.innerHTML = `
-                <div>
-                    <input
-                        type="text"
-                        id="${searchId}"
-                        class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Buscar dentro de la lista"
-                    >
-                </div>
-                <div id="${listId}" class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3"></div>
-            `;
-
-            const list = document.getElementById(listId);
-            const search = document.getElementById(searchId);
-
-            const renderList = () => {
-                const term = search.value.toLowerCase().trim();
-                let items = config.options;
-
-                if (objectMode) {
-                    items = items.filter(item => item.label.toLowerCase().includes(term));
-                } else {
-                    items = items.filter(item => String(item).toLowerCase().includes(term));
-                }
-
-                if (items.length === 0) {
-                    list.innerHTML = `<p class="text-sm text-slate-500">No hay coincidencias.</p>`;
-                    return;
-                }
-
-                list.innerHTML = items.map(item => {
-                    const value = objectMode ? item.value : item;
-                    const label = objectMode ? item.label : item;
-                    const checked = selectedValues.includes(String(value)) || selectedValues.includes(value);
-
-                    return `
-                        <label class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-                            <input
-                                type="checkbox"
-                                value="${escapeHtml(String(value))}"
-                                class="filter-check mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                ${checked ? 'checked' : ''}
-                            >
-                            <span>${escapeHtml(String(label))}</span>
-                        </label>
-                    `;
-                }).join('');
-            };
-
-            renderList();
-            search.addEventListener('input', renderList);
-        }
-
-        function clearCurrentFilter() {
-            if (!currentPopoverKey) return;
-            const config = filterOptions[currentPopoverKey];
-            activeFilters[config.inputName] = [];
-            submitFilters();
-        }
-
-        function applyCurrentFilter() {
-            if (!currentPopoverKey) return;
-            const config = filterOptions[currentPopoverKey];
-            const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
-                .map(cb => cb.value);
-
-            activeFilters[config.inputName] = values;
-            submitFilters();
-        }
-
-        function submitFilters() {
-            buildFiltersForm();
-            document.getElementById('filtersForm').submit();
-        }
-
-        function escapeHtml(text) {
-            return text
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
-        }
-
-        function filterCreateAreasByClient(clientId) {
-            const select = document.getElementById('create_area_id');
-            if (!select) return;
-
-            const currentValue = select.value;
-
-            Array.from(select.options).forEach(option => {
-                if (!option.value) {
-                    option.hidden = false;
-                    return;
-                }
-
-                option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
-            });
-
-            if (currentValue) {
-                const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
-                if (selectedOption && selectedOption.hidden) {
-                    select.value = '';
-                }
-            }
-        }
-
-        function handleSingleClientSelection(checkbox) {
-            const all = document.querySelectorAll('.client-single-checkbox');
-            all.forEach(item => {
-                if (item !== checkbox) {
-                    item.checked = false;
-                }
-            });
-
-            const clientId = checkbox.checked ? checkbox.value : '';
-            document.getElementById('selected_client_id').value = clientId;
-
-            filterCreateAreasByClient(clientId);
-            filterCreateElementTypesByClient(clientId);
-        }
-
-
-        function filterEditFieldsByArea(areaId) {
-            const areaSelect = document.getElementById('edit_element_area_id');
-            const typeSelect = document.getElementById('edit_element_type_id');
-            if (!areaSelect || !typeSelect) return;
-
-            const selectedAreaOption = areaSelect.querySelector(`option[value="${areaId}"]`);
-            const clientId = selectedAreaOption?.dataset.clientId ?? '';
-
-            Array.from(typeSelect.options).forEach(option => {
-                option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
-            });
-
-            if (typeSelect.value) {
-                const selectedType = typeSelect.querySelector(`option[value="${typeSelect.value}"]`);
-                if (selectedType && selectedType.hidden) {
-                    typeSelect.value = '';
-                }
-            }
-        }
-
-        function openEditElementModal(id, name, code, warehouseCode, areaId, elementTypeId, status, actionUrl) {
-            document.getElementById('editElementForm').action = actionUrl;
-            document.getElementById('edit_element_name').value = name ?? '';
-            document.getElementById('edit_element_code').value = code ?? '';
-            document.getElementById('edit_element_warehouse_code').value = warehouseCode ?? '';
-            document.getElementById('edit_element_area_id').value = areaId ?? '';
-            filterEditFieldsByArea(areaId);
-            document.getElementById('edit_element_type_id').value = elementTypeId ?? '';
-            document.getElementById('edit_element_status').value = status ?? '1';
-
-            const modal = document.getElementById('editElementModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-        function closeEditElementModal() {
-            const modal = document.getElementById('editElementModal');
-            modal.classList.remove('flex');
-            modal.classList.add('hidden');
-        }
-
-        function openComponentsModal(elementId, clientId, elementTypeId, areaName, typeName, elementName, actionUrl, selectedComponentIds) {
-            document.getElementById('componentsForm').action = actionUrl;
-            document.getElementById('components_area_name').textContent = areaName ?? '—';
-            document.getElementById('components_type_name').textContent = typeName ?? '—';
-            document.getElementById('components_element_name').textContent = elementName ?? '—';
-
-            filterComponentsChecklist(clientId, elementTypeId);
-
-            const selectedSet = new Set((selectedComponentIds ?? []).map(String));
-
-            document.querySelectorAll('[data-component-checkbox]').forEach((checkbox) => {
-                const item = checkbox.closest('[data-component-item]');
-                const hidden = item?.classList.contains('hidden');
-
-                if (hidden) {
-                    checkbox.checked = false;
-                    return;
-                }
-
-                checkbox.checked = selectedSet.has(String(checkbox.value));
-            });
-
-            const modal = document.getElementById('componentsModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-
-        function closeComponentsModal() {
-            const modal = document.getElementById('componentsModal');
-            modal.classList.remove('flex');
-            modal.classList.add('hidden');
-        }
-
-        document.addEventListener('click', function (event) {
-            const popover = document.getElementById('filterPopover');
-            const editModal = document.getElementById('editElementModal');
-            const componentsModal = document.getElementById('componentsModal');
-
-            if (!popover.classList.contains('hidden')) {
-                if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
-                    closeFilterPopover();
-                }
-            }
-
-            if (editModal.classList.contains('flex') && event.target === editModal) {
-                closeEditElementModal();
-            }
-
-            if (componentsModal.classList.contains('flex') && event.target === componentsModal) {
-                closeComponentsModal();
-            }
-        });
-
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                closeFilterPopover();
-                closeEditElementModal();
-                closeComponentsModal();
-            }
-        });
-
-        function filterComponentsChecklist(clientId, elementTypeId) {
-            document.querySelectorAll('[data-component-item]').forEach(item => {
-                const itemClientId = item.dataset.clientId ?? '';
-                const itemElementTypeId = item.dataset.elementTypeId ?? '';
-                const checkbox = item.querySelector('[data-component-checkbox]');
-
-                const visible =
-                    String(itemClientId) === String(clientId) &&
-                    String(itemElementTypeId) === String(elementTypeId);
-
-                item.classList.toggle('hidden', !visible);
-
-                if (!visible && checkbox) {
-                    checkbox.checked = false;
-                }
-            });
-        }
-
-
-        function filterCreateElementTypesByClient(clientId) {
-            const select = document.getElementById('create_element_type_id');
-            if (!select) return;
-
-            const currentValue = select.value;
-
-            Array.from(select.options).forEach(option => {
-                if (!option.value) {
-                    option.hidden = false;
-                    return;
-                }
-
-                option.hidden = clientId
-                    ? String(option.dataset.clientId) !== String(clientId)
-                    : false;
-            });
-
-            if (currentValue) {
-                const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
-                if (selectedOption && selectedOption.hidden) {
-                    select.value = '';
-                }
-            }
-        }
-
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const selectedClient = document.getElementById('selected_client_id');
-            const editAreaSelect = document.getElementById('edit_element_area_id');
-
-            if (selectedClient && selectedClient.value) {
-                document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-                    cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
+        Object.entries(activeFilters).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.filter(item => item !== null && item !== '').forEach(item => {
+                    addHidden(`${key}[]`, item);
                 });
+            } else if (value !== null && value !== '') {
+                addHidden(key, value);
+            }
+        });
+    }
 
-                filterCreateAreasByClient(selectedClient.value);
-                filterCreateElementTypesByClient(selectedClient.value);
+    function closeFilterPopover() {
+        const popover = document.getElementById('filterPopover');
+        popover.classList.add('hidden');
+        currentPopoverKey = null;
+    }
+
+    function openFilterPopover(event, key) {
+        currentPopoverKey = key;
+
+        const config = filterOptions[key];
+        const popover = document.getElementById('filterPopover');
+        const title = document.getElementById('filterPopoverTitle');
+        const body = document.getElementById('filterPopoverBody');
+
+        title.textContent = config.title;
+        body.innerHTML = '';
+
+        if (config.type === 'checklist') {
+            const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
+            renderChecklist(body, config, values, false);
+        }
+
+        if (config.type === 'checklist_object') {
+            const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
+            renderChecklist(body, config, values, true);
+        }
+
+        popover.classList.remove('hidden');
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const top = rect.bottom + window.scrollY + 8;
+        const left = Math.max(16, Math.min(window.innerWidth - 360, rect.left + window.scrollX - 280));
+
+        popover.style.top = `${top}px`;
+        popover.style.left = `${left}px`;
+    }
+
+    function renderChecklist(body, config, selectedValues, objectMode = false) {
+        const searchId = `search_${config.inputName}`;
+        const listId = `list_${config.inputName}`;
+
+        body.innerHTML = `
+            <div>
+                <input
+                    type="text"
+                    id="${searchId}"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Buscar dentro de la lista"
+                >
+            </div>
+            <div id="${listId}" class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3"></div>
+        `;
+
+        const list = document.getElementById(listId);
+        const search = document.getElementById(searchId);
+
+        const renderList = () => {
+            const term = search.value.toLowerCase().trim();
+            let items = config.options;
+
+            if (objectMode) {
+                items = items.filter(item => item.label.toLowerCase().includes(term));
             } else {
-                filterCreateAreasByClient('');
-                filterCreateElementTypesByClient('');
+                items = items.filter(item => String(item).toLowerCase().includes(term));
             }
 
+            if (items.length === 0) {
+                list.innerHTML = `<p class="text-sm text-slate-500">No hay coincidencias.</p>`;
+                return;
+            }
 
-            if (editAreaSelect) {
-                editAreaSelect.addEventListener('change', function () {
-                    filterEditFieldsByArea(this.value);
-                });
+            list.innerHTML = items.map(item => {
+                const value = objectMode ? item.value : item;
+                const label = objectMode ? item.label : item;
+                const checked = selectedValues.includes(String(value)) || selectedValues.includes(value);
+
+                return `
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+                        <input
+                            type="checkbox"
+                            value="${escapeHtml(String(value))}"
+                            class="filter-check mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                            ${checked ? 'checked' : ''}
+                        >
+                        <span>${escapeHtml(String(label))}</span>
+                    </label>
+                `;
+            }).join('');
+        };
+
+        renderList();
+        search.addEventListener('input', renderList);
+    }
+
+    function clearCurrentFilter() {
+        if (!currentPopoverKey) return;
+        const config = filterOptions[currentPopoverKey];
+        activeFilters[config.inputName] = [];
+        submitFilters();
+    }
+
+    function applyCurrentFilter() {
+        if (!currentPopoverKey) return;
+        const config = filterOptions[currentPopoverKey];
+        const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
+            .map(cb => cb.value);
+
+        activeFilters[config.inputName] = values;
+        submitFilters();
+    }
+
+    function submitFilters() {
+        buildFiltersForm();
+        document.getElementById('filtersForm').submit();
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function filterCreateAreasByClient(clientId) {
+        const select = document.getElementById('create_area_id');
+        if (!select) return;
+
+        const currentValue = select.value;
+
+        Array.from(select.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                return;
+            }
+
+            option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
+        });
+
+        if (currentValue) {
+            const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
+            if (selectedOption && selectedOption.hidden) {
+                select.value = '';
+            }
+        }
+    }
+
+    function handleSingleClientSelection(checkbox) {
+        const all = document.querySelectorAll('.client-single-checkbox');
+        all.forEach(item => {
+            if (item !== checkbox) {
+                item.checked = false;
             }
         });
-    </script>
-@endsection
 
+        const clientId = checkbox.checked ? checkbox.value : '';
+        document.getElementById('selected_client_id').value = clientId;
+
+        filterCreateAreasByClient(clientId);
+        filterCreateElementTypesByClient(clientId);
+    }
+
+    function filterEditFieldsByArea(areaId) {
+        const areaSelect = document.getElementById('edit_element_area_id');
+        const typeSelect = document.getElementById('edit_element_type_id');
+        if (!areaSelect || !typeSelect) return;
+
+        const selectedAreaOption = areaSelect.querySelector(`option[value="${areaId}"]`);
+        const clientId = selectedAreaOption?.dataset.clientId ?? '';
+
+        Array.from(typeSelect.options).forEach(option => {
+            option.hidden = clientId ? String(option.dataset.clientId) !== String(clientId) : false;
+        });
+
+        if (typeSelect.value) {
+            const selectedType = typeSelect.querySelector(`option[value="${typeSelect.value}"]`);
+            if (selectedType && selectedType.hidden) {
+                typeSelect.value = '';
+            }
+        }
+    }
+
+    function openEditElementModal(id, name, code, warehouseCode, areaId, elementTypeId, status, actionUrl) {
+        document.getElementById('editElementForm').action = actionUrl;
+        document.getElementById('edit_element_name').value = name ?? '';
+        document.getElementById('edit_element_code').value = code ?? '';
+        document.getElementById('edit_element_warehouse_code').value = warehouseCode ?? '';
+        document.getElementById('edit_element_area_id').value = areaId ?? '';
+        filterEditFieldsByArea(areaId);
+        document.getElementById('edit_element_type_id').value = elementTypeId ?? '';
+        document.getElementById('edit_element_status').value = status ?? '1';
+
+        const modal = document.getElementById('editElementModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeEditElementModal() {
+        const modal = document.getElementById('editElementModal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+
+    function filterCreateElementTypesByClient(clientId) {
+        const select = document.getElementById('create_element_type_id');
+        if (!select) return;
+
+        const currentValue = select.value;
+
+        Array.from(select.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                return;
+            }
+
+            option.hidden = clientId
+                ? String(option.dataset.clientId) !== String(clientId)
+                : false;
+        });
+
+        if (currentValue) {
+            const selectedOption = select.querySelector(`option[value="${currentValue}"]`);
+            if (selectedOption && selectedOption.hidden) {
+                select.value = '';
+            }
+        }
+    }
+
+    function filterComponentsChecklist(clientId, elementTypeId) {
+        document.querySelectorAll('[data-component-item]').forEach(item => {
+            const itemClientId = item.dataset.clientId ?? '';
+            const itemElementTypeId = item.dataset.elementTypeId ?? '';
+            const checkbox = item.querySelector('[data-component-checkbox]');
+
+            const visible =
+                String(itemClientId) === String(clientId) &&
+                String(itemElementTypeId) === String(elementTypeId);
+
+            item.classList.toggle('hidden', !visible);
+
+            if (!visible && checkbox) {
+                checkbox.checked = false;
+            }
+        });
+    }
+
+    function openComponentsModal(elementId, clientId, elementTypeId, areaName, typeName, elementName, actionUrl, selectedComponentIds) {
+        document.getElementById('componentsForm').action = actionUrl;
+        document.getElementById('components_area_name').textContent = areaName ?? '—';
+        document.getElementById('components_type_name').textContent = typeName ?? '—';
+        document.getElementById('components_element_name').textContent = elementName ?? '—';
+
+        filterComponentsChecklist(clientId, elementTypeId);
+
+        const selectedSet = new Set((selectedComponentIds ?? []).map(String));
+
+        document.querySelectorAll('[data-component-checkbox]').forEach((checkbox) => {
+            const item = checkbox.closest('[data-component-item]');
+            const hidden = item?.classList.contains('hidden');
+
+            if (hidden) {
+                checkbox.checked = false;
+                return;
+            }
+
+            checkbox.checked = selectedSet.has(String(checkbox.value));
+        });
+
+        const modal = document.getElementById('componentsModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeComponentsModal() {
+        const modal = document.getElementById('componentsModal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectedClient = document.getElementById('selected_client_id');
+        const editAreaSelect = document.getElementById('edit_element_area_id');
+
+        if (selectedClient && selectedClient.value) {
+            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
+            });
+
+            filterCreateAreasByClient(selectedClient.value);
+            filterCreateElementTypesByClient(selectedClient.value);
+        } else {
+            filterCreateAreasByClient('');
+            filterCreateElementTypesByClient('');
+        }
+
+        if (editAreaSelect) {
+            editAreaSelect.addEventListener('change', function () {
+                filterEditFieldsByArea(this.value);
+            });
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        const popover = document.getElementById('filterPopover');
+        const editModal = document.getElementById('editElementModal');
+        const componentsModal = document.getElementById('componentsModal');
+
+        if (!popover.classList.contains('hidden')) {
+            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+                closeFilterPopover();
+            }
+        }
+
+        if (editModal.classList.contains('flex') && event.target === editModal) {
+            closeEditElementModal();
+        }
+
+        if (componentsModal.classList.contains('flex') && event.target === componentsModal) {
+            closeComponentsModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeFilterPopover();
+            closeEditElementModal();
+            closeComponentsModal();
+        }
+    });
+</script>
+
+@endsection
