@@ -48,10 +48,17 @@ class AdminPreventiveReportController extends Controller
         $totalReportsGenerated = (clone $baseQuery)->count();
         $totalReportsFiltered = (clone $query)->count();
 
+        $showWarehouseColumn = (clone $query)
+            ->whereHas('element', function ($elementQuery) {
+                $elementQuery->whereNotNull('warehouse_code')
+                    ->where('warehouse_code', '!=', '');
+            })
+            ->exists();
+
         $reports = $query
             ->orderByDesc('week')
             ->orderByDesc('created_at')
-            ->paginate(30)
+            ->paginate(100)
             ->withQueryString();
 
         $reports->getCollection()->transform(function ($report) {
@@ -207,6 +214,7 @@ class AdminPreventiveReportController extends Controller
             'activeFilters' => $activeFilters,
             'totalReportsGenerated' => $totalReportsGenerated,
             'totalReportsFiltered' => $totalReportsFiltered,
+            'showWarehouseColumn' => $showWarehouseColumn,
             'isReadOnly' => $this->isReadOnlyRole($user),
             'roleKey' => $user->role?->key,
         ]);
@@ -279,10 +287,17 @@ class AdminPreventiveReportController extends Controller
         $totalReportsGenerated = (clone $baseQuery)->count();
         $totalReportsFiltered = (clone $query)->count();
 
+        $showWarehouseColumn = (clone $query)
+            ->whereHas('element', function ($elementQuery) {
+                $elementQuery->whereNotNull('warehouse_code')
+                    ->where('warehouse_code', '!=', '');
+            })
+            ->exists();
+
         $reports = $query
             ->orderByDesc('week')
             ->orderByDesc('created_at')
-            ->paginate(30)
+            ->paginate(100)
             ->withQueryString();
 
         $reports->getCollection()->transform(function ($report) {
@@ -452,7 +467,8 @@ class AdminPreventiveReportController extends Controller
             'filterOptions',
             'activeFilters',
             'totalReportsGenerated',
-            'totalReportsFiltered'
+            'totalReportsFiltered',
+            'showWarehouseColumn'
         ))->with([
             'currentYear' => $year,
             'selectedYear' => $year,

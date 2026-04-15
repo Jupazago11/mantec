@@ -8,352 +8,346 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
-        :root {
-            --topbar-height: 108px;
-        }
+            :root {
+                --topbar-height: 108px;
+            }
 
-        html {
-            scroll-behavior: smooth;
-        }
+            html {
+                scroll-behavior: smooth;
+            }
 
-        body {
-            overflow-x: hidden;
-        }
+            body {
+                overflow-x: hidden;
+            }
 
-        .report-shell {
-            max-width: 1900px;
-            margin: 0 auto;
-        }
+            .report-shell {
+                max-width: 1900px;
+                margin: 0 auto;
+            }
 
-        .report-topbar {
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            backdrop-filter: blur(8px);
-        }
+            .report-topbar {
+                position: sticky;
+                top: 0;
+                z-index: 50;
+                backdrop-filter: blur(8px);
+            }
 
-        .report-topbar-card {
-            background: rgba(255, 255, 255, 0.96);
-        }
+            .report-topbar-card {
+                background: rgba(255, 255, 255, 0.96);
+            }
 
-        .compact-metric {
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.95rem;
-        }
+            .compact-metric {
+                padding: 0.5rem 0.75rem;
+                border-radius: 0.95rem;
+            }
 
-        .compact-table-wrapper {
-            position: relative;
-        }
+            .compact-table-wrapper {
+                position: relative;
+            }
 
-        .table-scroll-container {
-            overflow-x: auto;
-            overflow-y: visible;
-            scrollbar-width: none;
-        }
+            .table-scroll-container {
+                overflow-x: auto;
+                overflow-y: visible;
+                scrollbar-width: none;
+            }
 
-        .table-scroll-container::-webkit-scrollbar {
-            height: 0;
-        }
+            .table-scroll-container::-webkit-scrollbar {
+                height: 0;
+            }
 
-        .preventive-table {
-            width: max-content;
-            min-width: 100%;
-            table-layout: auto;
-        }
+            .preventive-table {
+                width: max-content;
+                min-width: 100%;
+                table-layout: auto;
+            }
 
-        .preventive-table th,
-        .preventive-table td {
-            vertical-align: top;
-        }
-
-        .preventive-table th {
-            white-space: normal;
-            line-height: 1rem;
-        }
-
-        .sticky-table-head th {
-            position: sticky;
-            top: var(--topbar-height);
-            z-index: 20;
-            background: rgb(248 250 252);
-            box-shadow: inset 0 -1px 0 rgb(226 232 240);
-        }
-
-        .preventive-table .cell-area {
-            width: 92px;
-            min-width: 92px;
-            max-width: 92px;
-            white-space: normal;
-            line-height: 1.1rem;
-            overflow-wrap: break-word;
-        }
-
-        .preventive-table .cell-element-name {
-            width: 95px;
-            min-width: 95px;
-            max-width: 95px;
-            white-space: normal;
-            line-height: 1.1rem;
-            overflow-wrap: break-word;
-        }
-
-        .preventive-table .cell-warehouse {
-            width: 92px;
-            min-width: 92px;
-            max-width: 92px;
-            white-space: normal;
-            line-height: 1.1rem;
-            overflow-wrap: break-word;
-        }
-
-        .preventive-table .cell-diagnostic {
-            width: 122px;
-            min-width: 122px;
-            max-width: 122px;
-        }
-
-        .preventive-table .cell-recommendation {
-            width: 180px;
-            min-width: 180px;
-            max-width: 180px;
-            white-space: normal;
-            line-height: 1.15rem;
-            overflow-wrap: anywhere;
-            word-break: normal;
-            hyphens: auto;
-            -webkit-hyphens: auto;
-            -ms-hyphens: auto;
-        }
-
-        .preventive-table .cell-responsable {
-            width: 118px;
-            min-width: 118px;
-            max-width: 118px;
-            white-space: normal;
-            line-height: 1.1rem;
-            overflow-wrap: break-word;
-        }
-
-        .preventive-table .cell-date {
-            width: 82px;
-            min-width: 82px;
-            max-width: 82px;
-            white-space: normal;
-            line-height: 1.05rem;
-        }
-
-        .preventive-table .cell-short {
-            width: 68px;
-            min-width: 68px;
-            max-width: 68px;
-        }
-
-        .preventive-table .cell-week {
-            width: 48px;
-            min-width: 48px;
-            max-width: 48px;
-        }
-
-        .preventive-table .cell-condition-name {
-            width: 108px;
-            min-width: 108px;
-            max-width: 108px;
-        }
-
-        .preventive-table .cell-execution {
-            width: 112px;
-            min-width: 112px;
-            max-width: 112px;
-        }
-
-        .preventive-table .cell-evidence {
-            width: 68px;
-            min-width: 68px;
-            max-width: 68px;
-        }
-
-        .preventive-table th,
-        .preventive-table td {
-            padding-top: 0.625rem;
-            padding-bottom: 0.625rem;
-            padding-left: 0.625rem;
-            padding-right: 0.625rem;
-            font-size: 0.875rem;
-        }
-
-        .preventive-table.compact-mode th,
-        .preventive-table.compact-mode td {
-            padding-top: 0.45rem !important;
-            padding-bottom: 0.45rem !important;
-            padding-left: 0.45rem !important;
-            padding-right: 0.45rem !important;
-            font-size: 0.8rem !important;
-        }
-
-        .preventive-table.compact-mode .cell-area {
-            width: 82px;
-            min-width: 82px;
-            max-width: 82px;
-        }
-
-        .preventive-table.compact-mode .cell-element-name {
-            width: 88px;
-            min-width: 88px;
-            max-width: 88px;
-        }
-
-        .preventive-table.compact-mode .cell-warehouse {
-            width: 84px;
-            min-width: 84px;
-            max-width: 84px;
-        }
-
-        .preventive-table.compact-mode .cell-diagnostic {
-            width: 112px;
-            min-width: 112px;
-            max-width: 112px;
-        }
-
-        .preventive-table.compact-mode .cell-recommendation {
-            width: 160px;
-            min-width: 160px;
-            max-width: 160px;
-            font-size: 0.78rem !important;
-            line-height: 1.05rem !important;
-        }
-
-        .preventive-table.compact-mode .cell-responsable {
-            width: 106px;
-            min-width: 106px;
-            max-width: 106px;
-        }
-
-        .preventive-table.compact-mode .cell-date {
-            width: 74px;
-            min-width: 74px;
-            max-width: 74px;
-        }
-
-        .preventive-table.compact-mode .cell-short {
-            width: 58px;
-            min-width: 58px;
-            max-width: 58px;
-        }
-
-        .preventive-table.compact-mode .cell-week {
-            width: 42px;
-            min-width: 42px;
-            max-width: 42px;
-        }
-
-        .preventive-table.compact-mode .cell-condition-name {
-            width: 96px;
-            min-width: 96px;
-            max-width: 96px;
-        }
-
-        .preventive-table.compact-mode .cell-execution {
-            width: 98px;
-            min-width: 98px;
-            max-width: 98px;
-        }
-
-        .preventive-table.compact-mode .cell-evidence {
-            width: 56px;
-            min-width: 56px;
-            max-width: 56px;
-        }
-
-        .custom-pagination {
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            flex-wrap: wrap;
-        }
-
-        .custom-pagination .page-btn,
-        .custom-pagination .page-current,
-        .custom-pagination .page-disabled {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 2.25rem;
-            height: 2.25rem;
-            padding: 0 0.75rem;
-            border-radius: 0.8rem;
-            border: 1px solid rgb(203 213 225);
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
-        .custom-pagination .page-btn {
-            background: white;
-            color: rgb(51 65 85);
-            transition: 0.2s ease;
-        }
-
-        .custom-pagination .page-btn:hover {
-            background: rgb(248 250 252);
-            border-color: rgb(148 163 184);
-        }
-
-        .custom-pagination .page-current {
-            background: rgb(226 232 240);
-            color: rgb(15 23 42);
-            border-color: rgb(148 163 184);
-        }
-
-        .custom-pagination .page-disabled {
-            background: rgb(248 250 252);
-            color: rgb(148 163 184);
-        }
-
-        .bottom-scrollbar-fixed {
-            position: fixed;
-            bottom: 0;
-            z-index: 60;
-            display: none;
-            height: 18px;
-            overflow-x: auto;
-            overflow-y: hidden;
-            background: rgba(248, 250, 252, 0.98);
-            border: 1px solid rgb(203 213 225);
-            border-bottom: 0;
-            border-top-left-radius: 0.75rem;
-            border-top-right-radius: 0.75rem;
-            box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
-        }
-
-        .bottom-scrollbar-fixed.is-visible {
-            display: block;
-        }
-
-        .bottom-scrollbar-inner {
-            height: 1px;
-        }
-
-        .bottom-scrollbar-fixed::-webkit-scrollbar,
-        .table-scroll-container::-webkit-scrollbar {
-            height: 12px;
-        }
-
-        .bottom-scrollbar-fixed::-webkit-scrollbar-thumb,
-        .table-scroll-container::-webkit-scrollbar-thumb {
-            background: rgb(148 163 184);
-            border-radius: 9999px;
-        }
-
-        .bottom-scrollbar-fixed::-webkit-scrollbar-track,
-        .table-scroll-container::-webkit-scrollbar-track {
-            background: rgb(241 245 249);
-        }
-
-        @media (max-width: 1280px) {
             .preventive-table th,
             .preventive-table td {
-                font-size: 0.82rem;
+                vertical-align: top;
             }
-        }
+
+            .preventive-table th {
+                white-space: normal;
+                line-height: 1rem;
+            }
+
+            .sticky-table-head th {
+                position: sticky;
+                top: calc(var(--topbar-height) + 6px);
+                z-index: 30;
+                background: rgb(248 250 252);
+                box-shadow:
+                    inset 0 -1px 0 rgb(226 232 240),
+                    0 1px 0 rgb(226 232 240);
+            }
+
+            .preventive-table .cell-area {
+                width: 92px;
+                min-width: 92px;
+                max-width: 92px;
+                white-space: normal;
+                line-height: 1.1rem;
+                overflow-wrap: break-word;
+            }
+
+            .preventive-table .cell-element-name {
+                width: 95px;
+                min-width: 95px;
+                max-width: 95px;
+                white-space: normal;
+                line-height: 1.1rem;
+                overflow-wrap: break-word;
+            }
+
+            .preventive-table .cell-warehouse {
+                width: 92px;
+                min-width: 92px;
+                max-width: 92px;
+                white-space: normal;
+                line-height: 1.1rem;
+                overflow-wrap: break-word;
+            }
+
+            .preventive-table .cell-diagnostic {
+                width: 122px;
+                min-width: 122px;
+                max-width: 122px;
+            }
+
+            .preventive-table .cell-recommendation {
+                width: 150px;
+                min-width: 150px;
+                max-width: 150px;
+                white-space: normal;
+                line-height: 1.15rem;
+                overflow-wrap: anywhere;
+                word-break: normal;
+                hyphens: auto;
+                -webkit-hyphens: auto;
+                -ms-hyphens: auto;
+            }
+
+            .preventive-table .cell-responsable {
+                width: 102px;
+                min-width: 102px;
+                max-width: 102px;
+                white-space: normal;
+                line-height: 1.1rem;
+                overflow-wrap: break-word;
+            }
+
+            .preventive-table .cell-date {
+                width: 82px;
+                min-width: 82px;
+                max-width: 82px;
+                white-space: normal;
+                line-height: 1.05rem;
+            }
+
+            .preventive-table .cell-short {
+                width: 68px;
+                min-width: 68px;
+                max-width: 68px;
+            }
+
+            .preventive-table .cell-week {
+                width: 48px;
+                min-width: 48px;
+                max-width: 48px;
+            }
+
+            .preventive-table .cell-condition-name {
+                width: 96px;
+                min-width: 96px;
+                max-width: 96px;
+            }
+
+            .preventive-table .cell-execution {
+                width: 94px;
+                min-width: 94px;
+                max-width: 94px;
+            }
+
+            .preventive-table .cell-evidence {
+                width: 68px;
+                min-width: 68px;
+                max-width: 68px;
+            }
+
+            .preventive-table th,
+            .preventive-table td {
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                font-size: 0.84rem;
+            }
+
+            .preventive-table.compact-mode th,
+            .preventive-table.compact-mode td {
+                padding-top: 0.36rem !important;
+                padding-bottom: 0.36rem !important;
+                padding-left: 0.36rem !important;
+                padding-right: 0.36rem !important;
+                font-size: 0.76rem !important;
+            }
+
+            .preventive-table.compact-mode .cell-area {
+                width: 82px;
+                min-width: 82px;
+                max-width: 82px;
+            }
+
+            .preventive-table.compact-mode .cell-element-name {
+                width: 88px;
+                min-width: 88px;
+                max-width: 88px;
+            }
+
+            .preventive-table.compact-mode .cell-warehouse {
+                width: 84px;
+                min-width: 84px;
+                max-width: 84px;
+            }
+
+            .preventive-table.compact-mode .cell-diagnostic {
+                width: 112px;
+                min-width: 112px;
+                max-width: 112px;
+            }
+
+            .preventive-table.compact-mode .cell-recommendation {
+                width: 132px;
+                min-width: 132px;
+                max-width: 132px;
+                font-size: 0.78rem !important;
+                line-height: 1.05rem !important;
+            }
+
+            .preventive-table.compact-mode .cell-responsable {
+                width: 106px;
+                min-width: 106px;
+                max-width: 106px;
+            }
+
+            .preventive-table.compact-mode .cell-date {
+                width: 74px;
+                min-width: 74px;
+                max-width: 74px;
+            }
+
+            .preventive-table.compact-mode .cell-short {
+                width: 58px;
+                min-width: 58px;
+                max-width: 58px;
+            }
+
+            .preventive-table.compact-mode .cell-week {
+                width: 42px;
+                min-width: 42px;
+                max-width: 42px;
+            }
+
+            .preventive-table.compact-mode .cell-condition-name {
+                width: 96px;
+                min-width: 96px;
+                max-width: 96px;
+            }
+
+            .preventive-table.compact-mode .cell-execution {
+                width: 98px;
+                min-width: 98px;
+                max-width: 98px;
+            }
+
+            .preventive-table.compact-mode .cell-evidence {
+                width: 56px;
+                min-width: 56px;
+                max-width: 56px;
+            }
+
+            .custom-pagination {
+                display: flex;
+                align-items: center;
+                gap: 0.3rem;
+                flex-wrap: wrap;
+            }
+
+            .custom-pagination .page-btn,
+            .custom-pagination .page-current {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 2rem;
+                height: 2rem;
+                padding: 0 0.65rem;
+                border-radius: 0.7rem;
+                border: 1px solid rgb(226 232 240);
+                font-size: 0.82rem;
+                font-weight: 600;
+                background: white;
+                color: rgb(71 85 105);
+                transition: 0.18s ease;
+            }
+
+            .custom-pagination .page-btn:hover {
+                background: rgb(248 250 252);
+                border-color: rgb(203 213 225);
+                color: rgb(30 41 59);
+            }
+
+            .custom-pagination .page-current {
+                background: rgb(241 245 249);
+                color: rgb(15 23 42);
+                border-color: rgb(203 213 225);
+            }
+
+            .bottom-scrollbar-fixed {
+                position: fixed;
+                bottom: 0;
+                z-index: 60;
+                display: none;
+                height: 18px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                background: rgba(248, 250, 252, 0.98);
+                border: 1px solid rgb(203 213 225);
+                border-bottom: 0;
+                border-top-left-radius: 0.75rem;
+                border-top-right-radius: 0.75rem;
+                box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
+            }
+
+            .bottom-scrollbar-fixed.is-visible {
+                display: block;
+            }
+
+            .bottom-scrollbar-inner {
+                height: 1px;
+            }
+
+            .bottom-scrollbar-fixed::-webkit-scrollbar,
+            .table-scroll-container::-webkit-scrollbar {
+                height: 12px;
+            }
+
+            .bottom-scrollbar-fixed::-webkit-scrollbar-thumb,
+            .table-scroll-container::-webkit-scrollbar-thumb {
+                background: rgb(148 163 184);
+                border-radius: 9999px;
+            }
+
+            .bottom-scrollbar-fixed::-webkit-scrollbar-track,
+            .table-scroll-container::-webkit-scrollbar-track {
+                background: rgb(241 245 249);
+            }
+
+            @media (max-width: 1280px) {
+                .preventive-table th,
+                .preventive-table td {
+                    font-size: 0.82rem;
+                }
+            }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -379,13 +373,9 @@
 
         $clearFiltersUrl = route('admin.preventive-reports.show', [$client->id, $elementType->id]) . '?year=' . $currentYear;
 
-        $reportItems = method_exists($reports, 'getCollection') ? $reports->getCollection() : collect($reports);
+        $showWarehouseColumn = $showWarehouseColumn ?? false;
 
-        $showWarehouseColumn = $reportItems->contains(function ($report) {
-            return filled($report->element?->warehouse_code);
-        });
-
-        $pageWindow = 3;
+        $pageWindow = 2;
         $startPage = max(1, $reports->currentPage() - $pageWindow);
         $endPage = min($reports->lastPage(), $reports->currentPage() + $pageWindow);
     @endphp
@@ -440,29 +430,53 @@
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                                @if($reports->hasPages())
-                                    <div class="custom-pagination">
-                                        @if($reports->onFirstPage())
-                                            <span class="page-disabled">‹</span>
-                                        @else
-                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->previousPageUrl() }}">‹</a>
-                                        @endif
+                            @if($reports->hasPages())
+                                <div class="custom-pagination">
+                                    @if($reports->currentPage() > 1)
+                                        <a
+                                            class="page-btn"
+                                            href="{{ $reports->appends(['year' => $currentYear])->url(1) }}"
+                                            title="Ir a la primera página"
+                                        >
+                                            «
+                                        </a>
 
-                                        @for($page = $startPage; $page <= $endPage; $page++)
-                                            @if($page === $reports->currentPage())
-                                                <span class="page-current">{{ $page }}</span>
-                                            @else
-                                                <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->url($page) }}">{{ $page }}</a>
-                                            @endif
-                                        @endfor
+                                        <a
+                                            class="page-btn"
+                                            href="{{ $reports->appends(['year' => $currentYear])->previousPageUrl() }}"
+                                            title="Página anterior"
+                                        >
+                                            ‹
+                                        </a>
+                                    @endif
 
-                                        @if($reports->hasMorePages())
-                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->nextPageUrl() }}">›</a>
+                                    @for($page = $startPage; $page <= $endPage; $page++)
+                                        @if($page === $reports->currentPage())
+                                            <span class="page-current">{{ $page }}</span>
                                         @else
-                                            <span class="page-disabled">›</span>
+                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->url($page) }}">{{ $page }}</a>
                                         @endif
-                                    </div>
-                                @endif
+                                    @endfor
+
+                                    @if($reports->currentPage() < $reports->lastPage())
+                                        <a
+                                            class="page-btn"
+                                            href="{{ $reports->appends(['year' => $currentYear])->nextPageUrl() }}"
+                                            title="Página siguiente"
+                                        >
+                                            ›
+                                        </a>
+
+                                        <a
+                                            class="page-btn"
+                                            href="{{ $reports->appends(['year' => $currentYear])->url($reports->lastPage()) }}"
+                                            title="Ir a la última página"
+                                        >
+                                            »
+                                        </a>
+                                    @endif
+                                </div>
+                            @endif
 
                                 @if($hasAnyActiveFilter)
                                     <a
