@@ -122,12 +122,29 @@
             }
 
             .preventive-table .cell-responsable {
-                width: 102px;
-                min-width: 102px;
-                max-width: 102px;
+                width: 118px;
+                min-width: 118px;
+                max-width: 118px;
                 white-space: normal;
                 line-height: 1.1rem;
-                overflow-wrap: break-word;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            .preventive-table .cell-inspector {
+                width: 110px;
+                min-width: 110px;
+                max-width: 110px;
+                white-space: normal;
+                line-height: 1.1rem;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            .preventive-table.compact-mode .cell-inspector {
+                width: 96px;
+                min-width: 96px;
+                max-width: 96px;
             }
 
             .preventive-table .cell-date {
@@ -219,9 +236,9 @@
             }
 
             .preventive-table.compact-mode .cell-responsable {
-                width: 106px;
-                min-width: 106px;
-                max-width: 106px;
+                width: 110px;
+                min-width: 110px;
+                max-width: 110px;
             }
 
             .preventive-table.compact-mode .cell-date {
@@ -690,7 +707,7 @@
                                     </button>
                                 </th>
 
-                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="cell-inspector text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'inspector_names')"
@@ -770,11 +787,11 @@
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : 'bg-amber-100 text-amber-800';
 
-                                    $executionLabel = $report->executed ? 'EJECUTADO' : 'PENDIENTE';
+                                    $executionLabel = $report->executed ? 'REALIZADO' : 'PENDIENTE';
 
                                     $executionDateText = $report->execution_date
                                         ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d')
-                                        : '—';
+                                        : '';
 
                                     $reportDateText = $report->report_date
                                         ? \Carbon\Carbon::parse($report->report_date)->format('Y-m-d')
@@ -862,7 +879,7 @@
                                         {{ $avisoValue }}
                                     </td>
 
-                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
+                                    <td class="cell-inspector text-sm text-slate-700">
                                         {{ $inspectorName }}
                                     </td>
 
@@ -1510,7 +1527,7 @@
                 }
 
                 const executed = Boolean(data.executed);
-                const executionDate = data.execution_date || '—';
+                const executionDate = data.execution_date || '';
 
                 badge.className = [
                     'inline-flex',
@@ -1525,7 +1542,7 @@
                     executed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                 ].join(' ');
 
-                badge.innerHTML = executed ? 'EJECUTADO' : 'PENDIENTE';
+                badge.innerHTML = executed ? 'REALIZADO' : 'PENDIENTE';
 
                 if (dateCell) {
                     dateCell.textContent = executionDate;

@@ -488,29 +488,40 @@ class AdminPreventiveReportController extends Controller
             'No tienes permisos para modificar la ejecución.'
         );
 
-        $executedStatus = \App\Models\ExecutionStatus::query()
-            ->whereRaw('UPPER(name) = ?', ['EJECUTADO'])
-            ->first();
+        $statuses = \App\Models\ExecutionStatus::query()
+            ->where('status', true)
+            ->get();
 
-        $pendingStatus = \App\Models\ExecutionStatus::query()
-            ->whereRaw('UPPER(name) = ?', ['PENDIENTE'])
-            ->first();
+        $pendingStatus = $statuses->first(function ($status) {
+            $name = mb_strtoupper(trim((string) ($status->name ?? '')));
+            $code = mb_strtoupper(trim((string) ($status->code ?? '')));
 
-        if (!$executedStatus || !$pendingStatus) {
+            return in_array($name, ['PENDIENTE', 'PENDIENTE DE EJECUCIÓN', 'SIN EJECUTAR'], true)
+                || in_array($code, ['PENDIENTE', 'PENDING', 'PEND'], true);
+        });
+
+        $doneStatus = $statuses->first(function ($status) {
+            $name = mb_strtoupper(trim((string) ($status->name ?? '')));
+            $code = mb_strtoupper(trim((string) ($status->code ?? '')));
+
+            return in_array($name, ['EJECUTADO', 'EJECUTADA', 'REALIZADO', 'REALIZADA', 'FINALIZADO', 'FINALIZADA'], true)
+                || in_array($code, ['EJECUTADO', 'DONE', 'REALIZADO', 'COMPLETADO'], true);
+        });
+
+        if (!$pendingStatus || !$doneStatus) {
             return response()->json([
                 'success' => false,
-                'message' => 'No existen los estados de ejecución requeridos (PENDIENTE / EJECUTADO).',
+                'message' => 'Configura dos estados activos de ejecución: uno pendiente y otro realizado.',
             ], 422);
         }
 
-        $currentStatusId = (int) $reportDetail->execution_status_id;
-        $isCurrentlyExecuted = $currentStatusId === (int) $executedStatus->id;
+        $isCurrentlyDone = (int) $reportDetail->execution_status_id === (int) $doneStatus->id;
 
-        if ($isCurrentlyExecuted) {
+        if ($isCurrentlyDone) {
             $reportDetail->execution_status_id = $pendingStatus->id;
             $reportDetail->execution_date = null;
         } else {
-            $reportDetail->execution_status_id = $executedStatus->id;
+            $reportDetail->execution_status_id = $doneStatus->id;
             $reportDetail->execution_date = now()->toDateString();
         }
 
@@ -518,11 +529,12 @@ class AdminPreventiveReportController extends Controller
 
         return response()->json([
             'success' => true,
-            'executed' => (int) $reportDetail->execution_status_id === (int) $executedStatus->id,
+            'executed' => (int) $reportDetail->execution_status_id === (int) $doneStatus->id,
             'execution_date' => $reportDetail->execution_date
                 ? \Carbon\Carbon::parse($reportDetail->execution_date)->format('Y-m-d')
-                : '—',
+                : '',
             'execution_status_id' => $reportDetail->execution_status_id,
+            'execution_status_name' => $reportDetail->executionStatus?->name ?? '',
         ]);
     }
 
@@ -798,7 +810,7 @@ class AdminPreventiveReportController extends Controller
         return !empty($names) ? implode(', ', $names) : '—';
     }
 
-    public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $request)
+    public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $request): \Illuminate\View\View
     {
         $user = auth()->user();
         $roleKey = $user->role?->key;
@@ -816,17 +828,6 @@ class AdminPreventiveReportController extends Controller
             'No tienes permisos para ver este reporte.'
         );
 
-        $dateFrom = $request->input('date_from', now()->startOfYear()->toDateString());
-        $dateTo = $request->input('date_to', now()->toDateString());
-
-        if (!$dateFrom || !$dateTo) {
-            abort(422, 'Debes enviar date_from y date_to.');
-        }
-
-        if ($dateTo < $dateFrom) {
-            abort(422, 'La fecha final no puede ser menor que la fecha inicial.');
-        }
-
         $allowedClientIds = match ($roleKey) {
             'superadmin', 'admin_global', 'observador' => \App\Models\Client::query()
                 ->where('status', true)
@@ -841,90 +842,237 @@ class AdminPreventiveReportController extends Controller
                 ->all(),
         };
 
-        abort_unless(in_array((int) $group->client_id, $allowedClientIds, true), 403, 'No tienes acceso a esta agrupación.');
+        abort_unless(
+            in_array((int) $group->client_id, $allowedClientIds, true),
+            403,
+            'No tienes acceso a esta agrupación.'
+        );
 
-        $query = \App\Models\ReportDetail::query()
-            ->select([
-                'report_details.id',
-                'report_details.report_id',
-                'report_details.element_id',
-                'report_details.component_id',
-                'report_details.diagnostic_id',
-                'report_details.condition_id',
-                'report_details.recommendation',
-                'report_details.execution_date',
-                'report_details.execution_status_id',
-                'report_details.week',
-                'report_details.year',
-                'report_details.orden',
-                'report_details.aviso',
-                'report_details.created_at',
-                'areas.name as area_name',
-                'elements.name as element_name',
-                'elements.code as element_code',
-                'elements.warehouse_code',
-                'components.name as component_name',
-                'diagnostics.name as diagnostic_name',
-                'conditions.code as condition_code',
-                'conditions.name as condition_name',
-                'conditions.color as condition_color',
-                'inspectors.name as inspector_name',
-                'execution_statuses.name as execution_status_name',
+        $dateFrom = $request->input('date_from', now()->startOfYear()->toDateString());
+        $dateTo = $request->input('date_to', now()->toDateString());
+
+        abort_unless($dateFrom && $dateTo, 422, 'Debes enviar date_from y date_to.');
+        abort_unless($dateTo >= $dateFrom, 422, 'La fecha final no puede ser menor que la fecha inicial.');
+
+        $baseQuery = \App\Models\ReportDetail::query()
+            ->with([
+                'user:id,name',
+                'element:id,name,code,warehouse_code,area_id,element_type_id,group_id',
+                'element.area:id,name,client_id',
+                'component:id,name',
+                'diagnostic:id,name',
+                'condition:id,name,code,color',
+                'files:id,report_detail_id',
+                'executionStatus:id,code,name',
             ])
-            ->join('reports', 'reports.id', '=', 'report_details.report_id')
-            ->join('elements', 'elements.id', '=', 'report_details.element_id')
-            ->join('areas', 'areas.id', '=', 'elements.area_id')
-            ->leftJoin('components', 'components.id', '=', 'report_details.component_id')
-            ->leftJoin('diagnostics', 'diagnostics.id', '=', 'report_details.diagnostic_id')
-            ->leftJoin('conditions', 'conditions.id', '=', 'report_details.condition_id')
-            ->leftJoin('users as inspectors', 'inspectors.id', '=', 'report_details.user_id')
-            ->leftJoin('execution_statuses', 'execution_statuses.id', '=', 'report_details.execution_status_id')
-            ->where('elements.group_id', $group->id)
-            ->whereDate('report_details.created_at', '>=', $dateFrom)
-            ->whereDate('report_details.created_at', '<=', $dateTo);
+            ->whereHas('element', function ($elementQuery) use ($group) {
+                $elementQuery->where('group_id', $group->id);
+            })
+            ->whereDate('created_at', '>=', $dateFrom)
+            ->whereDate('created_at', '<=', $dateTo);
 
         if (in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
             $allowedAreaIds = $user->areas()->pluck('areas.id')->map(fn ($id) => (int) $id)->all();
-            $allowedElementTypeIds = $user->elementTypes()->pluck('element_types.id')->map(fn ($id) => (int) $id)->all();
 
             if (!empty($allowedAreaIds)) {
-                $query->whereIn('elements.area_id', $allowedAreaIds);
-            }
-
-            if (!empty($allowedElementTypeIds)) {
-                $query->whereIn('elements.element_type_id', $allowedElementTypeIds);
+                $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaIds) {
+                    $elementQuery->whereIn('area_id', $allowedAreaIds);
+                });
             }
         }
 
+        $query = clone $baseQuery;
+        $this->applyGroupFilters($query, $request);
+
+        $totalReportsGenerated = (clone $baseQuery)->count();
+        $totalReportsFiltered = (clone $query)->count();
+
         $reports = $query
-            ->orderByDesc('reports.report_date')
-            ->orderByDesc('report_details.created_at')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(100)
             ->withQueryString();
 
-        $reportDetailIds = $reports->getCollection()->pluck('id')->all();
+        $reports->setCollection(
+            $reports->getCollection()->map(function ($report) {
+                $element = $report->element;
+                $area = $element?->area;
+                $component = $report->component;
+                $diagnostic = $report->diagnostic;
+                $condition = $report->condition;
+                $inspector = $report->user;
+                $executionStatus = $report->executionStatus;
 
-        $evidenceCounts = \App\Models\ReportDetailFile::query()
-            ->selectRaw('report_detail_id, COUNT(*) as total')
-            ->whereIn('report_detail_id', $reportDetailIds)
-            ->groupBy('report_detail_id')
-            ->pluck('total', 'report_detail_id');
+                $statusName = trim((string) ($executionStatus?->name ?? ''));
+                $statusUpper = mb_strtoupper($statusName);
 
-        $reports->getCollection()->transform(function ($row) use ($evidenceCounts) {
-            $row->has_evidence = isset($evidenceCounts[$row->id]) && (int) $evidenceCounts[$row->id] > 0;
-            $row->responsable_name = '—';
+                $report->area_name = $area?->name ?: '—';
+                $report->element_name = $element?->name ?: '—';
+                $report->warehouse_code = $element?->warehouse_code ?: '—';
 
-            $statusName = mb_strtoupper(trim((string) ($row->execution_status_name ?? '')));
-            $row->executed = in_array($statusName, ['EJECUTADO', 'EJECUTADA', 'EJECUTADO/A', 'FINALIZADO', 'REALIZADO'], true);
+                $report->component_name = $component?->name ?: '—';
+                $report->diagnostic_name = $diagnostic?->name ?: '—';
 
-            $row->report_date = optional($row->created_at)?->format('Y-m-d');
+                $report->condition_code = $condition?->code ?: '—';
+                $report->condition_name = $condition?->name ?: '—';
+                $report->condition_color = $condition?->color ?: '#e2e8f0';
 
-            return $row;
-        });
+                $report->inspector_name = $inspector?->name ?: '—';
+                $report->responsable_name = '—';
+
+                $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
+
+                $report->executed = in_array($statusUpper, [
+                    'EJECUTADO',
+                    'EJECUTADA',
+                    'FINALIZADO',
+                    'FINALIZADA',
+                    'REALIZADO',
+                    'REALIZADA',
+                ], true);
+
+                if (!$report->executed) {
+                    $report->execution_date = null;
+                }
+
+                $report->report_date = optional($report->created_at)?->format('Y-m-d');
+                $report->has_evidence = $report->files->isNotEmpty();
+
+                return $report;
+            })
+        );
+
+        $showWarehouseColumn = $reports->getCollection()
+            ->pluck('warehouse_code')
+            ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
+            ->isNotEmpty();
+
+        $optionsRows = (clone $baseQuery)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($report) {
+                $element = $report->element;
+                $area = $element?->area;
+                $component = $report->component;
+                $diagnostic = $report->diagnostic;
+                $condition = $report->condition;
+                $inspector = $report->user;
+                $executionStatus = $report->executionStatus;
+
+                return (object) [
+                    'element_name' => $element?->name,
+                    'area_name' => $area?->name,
+                    'warehouse_code' => $element?->warehouse_code,
+                    'component_id' => $component?->id,
+                    'component_name' => $component?->name,
+                    'diagnostic_id' => $diagnostic?->id,
+                    'diagnostic_name' => $diagnostic?->name,
+                    'recommendation' => $report->recommendation,
+                    'condition_code' => $condition?->code,
+                    'condition_name' => $condition?->name,
+                    'orden' => $report->orden,
+                    'aviso' => $report->aviso,
+                    'inspector_name' => $inspector?->name,
+                    'execution_status_name' => $executionStatus?->name,
+                    'week' => $report->week,
+                ];
+            });
+
+        $filterOptions = [
+            'element_names' => $optionsRows
+                ->pluck('element_name')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'area_names' => $optionsRows
+                ->pluck('area_name')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'warehouse_codes' => $optionsRows
+                ->pluck('warehouse_code')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'diagnostic_pairs' => $optionsRows
+                ->filter(fn ($row) => $row->component_id && $row->diagnostic_id)
+                ->map(fn ($row) => [
+                    'value' => $row->component_id . '|' . $row->diagnostic_id,
+                    'label' => $row->component_name . ' | ' . $row->diagnostic_name,
+                ])
+                ->unique('value')
+                ->sortBy('label')
+                ->values(),
+
+            'recommendation_values' => $optionsRows
+                ->pluck('recommendation')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'condition_codes' => $optionsRows
+                ->pluck('condition_code')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'orden_values' => $optionsRows
+                ->pluck('orden')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'aviso_values' => $optionsRows
+                ->pluck('aviso')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'inspector_names' => $optionsRows
+                ->pluck('inspector_name')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'responsable_names' => collect(),
+
+            'condition_names' => $optionsRows
+                ->pluck('condition_name')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'execution_statuses' => $optionsRows
+                ->pluck('execution_status_name')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+
+            'weeks' => $optionsRows
+                ->pluck('week')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
+        ];
 
         $activeFilters = [
-            'area_names' => (array) $request->input('area_names', []),
             'element_names' => (array) $request->input('element_names', []),
+            'area_names' => (array) $request->input('area_names', []),
             'warehouse_codes' => (array) $request->input('warehouse_codes', []),
             'diagnostic_pairs' => (array) $request->input('diagnostic_pairs', []),
             'recommendation_values' => (array) $request->input('recommendation_values', []),
@@ -940,22 +1088,6 @@ class AdminPreventiveReportController extends Controller
             'weeks' => (array) $request->input('weeks', []),
         ];
 
-        $filterOptions = [
-            'area_names' => $reports->getCollection()->pluck('area_name')->filter()->unique()->values(),
-            'element_names' => $reports->getCollection()->pluck('element_name')->filter()->unique()->values(),
-            'warehouse_codes' => $reports->getCollection()->pluck('warehouse_code')->filter()->unique()->values(),
-            'diagnostic_pairs' => $reports->getCollection()->map(fn ($r) => trim(($r->component_name ?? '') . ' | ' . ($r->diagnostic_name ?? '')))->filter()->unique()->values(),
-            'recommendation_values' => $reports->getCollection()->pluck('recommendation')->filter()->unique()->values(),
-            'condition_codes' => $reports->getCollection()->pluck('condition_code')->filter()->unique()->values(),
-            'orden_values' => $reports->getCollection()->pluck('orden')->filter()->unique()->values(),
-            'aviso_values' => $reports->getCollection()->pluck('aviso')->filter()->unique()->values(),
-            'inspector_names' => $reports->getCollection()->pluck('inspector_name')->filter()->unique()->values(),
-            'responsable_names' => $reports->getCollection()->pluck('responsable_name')->filter()->unique()->values(),
-            'condition_names' => $reports->getCollection()->pluck('condition_name')->filter()->unique()->values(),
-            'execution_statuses' => collect(['PENDIENTE', 'EJECUTADO']),
-            'weeks' => $reports->getCollection()->pluck('week')->filter()->unique()->sort()->values(),
-        ];
-
         return view('admin.reports.preventive.show', [
             'group' => $group->loadMissing('client'),
             'reports' => $reports,
@@ -965,8 +1097,9 @@ class AdminPreventiveReportController extends Controller
             'roleKey' => $roleKey,
             'activeFilters' => $activeFilters,
             'filterOptions' => $filterOptions,
-            'showWarehouseColumn' => $reports->getCollection()->pluck('warehouse_code')->filter()->isNotEmpty(),
-            'totalGenerated' => $reports->total(),
+            'showWarehouseColumn' => $showWarehouseColumn,
+            'totalGenerated' => $totalReportsGenerated,
+            'totalFiltered' => $totalReportsFiltered,
         ]);
     }
 
@@ -1019,6 +1152,114 @@ class AdminPreventiveReportController extends Controller
             $url = $disk->url($file->path);
 
             return redirect()->away($url);
+        }
+    }
+
+    private function applyGroupFilters($query, \Illuminate\Http\Request $request): void
+    {
+        if ($request->filled('element_names')) {
+            $names = array_filter((array) $request->input('element_names', []));
+            $query->whereHas('element', function ($elementQuery) use ($names) {
+                $elementQuery->whereIn('name', $names);
+            });
+        }
+
+        if ($request->filled('area_names')) {
+            $areas = array_filter((array) $request->input('area_names', []));
+            $query->whereHas('element.area', function ($areaQuery) use ($areas) {
+                $areaQuery->whereIn('name', $areas);
+            });
+        }
+
+        if ($request->filled('warehouse_codes')) {
+            $codes = array_filter((array) $request->input('warehouse_codes', []));
+            $query->whereHas('element', function ($elementQuery) use ($codes) {
+                $elementQuery->whereIn('warehouse_code', $codes);
+            });
+        }
+
+        if ($request->filled('diagnostic_pairs')) {
+            $pairs = array_filter((array) $request->input('diagnostic_pairs', []));
+            $query->where(function ($subQuery) use ($pairs) {
+                foreach ($pairs as $pair) {
+                    [$componentId, $diagnosticId] = array_pad(explode('|', $pair), 2, null);
+
+                    if ($componentId && $diagnosticId) {
+                        $subQuery->orWhere(function ($nested) use ($componentId, $diagnosticId) {
+                            $nested->where('component_id', $componentId)
+                                ->where('diagnostic_id', $diagnosticId);
+                        });
+                    }
+                }
+            });
+        }
+
+        if ($request->filled('recommendation_values')) {
+            $values = array_filter((array) $request->input('recommendation_values', []));
+            $query->whereIn('recommendation', $values);
+        }
+
+        if ($request->filled('condition_codes')) {
+            $codes = array_filter((array) $request->input('condition_codes', []));
+            $query->whereHas('condition', function ($conditionQuery) use ($codes) {
+                $conditionQuery->whereIn('code', $codes);
+            });
+        }
+
+        if ($request->filled('orden_values')) {
+            $values = array_filter((array) $request->input('orden_values', []));
+            $query->whereIn('orden', $values);
+        }
+
+        if ($request->filled('aviso_values')) {
+            $values = array_filter((array) $request->input('aviso_values', []));
+            $query->whereIn('aviso', $values);
+        }
+
+        if ($request->filled('inspector_names')) {
+            $names = array_filter((array) $request->input('inspector_names', []));
+            $query->whereHas('user', function ($userQuery) use ($names) {
+                $userQuery->whereIn('name', $names);
+            });
+        }
+
+        if ($request->filled('condition_names')) {
+            $names = array_filter((array) $request->input('condition_names', []));
+            $query->whereHas('condition', function ($conditionQuery) use ($names) {
+                $conditionQuery->whereIn('name', $names);
+            });
+        }
+
+        if ($request->filled('execution_statuses')) {
+            $statuses = array_filter((array) $request->input('execution_statuses', []));
+            $query->whereHas('executionStatus', function ($statusQuery) use ($statuses) {
+                $statusQuery->whereIn('name', $statuses);
+            });
+        }
+
+        if ($request->filled('weeks')) {
+            $weeks = array_filter((array) $request->input('weeks', []));
+            $query->whereIn('week', $weeks);
+        }
+
+        $reportDateRange = $request->input('report_date_range');
+        if (is_array($reportDateRange)) {
+            if (!empty($reportDateRange['from'])) {
+                $query->whereDate('created_at', '>=', $reportDateRange['from']);
+            }
+            if (!empty($reportDateRange['to'])) {
+                $query->whereDate('created_at', '<=', $reportDateRange['to']);
+            }
+        }
+
+        $executionDateRange = $request->input('execution_date_range');
+        if (is_array($executionDateRange)) {
+            if (!empty($executionDateRange['from'])) {
+                $query->whereDate('execution_date', '>=', $executionDateRange['from']);
+            }
+            if (!empty($executionDateRange['to'])) {
+                $query->whereDate('execution_date', '<=', $executionDateRange['to']);
+            }
         }
     }
 
