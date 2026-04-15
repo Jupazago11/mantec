@@ -8,10 +8,6 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
-            :root {
-                --topbar-height: 108px;
-            }
-
             html {
                 scroll-behavior: smooth;
             }
@@ -68,17 +64,15 @@
 
             .preventive-table th {
                 white-space: normal;
-                line-height: 1rem;
+                line-height: 1.05rem;
+                vertical-align: middle;
             }
 
             .sticky-table-head th {
-                position: sticky;
-                top: var(--topbar-height);
-                z-index: 30;
+                position: static;
+                z-index: auto;
                 background: rgb(248 250 252);
-                box-shadow:
-                    inset 0 -1px 0 rgb(226 232 240),
-                    0 1px 0 rgb(226 232 240);
+                box-shadow: inset 0 -1px 0 rgb(226 232 240);
             }
 
             .preventive-table .cell-area {
@@ -350,7 +344,6 @@
             }
 
             .preventive-table thead th {
-                height: 48px;
                 vertical-align: middle;
             }
 
@@ -358,7 +351,8 @@
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 4px;
+                gap: 6px;
+                min-height: 32px;
             }
     </style>
 </head>
@@ -996,13 +990,6 @@
         const activeFilters = @json($activeFilters);
         let currentPopoverKey = null;
 
-        function updateStickyOffsets() {
-            const topbar = document.getElementById('reportTopbar');
-            if (!topbar) return;
-
-            const height = Math.ceil(topbar.getBoundingClientRect().height) + 8;
-            document.documentElement.style.setProperty('--topbar-height', `${height}px`);
-        }
 
         function buildFiltersForm() {
             const form = document.getElementById('filtersForm');
@@ -1346,17 +1333,14 @@
         });
 
         document.addEventListener('DOMContentLoaded', function () {
-            updateStickyOffsets();
             applyCompactModeIfNeeded();
         });
 
         window.addEventListener('load', function () {
-            updateStickyOffsets();
             applyCompactModeIfNeeded();
         });
 
         window.addEventListener('resize', function () {
-            updateStickyOffsets();
             applyCompactModeIfNeeded();
         });
 
