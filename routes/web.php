@@ -76,7 +76,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
         Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
         Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus'])->name('clients.toggle-status');
-
     });
 
     /*
@@ -158,18 +157,28 @@ Route::middleware('auth')->group(function () {
         Route::delete('/managed-groups/{group}', [AdminManagedGroupController::class, 'destroy'])->name('managed-groups.destroy');
         Route::post('/managed-groups/{group}/elements', [AdminManagedGroupController::class, 'syncElements'])->name('managed-groups.elements.sync');
 
-
-
         // AJAX compartido
         Route::get('/clients/{client}/areas', [AdminElementController::class, 'getAreasByClient'])->name('clients.areas');
         Route::get('/clients/{client}/element-types', [AdminComponentController::class, 'getElementTypesByClient'])->name('clients.element-types');
 
         // Reportes preventivos / evidencias
-        Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('preventive-reports.general');
-        Route::get('/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])->name('preventive-reports.show');
-        Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('preventive-reports.toggle-execution');
-        Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])->name('preventive-reports.evidence');
-        Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('report-evidence.open');
+        Route::get('/preventive-reports/group/{group}', [AdminPreventiveReportController::class, 'showByGroup'])
+            ->name('preventive-reports.group');
+
+        Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])
+            ->name('preventive-reports.general');
+
+        Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])
+            ->name('preventive-reports.evidence');
+
+        Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])
+            ->name('preventive-reports.toggle-execution');
+
+        Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])
+            ->name('report-evidence.open');
+
+        Route::get('/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])
+            ->name('preventive-reports.show');
     });
 
     /*

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Reporte preventivo por tipo de activo</title>
+    <title>Reporte preventivo por agrupación</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
@@ -354,10 +354,26 @@
                 gap: 6px;
                 min-height: 32px;
             }
+
+            .preventive-table thead th button {
+                background: transparent;
+                border: 0;
+                padding: 0;
+                font: inherit;
+                text-transform: inherit;
+                letter-spacing: inherit;
+                cursor: pointer;
+            }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
     @php
+        $isReadOnly = $isReadOnly ?? false;
+        $roleKey = $roleKey ?? auth()->user()?->role?->key;
+
+        $dateFrom = $dateFrom ?? request('date_from', now()->startOfYear()->toDateString());
+        $dateTo = $dateTo ?? request('date_to', now()->toDateString());
+
         $hasFilter = function ($key) use ($activeFilters) {
             $value = $activeFilters[$key] ?? null;
 
@@ -377,13 +393,20 @@
                 return $value !== null && $value !== '';
             });
 
-        $clearFiltersUrl = route('admin.preventive-reports.show', [$client->id, $elementType->id]) . '?year=' . $currentYear;
+        $clearFiltersUrl = route('admin.preventive-reports.group', ['group' => $group->id]) .
+            '?' . http_build_query([
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ]);
 
         $showWarehouseColumn = $showWarehouseColumn ?? false;
 
         $pageWindow = 2;
         $startPage = max(1, $reports->currentPage() - $pageWindow);
         $endPage = min($reports->lastPage(), $reports->currentPage() + $pageWindow);
+
+        $totalGenerated = $totalGenerated ?? ($reportsTotal ?? $reports->total());
+        $totalFiltered = $reports->total();
     @endphp
 
     <div class="min-h-screen p-3 md:p-4">
@@ -393,26 +416,36 @@
                     <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div class="min-w-0">
                             <h1 class="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
-                                Reporte preventivo {{ $elementType->name }} Planta {{ $client->name }}
+                                Reporte preventivo {{ $group->name }} Planta {{ $group->client->name }}
                             </h1>
 
-                            @if($isReadOnly ?? false)
-                                <div class="mt-2">
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                                    Desde {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
+                                </span>
+
+                                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                                    Hasta {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
+                                </span>
+
+                                @if($isReadOnly)
                                     <span class="inline-flex items-center rounded-xl bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800">
                                         Modo solo lectura
                                     </span>
-                                </div>
-                            @endif
+                                @endif
+                            </div>
                         </div>
 
                         <div class="flex flex-col gap-2 xl:items-end">
                             <div class="flex flex-wrap gap-2 xl:justify-end">
                                 <div class="compact-metric border border-slate-200 bg-slate-50 text-right">
                                     <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                        Año
+                                        Rango
                                     </div>
-                                    <div class="mt-1 text-lg font-bold text-slate-900">
-                                        {{ $currentYear }}
+                                    <div class="mt-1 text-sm font-bold text-slate-900">
+                                        {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
+                                        —
+                                        {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
                                     </div>
                                 </div>
 
@@ -421,7 +454,7 @@
                                         Total generado
                                     </div>
                                     <div class="mt-1 text-lg font-bold text-slate-900">
-                                        {{ $totalReportsGenerated ?? 0 }}
+                                        {{ number_format($totalGenerated) }}
                                     </div>
                                 </div>
 
@@ -430,67 +463,63 @@
                                         Total filtrado
                                     </div>
                                     <div class="mt-1 text-lg font-bold text-slate-900">
-                                        {{ $totalReportsFiltered ?? 0 }}
+                                        {{ number_format($totalFiltered) }}
                                     </div>
                                 </div>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                            @if($reports->hasPages())
-                                <div class="custom-pagination">
-                                    @if($reports->currentPage() > 1)
-                                        <a
-                                            class="page-btn"
-                                            href="{{ $reports->appends(['year' => $currentYear])->url(1) }}"
-                                            title="Ir a la primera página"
-                                        >
-                                            «
-                                        </a>
+                                @if($reports->lastPage() > 1)
+                                    <div class="custom-pagination">
+                                        @if($reports->currentPage() > 1)
+                                            <a
+                                                class="page-btn"
+                                                href="{{ $reports->appends(request()->query())->url(1) }}"
+                                                title="Ir a la primera página"
+                                            >
+                                                «
+                                            </a>
 
-                                        <a
-                                            class="page-btn"
-                                            href="{{ $reports->appends(['year' => $currentYear])->previousPageUrl() }}"
-                                            title="Página anterior"
-                                        >
-                                            ‹
-                                        </a>
-                                    @endif
-
-                                    @for($page = $startPage; $page <= $endPage; $page++)
-                                        @if($page === $reports->currentPage())
-                                            <span class="page-current">{{ $page }}</span>
-                                        @else
-                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->url($page) }}">{{ $page }}</a>
+                                            <a
+                                                class="page-btn"
+                                                href="{{ $reports->appends(request()->query())->previousPageUrl() }}"
+                                                title="Página anterior"
+                                            >
+                                                ‹
+                                            </a>
                                         @endif
-                                    @endfor
 
-                                    @if($reports->currentPage() < $reports->lastPage())
-                                        <a
-                                            class="page-btn"
-                                            href="{{ $reports->appends(['year' => $currentYear])->nextPageUrl() }}"
-                                            title="Página siguiente"
-                                        >
-                                            ›
-                                        </a>
+                                        @for($page = $startPage; $page <= $endPage; $page++)
+                                            @if($page === $reports->currentPage())
+                                                <span class="page-current">{{ $page }}</span>
+                                            @else
+                                                <a
+                                                    class="page-btn"
+                                                    href="{{ $reports->appends(request()->query())->url($page) }}"
+                                                >
+                                                    {{ $page }}
+                                                </a>
+                                            @endif
+                                        @endfor
 
-                                        <a
-                                            class="page-btn"
-                                            href="{{ $reports->appends(['year' => $currentYear])->url($reports->lastPage()) }}"
-                                            title="Ir a la última página"
-                                        >
-                                            »
-                                        </a>
-                                    @endif
-                                </div>
-                            @endif
+                                        @if($reports->currentPage() < $reports->lastPage())
+                                            <a
+                                                class="page-btn"
+                                                href="{{ $reports->appends(request()->query())->nextPageUrl() }}"
+                                                title="Página siguiente"
+                                            >
+                                                ›
+                                            </a>
 
-                                @if($hasAnyActiveFilter)
-                                    <a
-                                        href="{{ $clearFiltersUrl }}"
-                                        class="inline-flex items-center rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                    >
-                                        Limpiar filtros
-                                    </a>
+                                            <a
+                                                class="page-btn"
+                                                href="{{ $reports->appends(request()->query())->url($reports->lastPage()) }}"
+                                                title="Ir a la última página"
+                                            >
+                                                »
+                                            </a>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
                         </div>
@@ -499,8 +528,76 @@
             </div>
 
             <form id="filtersForm" method="GET" class="hidden">
-                <input type="hidden" name="year" value="{{ $currentYear }}">
+                <input type="hidden" name="date_from" value="{{ $dateFrom }}">
+                <input type="hidden" name="date_to" value="{{ $dateTo }}">
             </form>
+                        <div class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <label for="date_from_visible" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Fecha inicial
+                        </label>
+                        <input
+                            id="date_from_visible"
+                            type="date"
+                            value="{{ $dateFrom }}"
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="date_to_visible" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Fecha final
+                        </label>
+                        <input
+                            id="date_to_visible"
+                            type="date"
+                            value="{{ $dateTo }}"
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                        >
+                    </div>
+
+                    <div class="sm:col-span-2 lg:col-span-2">
+                        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Estado de filtros
+                        </label>
+
+                        <div class="flex h-[42px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                            @if($hasAnyActiveFilter)
+                                <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                                <span class="font-medium text-slate-700">Hay filtros activos en la tabla</span>
+                            @else
+                                <span class="inline-flex h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+                                <span class="font-medium text-slate-500">Sin filtros adicionales</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <a
+                        href="{{ route('admin.dashboard') }}"
+                        class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                    >
+                        Volver
+                    </a>
+
+                    <a
+                        href="{{ $clearFiltersUrl }}"
+                        class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                    >
+                        Limpiar filtros
+                    </a>
+
+                    <button
+                        type="button"
+                        id="applyDateRangeBtn"
+                        class="inline-flex items-center rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b63f28]"
+                    >
+                        Aplicar rango
+                    </button>
+                </div>
+            </div>
 
             <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div id="tableScrollContainer" class="table-scroll-container">
@@ -511,7 +608,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'area_names')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('area_names') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Área
                                     </button>
@@ -521,7 +618,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'element_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('element_names') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Nombre del<br>activo
                                     </button>
@@ -532,9 +629,9 @@
                                         <button
                                             type="button"
                                             onclick="openFilterPopover(event, 'warehouse_codes')"
-                                            class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                            class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('warehouse_codes') ? 'text-slate-900' : 'text-slate-500' }}"
                                         >
-                                            Ubicación<br>técnica
+                                            Código de<br>almacén
                                         </button>
                                     </th>
                                 @endif
@@ -543,7 +640,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'diagnostic_pairs')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('diagnostic_pairs') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Diagnóstico
                                     </button>
@@ -553,7 +650,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'recommendation_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('recommendation_values') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Recomendación
                                     </button>
@@ -567,7 +664,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'condition_codes')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('condition_codes') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('condition_codes') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Condición
                                     </button>
@@ -577,7 +674,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'orden_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('orden_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('orden_values') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Orden
                                     </button>
@@ -587,7 +684,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'aviso_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('aviso_values') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Aviso
                                     </button>
@@ -597,7 +694,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'inspector_names')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('inspector_names') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Inspector
                                     </button>
@@ -607,7 +704,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'responsable_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('responsable_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('responsable_names') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Responsable
                                     </button>
@@ -617,7 +714,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'report_date_range')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('report_date_from') || $hasFilter('report_date_to') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('report_date_range') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Fecha de<br>reporte
                                     </button>
@@ -627,7 +724,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'execution_date_range')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_date_from') || $hasFilter('execution_date_to') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_date_range') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Fecha de<br>ejecución
                                     </button>
@@ -637,7 +734,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'condition_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('condition_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('condition_names') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Condición del<br>activo
                                     </button>
@@ -647,7 +744,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'execution_statuses')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_statuses') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_statuses') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Ejecución<br>orden
                                     </button>
@@ -657,7 +754,7 @@
                                     <button
                                         type="button"
                                         onclick="openFilterPopover(event, 'weeks')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('weeks') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('weeks') ? 'text-slate-900' : 'text-slate-500' }}"
                                     >
                                         Semana
                                     </button>
@@ -666,47 +763,80 @@
                         </thead>
 
                         <tbody class="divide-y divide-slate-200 bg-white">
-                            @forelse($reports as $report)
+                                                        @forelse($reports as $report)
                                 @php
-                                    $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
+                                    $reportId = $report->id;
+                                    $executionBadgeClasses = $report->executed
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-amber-100 text-amber-800';
+
+                                    $executionLabel = $report->executed ? 'EJECUTADO' : 'PENDIENTE';
+
+                                    $executionDateText = $report->execution_date
+                                        ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d')
+                                        : '—';
+
+                                    $reportDateText = $report->report_date
+                                        ? \Carbon\Carbon::parse($report->report_date)->format('Y-m-d')
+                                        : '—';
+
+                                    $reportTimeText = $report->created_at
+                                        ? \Carbon\Carbon::parse($report->created_at)->format('H:i')
+                                        : null;
+
+                                    $conditionBg = $report->condition_color ?: '#e2e8f0';
+                                    $conditionText = $report->condition_name ?: '—';
+
+                                    $componentName = $report->component_name ?: '—';
+                                    $diagnosticName = $report->diagnostic_name ?: '—';
+                                    $recommendationText = filled($report->recommendation) ? $report->recommendation : '—';
+                                    $responsableName = $report->responsable_name ?: '—';
+                                    $inspectorName = $report->inspector_name ?: '—';
+                                    $areaName = $report->area_name ?: '—';
+                                    $elementName = $report->element_name ?: '—';
+                                    $warehouseCode = $report->warehouse_code ?: '—';
+                                    $conditionCode = $report->condition_code ?: '—';
+                                    $ordenValue = $report->orden ?: '—';
+                                    $avisoValue = $report->aviso ?: '—';
+                                    $weekValue = $report->week ?: '—';
                                 @endphp
 
                                 <tr class="align-top hover:bg-slate-50">
                                     <td class="cell-area text-sm text-slate-700">
-                                        {{ $report->element?->area?->name ?? '—' }}
+                                        {{ $areaName }}
                                     </td>
 
                                     <td class="cell-element-name text-sm font-medium text-slate-900">
-                                        {{ $report->element?->name ?? '—' }}
+                                        {{ $elementName }}
                                     </td>
 
                                     @if($showWarehouseColumn)
                                         <td class="cell-warehouse text-sm text-slate-700">
-                                            {{ $report->element?->warehouse_code ?? '—' }}
+                                            {{ $warehouseCode }}
                                         </td>
                                     @endif
 
                                     <td class="cell-diagnostic text-sm text-slate-700">
                                         <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                            {{ $report->component?->name ?? '—' }}
+                                            {{ $componentName }}
                                         </div>
                                         <div class="mt-1 whitespace-normal break-words">
-                                            {{ $report->diagnostic?->name ?? '—' }}
+                                            {{ $diagnosticName }}
                                         </div>
                                     </td>
 
                                     <td class="cell-recommendation text-sm text-slate-700">
-                                        @if(($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
-                                            <div lang="es">{!! nl2br(e(ltrim((string) $report->recommendation))) !!}</div>
+                                        @if($recommendationText !== '—')
+                                            <div lang="es">{{ $recommendationText }}</div>
                                         @else
                                             —
                                         @endif
                                     </td>
 
                                     <td class="cell-evidence whitespace-nowrap text-sm text-slate-700">
-                                        @if($report->files->count() > 0)
+                                        @if($report->has_evidence ?? false)
                                             <a
-                                                href="{{ route('admin.preventive-reports.evidence', $report) }}"
+                                                href="{{ route('admin.preventive-reports.evidence', ['reportDetail' => $reportId]) }}"
                                                 target="_blank"
                                                 class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                                                 title="Ver evidencia"
@@ -721,430 +851,276 @@
                                     </td>
 
                                     <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $report->condition?->code ?? '—' }}
+                                        {{ $conditionCode }}
                                     </td>
 
                                     <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $report->orden ?: '—' }}
+                                        {{ $ordenValue }}
                                     </td>
 
                                     <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $report->aviso ?: '—' }}
+                                        {{ $avisoValue }}
                                     </td>
 
                                     <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $report->user?->name ?? '—' }}
+                                        {{ $inspectorName }}
                                     </td>
 
                                     <td class="cell-responsable text-sm text-slate-700">
-                                        {{ $report->responsable_names ?? '—' }}
+                                        {{ $responsableName }}
                                     </td>
 
                                     <td class="cell-date text-sm text-slate-700">
-                                        @if($report->created_at)
-                                            <div>{{ $report->created_at->format('Y-m-d') }}</div>
-                                            <div class="text-[11px] text-slate-500">{{ $report->created_at->format('H:i') }}</div>
-                                        @else
-                                            —
+                                        <div>{{ $reportDateText }}</div>
+                                        @if($reportTimeText)
+                                            <div class="text-[11px] text-slate-500">{{ $reportTimeText }}</div>
                                         @endif
                                     </td>
 
-                                    <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $report->id }}">
-                                        @if($isDone && $report->execution_date)
-                                            {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
-                                        @else
-                                            —
-                                        @endif
+                                    <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $reportId }}">
+                                        {{ $executionDateText }}
+                                    </td>
+                                                                        <td class="cell-condition-name text-sm text-slate-700">
+                                        <span
+                                            class="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800"
+                                            style="background-color: {{ $conditionBg }}"
+                                        >
+                                            {{ $conditionText }}
+                                        </span>
                                     </td>
 
-                                    <td class="cell-condition-name text-sm">
-                                        @if($report->condition)
+                                    <td class="cell-execution text-sm text-slate-700">
+                                        @if(!$isReadOnly)
+                                            <button
+                                                type="button"
+                                                onclick="toggleExecution({{ $reportId }})"
+                                                class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold transition {{ $executionBadgeClasses }}"
+                                                id="execution-badge-{{ $reportId }}"
+                                            >
+                                                {{ $executionLabel }}
+                                            </button>
+                                        @else
                                             <span
-                                                class="inline-flex rounded-lg px-2.5 py-1 font-medium"
-                                                style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
+                                                class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold {{ $executionBadgeClasses }}"
                                             >
-                                                {{ $report->condition->name }}
+                                                {{ $executionLabel }}
                                             </span>
-                                        @else
-                                            <span class="text-slate-700">—</span>
                                         @endif
                                     </td>
 
-                                    <td class="cell-execution text-sm">
-                                        @if($isReadOnly ?? false)
-                                            <span
-                                                id="execution-badge-{{ $report->id }}"
-                                                class="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
-                                            >
-                                                <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
-                                            </span>
-                                        @else
-                                            <label
-                                                id="execution-badge-{{ $report->id }}"
-                                                class="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    class="execution-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                    data-id="{{ $report->id }}"
-                                                    {{ $isDone ? 'checked' : '' }}
-                                                >
-                                                <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
-                                            </label>
-                                        @endif
-                                    </td>
-
-                                    <td class="cell-week whitespace-nowrap text-sm font-semibold text-slate-900">
-                                        {{ $report->week }}
+                                    <td class="cell-week whitespace-nowrap text-sm text-slate-700">
+                                        {{ $weekValue }}
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $showWarehouseColumn ? 16 : 15 }}" class="px-3 py-10 text-center text-sm text-slate-500">
-                                        No hay reportes para este tipo de activo en el año seleccionado.
+                                    <td colspan="100%" class="px-4 py-10 text-center text-sm text-slate-500">
+                                        No se encontraron registros para esta agrupación en el rango seleccionado.
                                     </td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
+
+                <div id="bottomScrollbar" class="bottom-scrollbar-fixed">
+                    <div id="bottomScrollbarInner" class="bottom-scrollbar-inner"></div>
+                </div>
             </div>
-        </div>
-    </div>
-
-    <div id="bottomHorizontalScrollbar" class="bottom-scrollbar-fixed">
-        <div id="bottomHorizontalScrollbarInner" class="bottom-scrollbar-inner"></div>
-    </div>
-
-    <div id="filterPopover" class="fixed z-50 hidden w-[340px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div class="border-b border-slate-200 px-4 py-3">
-            <div class="flex items-center justify-between gap-3">
-                <h3 id="filterPopoverTitle" class="text-sm font-semibold text-slate-900"></h3>
-                <button type="button" onclick="closeFilterPopover()" class="text-slate-400 hover:text-slate-700">✕</button>
-            </div>
-        </div>
-
-        <div id="filterPopoverBody" class="space-y-4 p-4"></div>
-
-        <div class="flex justify-between border-t border-slate-200 px-4 py-3">
-            <button
-                type="button"
-                onclick="clearCurrentFilter()"
-                class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-            >
-                Limpiar
-            </button>
-
-            <button
-                type="button"
-                onclick="applyCurrentFilter()"
-                class="rounded-lg bg-[#d94d33] px-3 py-2 text-xs font-semibold text-white hover:bg-[#b83f29]"
-            >
-                Aplicar
-            </button>
+                        <div
+                id="filterPopover"
+                class="fixed z-[80] hidden w-[320px] max-w-[92vw] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+            ></div>
         </div>
     </div>
 
     <script>
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        const isReadOnly = @json($isReadOnly ?? false);
-
-        const filterOptions = {
-            area_names: {
-                type: 'checklist',
-                title: 'Área',
-                inputName: 'area_names',
-                options: @json($filterOptions['area_names'] ?? []),
-            },
-            element_names: {
-                type: 'checklist',
-                title: 'Nombre del activo',
-                inputName: 'element_names',
-                options: @json($filterOptions['element_names'] ?? []),
-            },
-            warehouse_codes: {
-                type: 'checklist',
-                title: 'Ubicación técnica',
-                inputName: 'warehouse_codes',
-                options: @json($filterOptions['warehouse_codes'] ?? []),
-            },
-            diagnostic_pairs: {
-                type: 'checklist_object',
-                title: 'Diagnóstico',
-                inputName: 'diagnostic_pairs',
-                options: @json($filterOptions['diagnostic_pairs'] ?? []),
-            },
-            recommendation_values: {
-                type: 'checklist',
-                title: 'Recomendación',
-                inputName: 'recommendation_values',
-                options: @json($filterOptions['recommendation_values'] ?? []),
-            },
-            condition_codes: {
-                type: 'checklist',
-                title: 'Condición',
-                inputName: 'condition_codes',
-                options: @json($filterOptions['condition_codes'] ?? []),
-            },
-            orden_values: {
-                type: 'checklist',
-                title: 'Orden',
-                inputName: 'orden_values',
-                options: @json($filterOptions['orden_values'] ?? []),
-            },
-            aviso_values: {
-                type: 'checklist',
-                title: 'Aviso',
-                inputName: 'aviso_values',
-                options: @json($filterOptions['aviso_values'] ?? []),
-            },
-            inspector_names: {
-                type: 'checklist',
-                title: 'Inspector',
-                inputName: 'inspector_names',
-                options: @json($filterOptions['inspector_names'] ?? []),
-            },
-            responsable_names: {
-                type: 'checklist',
-                title: 'Responsable',
-                inputName: 'responsable_names',
-                options: @json($filterOptions['responsable_names'] ?? []),
-            },
-            report_date_range: {
-                type: 'date_range',
-                title: 'Fecha de reporte',
-                fromName: 'report_date_from',
-                toName: 'report_date_to',
-            },
-            execution_date_range: {
-                type: 'date_range',
-                title: 'Fecha de ejecución',
-                fromName: 'execution_date_from',
-                toName: 'execution_date_to',
-            },
-            condition_names: {
-                type: 'checklist',
-                title: 'Condición del activo',
-                inputName: 'condition_names',
-                options: @json($filterOptions['condition_names'] ?? []),
-            },
-            execution_statuses: {
-                type: 'checklist',
-                title: 'Ejecución orden',
-                inputName: 'execution_statuses',
-                options: @json($filterOptions['execution_statuses'] ?? []),
-            },
-            weeks: {
-                type: 'checklist',
-                title: 'Semana',
-                inputName: 'weeks',
-                options: @json($filterOptions['weeks'] ?? []),
-            },
+        const ACTIVE_FILTERS = @json($activeFilters ?? []);
+        const FILTER_OPTIONS = @json($filterOptions ?? []);
+        const FILTER_LABELS = {
+            area_names: 'Área',
+            element_names: 'Nombre del activo',
+            warehouse_codes: 'Código de almacén',
+            diagnostic_pairs: 'Diagnóstico',
+            recommendation_values: 'Recomendación',
+            condition_codes: 'Condición',
+            orden_values: 'Orden',
+            aviso_values: 'Aviso',
+            inspector_names: 'Inspector',
+            responsable_names: 'Responsable',
+            report_date_range: 'Fecha de reporte',
+            execution_date_range: 'Fecha de ejecución',
+            condition_names: 'Condición del activo',
+            execution_statuses: 'Ejecución orden',
+            weeks: 'Semana',
         };
 
-        const activeFilters = @json($activeFilters);
-        let currentPopoverKey = null;
+        const dateFromVisible = document.getElementById('date_from_visible');
+        const dateToVisible = document.getElementById('date_to_visible');
+        const filtersForm = document.getElementById('filtersForm');
+        const filterPopover = document.getElementById('filterPopover');
+        const applyDateRangeBtn = document.getElementById('applyDateRangeBtn');
 
+        function normalizeScalarArray(values) {
+            if (!Array.isArray(values)) {
+                return [];
+            }
 
-        function buildFiltersForm() {
-            const form = document.getElementById('filtersForm');
-            form.innerHTML = '';
+            return values
+                .filter(value => value !== null && value !== undefined && value !== '')
+                .map(value => String(value));
+        }
 
-            const yearInput = document.createElement('input');
-            yearInput.type = 'hidden';
-            yearInput.name = 'year';
-            yearInput.value = @json($currentYear);
-            form.appendChild(yearInput);
+        function getCurrentBaseUrl() {
+            return "{{ route('admin.preventive-reports.group', ['group' => $group->id]) }}";
+        }
 
-            const addHidden = (name, value) => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = value ?? '';
-                form.appendChild(input);
-            };
+        function applyDateRange() {
+            const from = dateFromVisible?.value?.trim();
+            const to = dateToVisible?.value?.trim();
 
-            Object.entries(activeFilters).forEach(([key, value]) => {
+            if (!from || !to) {
+                alert('Debes seleccionar la fecha inicial y la fecha final.');
+                return;
+            }
+
+            if (to < from) {
+                alert('La fecha final no puede ser menor que la fecha inicial.');
+                return;
+            }
+
+            const url = new URL(getCurrentBaseUrl(), window.location.origin);
+            url.searchParams.set('date_from', from);
+            url.searchParams.set('date_to', to);
+
+            Object.entries(ACTIVE_FILTERS).forEach(([key, value]) => {
                 if (Array.isArray(value)) {
-                    value.filter(item => item !== null && item !== '').forEach(item => {
-                        addHidden(`${key}[]`, item);
-                    });
-                } else if (value !== null && value !== '') {
-                    addHidden(key, value);
+                    value
+                        .filter(item => item !== null && item !== undefined && item !== '')
+                        .forEach(item => url.searchParams.append(`${key}[]`, item));
+                    return;
+                }
+
+                if (value !== null && value !== undefined && value !== '') {
+                    url.searchParams.set(key, value);
+                }
+            });
+
+            window.location.href = url.toString();
+        }
+
+        if (applyDateRangeBtn) {
+            applyDateRangeBtn.addEventListener('click', applyDateRange);
+        }
+
+        if (dateFromVisible) {
+            dateFromVisible.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applyDateRange();
+                }
+            });
+        }
+
+        if (dateToVisible) {
+            dateToVisible.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applyDateRange();
                 }
             });
         }
 
         function closeFilterPopover() {
-            const popover = document.getElementById('filterPopover');
-            popover.classList.add('hidden');
-            currentPopoverKey = null;
+            if (!filterPopover) {
+                return;
+            }
+
+            filterPopover.classList.add('hidden');
+            filterPopover.innerHTML = '';
         }
 
-        function openFilterPopover(event, key) {
-            currentPopoverKey = key;
-
-            const config = filterOptions[key];
-            if (!config) return;
-
-            const popover = document.getElementById('filterPopover');
-            const title = document.getElementById('filterPopoverTitle');
-            const body = document.getElementById('filterPopoverBody');
-
-            title.textContent = config.title;
-            body.innerHTML = '';
-
-            if (config.type === 'checklist') {
-                const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
-                renderChecklist(body, config, values, false);
+        function rebuildFiltersForm(params) {
+            if (!filtersForm) {
+                return;
             }
 
-            if (config.type === 'checklist_object') {
-                const values = Array.isArray(activeFilters[config.inputName]) ? activeFilters[config.inputName] : [];
-                renderChecklist(body, config, values, true);
-            }
+            filtersForm.innerHTML = '';
 
-            if (config.type === 'date_range') {
-                renderDateRange(body, config);
-            }
+            const dateFromInput = document.createElement('input');
+            dateFromInput.type = 'hidden';
+            dateFromInput.name = 'date_from';
+            dateFromInput.value = dateFromVisible?.value || "{{ $dateFrom }}";
+            filtersForm.appendChild(dateFromInput);
 
-            popover.classList.remove('hidden');
+            const dateToInput = document.createElement('input');
+            dateToInput.type = 'hidden';
+            dateToInput.name = 'date_to';
+            dateToInput.value = dateToVisible?.value || "{{ $dateTo }}";
+            filtersForm.appendChild(dateToInput);
 
-            const rect = event.currentTarget.getBoundingClientRect();
-            const top = rect.bottom + window.scrollY + 8;
-            const left = Math.max(16, Math.min(window.innerWidth - 360, rect.left + window.scrollX - 280));
-
-            popover.style.top = `${top}px`;
-            popover.style.left = `${left}px`;
-        }
-
-        function renderChecklist(body, config, selectedValues, objectMode = false) {
-            const searchId = `search_${config.inputName}`;
-            const listId = `list_${config.inputName}`;
-
-            body.innerHTML = `
-                <div>
-                    <input
-                        type="text"
-                        id="${searchId}"
-                        class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        placeholder="Buscar dentro de la lista"
-                    >
-                </div>
-                <div id="${listId}" class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3"></div>
-            `;
-
-            const list = document.getElementById(listId);
-            const search = document.getElementById(searchId);
-
-            const renderList = () => {
-                const term = search.value.toLowerCase().trim();
-                let items = config.options ?? [];
-
-                if (objectMode) {
-                    items = items.filter(item => String(item.label ?? '').toLowerCase().includes(term));
-                } else {
-                    items = items.filter(item => String(item).toLowerCase().includes(term));
-                }
-
-                if (items.length === 0) {
-                    list.innerHTML = `<p class="text-sm text-slate-500">No hay coincidencias.</p>`;
+            Object.entries(params).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    value.forEach(item => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `${key}[]`;
+                        input.value = item;
+                        filtersForm.appendChild(input);
+                    });
                     return;
                 }
 
-                list.innerHTML = items.map(item => {
-                    const value = objectMode ? item.value : item;
-                    const label = objectMode ? item.label : item;
-                    const checked = selectedValues.includes(String(value)) || selectedValues.includes(value);
+                if (value !== null && value !== undefined && value !== '') {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    filtersForm.appendChild(input);
+                }
+            });
+        }
+                function submitFilters(nextFilters = {}) {
+            const merged = {};
 
-                    return `
-                        <label class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-                            <input
-                                type="checkbox"
-                                value="${escapeHtml(String(value))}"
-                                class="filter-check mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                ${checked ? 'checked' : ''}
-                            >
-                            <span>${escapeHtml(String(label))}</span>
-                        </label>
-                    `;
-                }).join('');
-            };
+            Object.entries(ACTIVE_FILTERS).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    const normalized = normalizeScalarArray(value);
+                    if (normalized.length > 0) {
+                        merged[key] = normalized;
+                    }
+                    return;
+                }
 
-            renderList();
-            search.addEventListener('input', renderList);
+                if (value !== null && value !== undefined && value !== '') {
+                    merged[key] = value;
+                }
+            });
+
+            Object.entries(nextFilters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    const normalized = normalizeScalarArray(value);
+                    if (normalized.length > 0) {
+                        merged[key] = normalized;
+                    } else {
+                        delete merged[key];
+                    }
+                    return;
+                }
+
+                if (value === null || value === undefined || value === '') {
+                    delete merged[key];
+                } else {
+                    merged[key] = value;
+                }
+            });
+
+            rebuildFiltersForm(merged);
+            filtersForm.submit();
         }
 
-        function renderDateRange(body, config) {
-            body.innerHTML = `
-                <div class="space-y-4">
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Desde</label>
-                        <input
-                            type="date"
-                            id="date_from_input"
-                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                            value="${activeFilters[config.fromName] ?? ''}"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Hasta</label>
-                        <input
-                            type="date"
-                            id="date_to_input"
-                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                            value="${activeFilters[config.toName] ?? ''}"
-                        >
-                    </div>
-                </div>
-            `;
-        }
-
-        function clearCurrentFilter() {
-            if (!currentPopoverKey) return;
-
-            const config = filterOptions[currentPopoverKey];
-
-            if (config.type === 'checklist' || config.type === 'checklist_object') {
-                activeFilters[config.inputName] = [];
-            }
-
-            if (config.type === 'date_range') {
-                activeFilters[config.fromName] = '';
-                activeFilters[config.toName] = '';
-            }
-
-            submitFilters();
-        }
-
-        function applyCurrentFilter() {
-            if (!currentPopoverKey) return;
-
-            const config = filterOptions[currentPopoverKey];
-
-            if (config.type === 'checklist' || config.type === 'checklist_object') {
-                const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
-                    .map(cb => cb.value);
-
-                activeFilters[config.inputName] = values;
-            }
-
-            if (config.type === 'date_range') {
-                activeFilters[config.fromName] = document.getElementById('date_from_input')?.value ?? '';
-                activeFilters[config.toName] = document.getElementById('date_to_input')?.value ?? '';
-            }
-
-            submitFilters();
-        }
-
-        function submitFilters() {
-            buildFiltersForm();
-            document.getElementById('filtersForm').submit();
-        }
-
-        function escapeHtml(text) {
-            return text
+        function escapeHtml(value) {
+            return String(value ?? '')
                 .replaceAll('&', '&amp;')
                 .replaceAll('<', '&lt;')
                 .replaceAll('>', '&gt;')
@@ -1152,156 +1128,458 @@
                 .replaceAll("'", '&#039;');
         }
 
-        async function toggleExecution(checkbox) {
-            if (isReadOnly) {
-                checkbox.checked = !checkbox.checked;
+        function getPopoverPosition(event) {
+            const triggerRect = event.currentTarget.getBoundingClientRect();
+            const width = 320;
+            const left = Math.min(
+                window.scrollX + triggerRect.left,
+                window.scrollX + window.innerWidth - width - 16
+            );
+            const top = window.scrollY + triggerRect.bottom + 10;
+
+            return { left: Math.max(8, left), top };
+        }
+
+        function openFilterPopover(event, filterKey) {
+            event.preventDefault();
+
+            if (!filterPopover) {
                 return;
             }
 
-            const reportId = checkbox.dataset.id;
-            const isChecked = checkbox.checked;
+            const position = getPopoverPosition(event);
+            filterPopover.style.left = `${position.left}px`;
+            filterPopover.style.top = `${position.top}px`;
+            filterPopover.classList.remove('hidden');
 
-            const badge = document.getElementById(`execution-badge-${reportId}`);
-            const dateCell = document.getElementById(`execution-date-${reportId}`);
+            const title = FILTER_LABELS[filterKey] || 'Filtro';
+            const currentValue = ACTIVE_FILTERS[filterKey];
+            const options = FILTER_OPTIONS[filterKey] || [];
 
-            try {
-                const response = await fetch(`/admin/preventive-reports/report-details/${reportId}/toggle-execution`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        is_checked: isChecked ? 1 : 0
-                    })
-                });
+            if (filterKey === 'report_date_range' || filterKey === 'execution_date_range') {
+                const fromValue = currentValue?.from ?? '';
+                const toValue = currentValue?.to ?? '';
 
-                const data = await response.json();
+                filterPopover.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="text-sm font-semibold text-slate-900">${escapeHtml(title)}</h3>
+                            <button
+                                type="button"
+                                onclick="closeFilterPopover()"
+                                class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                                aria-label="Cerrar"
+                            >
+                                ✕
+                            </button>
+                        </div>
 
-                if (!response.ok) {
-                    throw new Error(data.message || 'No fue posible actualizar el estado.');
-                }
+                        <div class="grid gap-3">
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                    Desde
+                                </label>
+                                <input
+                                    id="popover-date-from"
+                                    type="date"
+                                    value="${escapeHtml(fromValue)}"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                                >
+                            </div>
 
-                if (isChecked) {
-                    badge.classList.remove('bg-amber-100', 'text-amber-800');
-                    badge.classList.add('bg-green-100', 'text-green-700');
-                    badge.querySelector('span').textContent = 'REALIZADO';
-                    dateCell.textContent = data.execution_date ? data.execution_date.substring(0, 10) : '—';
-                } else {
-                    badge.classList.remove('bg-green-100', 'text-green-700');
-                    badge.classList.add('bg-amber-100', 'text-amber-800');
-                    badge.querySelector('span').textContent = 'PENDIENTE';
-                    dateCell.textContent = '—';
-                }
-            } catch (error) {
-                checkbox.checked = !isChecked;
-                alert(error.message);
-            }
-        }
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                    Hasta
+                                </label>
+                                <input
+                                    id="popover-date-to"
+                                    type="date"
+                                    value="${escapeHtml(toValue)}"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                                >
+                            </div>
+                        </div>
 
-        function initExecutionCheckboxes() {
-            document.querySelectorAll('.execution-checkbox').forEach(cb => {
-                cb.addEventListener('change', function () {
-                    toggleExecution(this);
-                });
+                        <div class="flex items-center justify-between gap-2 pt-1">
+                            <button
+                                type="button"
+                                onclick="submitDateRangeFilter('${escapeHtml(filterKey)}')"
+                                class="inline-flex items-center rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b63f28]"
+                            >
+                                Aplicar
+                            </button>
 
-                if (isReadOnly) {
-                    cb.disabled = true;
-                    cb.classList.add('cursor-not-allowed', 'opacity-60');
-                }
-            });
-        }
+                            <button
+                                type="button"
+                                onclick="clearSingleFilter('${escapeHtml(filterKey)}')"
+                                class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                                Limpiar
+                            </button>
+                        </div>
+                    </div>
+                `;
 
-        function syncBottomScrollbar() {
-            const bar = document.getElementById('bottomHorizontalScrollbar');
-            const barInner = document.getElementById('bottomHorizontalScrollbarInner');
-            const container = document.getElementById('tableScrollContainer');
-            const table = document.getElementById('preventiveTable');
-
-            if (!bar || !barInner || !container || !table) return;
-
-            const containerRect = container.getBoundingClientRect();
-            const hasOverflow = table.scrollWidth > container.clientWidth + 4;
-
-            if (!hasOverflow) {
-                bar.classList.remove('is-visible');
                 return;
             }
 
-            bar.classList.add('is-visible');
-            bar.style.left = `${containerRect.left}px`;
-            bar.style.width = `${containerRect.width}px`;
-            barInner.style.width = `${table.scrollWidth}px`;
+            const selectedValues = Array.isArray(currentValue)
+                ? normalizeScalarArray(currentValue)
+                : [];
 
-            if (!bar.dataset.bound) {
-                let syncingFromBar = false;
-                let syncingFromTable = false;
+            const optionItems = options.map(option => {
+                const value = typeof option === 'object' ? option.value : option;
+                const label = typeof option === 'object' ? option.label : option;
+                const checked = selectedValues.includes(String(value)) ? 'checked' : '';
 
-                bar.addEventListener('scroll', () => {
-                    if (syncingFromTable) return;
-                    syncingFromBar = true;
-                    container.scrollLeft = bar.scrollLeft;
-                    syncingFromBar = false;
-                });
+                return `
+                    <label class="flex items-start gap-3 rounded-xl px-2 py-2 transition hover:bg-slate-50">
+                        <input
+                            type="checkbox"
+                            value="${escapeHtml(value)}"
+                            ${checked}
+                            class="filter-option-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                        >
+                        <span class="text-sm text-slate-700 leading-5">${escapeHtml(label)}</span>
+                    </label>
+                `;
+            }).join('');
 
-                container.addEventListener('scroll', () => {
-                    if (syncingFromBar) return;
-                    syncingFromTable = true;
-                    bar.scrollLeft = container.scrollLeft;
-                    syncingFromTable = false;
-                });
+            filterPopover.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <h3 class="text-sm font-semibold text-slate-900">${escapeHtml(title)}</h3>
+                        <button
+                            type="button"
+                            onclick="closeFilterPopover()"
+                            class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            aria-label="Cerrar"
+                        >
+                            ✕
+                        </button>
+                    </div>
 
-                bar.dataset.bound = '1';
+                    <div>
+                        <input
+                            id="filter-search-input"
+                            type="text"
+                            placeholder="Buscar..."
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                            oninput="filterPopoverOptions()"
+                        >
+                    </div>
+
+                    <div
+                        id="filter-options-container"
+                        data-filter-key="${escapeHtml(filterKey)}"
+                        class="max-h-72 space-y-1 overflow-y-auto pr-1"
+                    >
+                        ${optionItems || '<p class="px-2 py-2 text-sm text-slate-500">No hay opciones disponibles.</p>'}
+                    </div>
+
+                    <div class="flex items-center justify-between gap-2 pt-1">
+                        <button
+                            type="button"
+                            onclick="applyMultiSelectFilter()"
+                            class="inline-flex items-center rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b63f28]"
+                        >
+                            Aplicar
+                        </button>
+
+                        <button
+                            type="button"
+                            onclick="clearSingleFilter('${escapeHtml(filterKey)}')"
+                            class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                            Limpiar
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+                function filterPopoverOptions() {
+            const searchInput = document.getElementById('filter-search-input');
+            const container = document.getElementById('filter-options-container');
+
+            if (!searchInput || !container) {
+                return;
             }
 
-            bar.scrollLeft = container.scrollLeft;
-        }
+            const term = searchInput.value.trim().toLowerCase();
+            const labels = container.querySelectorAll('label');
 
-        function applyCompactModeIfNeeded() {
-            const table = document.getElementById('preventiveTable');
-            const container = document.getElementById('tableScrollContainer');
-            if (!table || !container) return;
-
-            table.classList.remove('compact-mode');
-
-            requestAnimationFrame(() => {
-                const hasOverflow = table.scrollWidth > container.clientWidth + 4;
-                table.classList.toggle('compact-mode', hasOverflow);
-
-                requestAnimationFrame(() => {
-                    syncBottomScrollbar();
-                });
+            labels.forEach(label => {
+                const text = label.textContent.trim().toLowerCase();
+                label.classList.toggle('hidden', term !== '' && !text.includes(term));
             });
         }
 
-        initExecutionCheckboxes();
+        function applyMultiSelectFilter() {
+            const container = document.getElementById('filter-options-container');
+
+            if (!container) {
+                return;
+            }
+
+            const filterKey = container.dataset.filterKey;
+            const selectedValues = Array.from(
+                container.querySelectorAll('.filter-option-checkbox:checked')
+            ).map(input => input.value);
+
+            submitFilters({
+                [filterKey]: selectedValues,
+                page: null,
+            });
+
+            closeFilterPopover();
+        }
+
+        function submitDateRangeFilter(filterKey) {
+            const fromInput = document.getElementById('popover-date-from');
+            const toInput = document.getElementById('popover-date-to');
+
+            const from = fromInput?.value?.trim() || '';
+            const to = toInput?.value?.trim() || '';
+
+            if (from && to && to < from) {
+                alert('La fecha final no puede ser menor que la fecha inicial.');
+                return;
+            }
+
+            const payload = {};
+            payload[filterKey] = (from || to) ? { from, to } : null;
+            payload.page = null;
+
+            submitFilters(payload);
+            closeFilterPopover();
+        }
+
+        function clearSingleFilter(filterKey) {
+            const payload = {};
+            payload[filterKey] = null;
+            payload.page = null;
+
+            submitFilters(payload);
+            closeFilterPopover();
+        }
 
         document.addEventListener('click', function (event) {
-            const popover = document.getElementById('filterPopover');
+            if (!filterPopover || filterPopover.classList.contains('hidden')) {
+                return;
+            }
 
-            if (popover.classList.contains('hidden')) return;
+            const clickedPopover = filterPopover.contains(event.target);
+            const clickedTrigger = event.target.closest('th button');
 
-            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+            if (!clickedPopover && !clickedTrigger) {
                 closeFilterPopover();
             }
         });
 
-        document.addEventListener('DOMContentLoaded', function () {
-            applyCompactModeIfNeeded();
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeFilterPopover();
+            }
         });
 
-        window.addEventListener('load', function () {
-            applyCompactModeIfNeeded();
+        const tableScrollContainer = document.getElementById('tableScrollContainer');
+        const bottomScrollbar = document.getElementById('bottomScrollbar');
+        const bottomScrollbarInner = document.getElementById('bottomScrollbarInner');
+        const preventiveTable = document.getElementById('preventiveTable');
+
+        let syncingScroll = false;
+
+        function syncBottomScrollbarWidth() {
+            if (!tableScrollContainer || !bottomScrollbar || !bottomScrollbarInner || !preventiveTable) {
+                return;
+            }
+
+            bottomScrollbarInner.style.width = `${preventiveTable.scrollWidth}px`;
+        }
+
+        function updateBottomScrollbarVisibility() {
+            if (!tableScrollContainer || !bottomScrollbar || !preventiveTable) {
+                return;
+            }
+
+            const hasHorizontalOverflow = preventiveTable.scrollWidth > tableScrollContainer.clientWidth;
+            const tableRect = tableScrollContainer.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+
+            const shouldShow =
+                hasHorizontalOverflow &&
+                tableRect.bottom > 0 &&
+                tableRect.top < viewportHeight - 40;
+
+            bottomScrollbar.classList.toggle('is-visible', shouldShow);
+
+            if (shouldShow) {
+                const shellRect = tableScrollContainer.getBoundingClientRect();
+                bottomScrollbar.style.left = `${shellRect.left}px`;
+                bottomScrollbar.style.width = `${shellRect.width}px`;
+            }
+        }
+
+        if (tableScrollContainer && bottomScrollbar) {
+            tableScrollContainer.addEventListener('scroll', () => {
+                if (syncingScroll) return;
+                syncingScroll = true;
+                bottomScrollbar.scrollLeft = tableScrollContainer.scrollLeft;
+                syncingScroll = false;
+            });
+
+            bottomScrollbar.addEventListener('scroll', () => {
+                if (syncingScroll) return;
+                syncingScroll = true;
+                tableScrollContainer.scrollLeft = bottomScrollbar.scrollLeft;
+                syncingScroll = false;
+            });
+
+            window.addEventListener('resize', () => {
+                syncBottomScrollbarWidth();
+                updateBottomScrollbarVisibility();
+            });
+
+            window.addEventListener('scroll', updateBottomScrollbarVisibility, { passive: true });
+
+            requestAnimationFrame(() => {
+                syncBottomScrollbarWidth();
+                updateBottomScrollbarVisibility();
+                bottomScrollbar.scrollLeft = tableScrollContainer.scrollLeft;
+            });
+        }
+                function updateCompactMode() {
+            if (!tableScrollContainer || !preventiveTable) {
+                return;
+            }
+
+            const shouldCompact = preventiveTable.scrollWidth > tableScrollContainer.clientWidth + 140;
+            preventiveTable.classList.toggle('compact-mode', shouldCompact);
+
+            requestAnimationFrame(() => {
+                syncBottomScrollbarWidth();
+                updateBottomScrollbarVisibility();
+            });
+        }
+
+        window.addEventListener('resize', updateCompactMode);
+
+        requestAnimationFrame(() => {
+            updateCompactMode();
         });
 
-        window.addEventListener('resize', function () {
-            applyCompactModeIfNeeded();
+        async function toggleExecution(reportId) {
+            if (@json($isReadOnly)) {
+                return;
+            }
+
+            const badge = document.getElementById(`execution-badge-${reportId}`);
+            const dateCell = document.getElementById(`execution-date-${reportId}`);
+
+            if (!badge) {
+                return;
+            }
+
+            const previousHtml = badge.innerHTML;
+            const previousClassName = badge.className;
+            const previousDate = dateCell ? dateCell.innerHTML : '';
+
+            badge.disabled = true;
+            badge.classList.add('opacity-70', 'pointer-events-none');
+            badge.innerHTML = 'Actualizando...';
+
+            try {
+                const response = await fetch(
+                    "{{ route('admin.preventive-reports.toggle-execution', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({})
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'No fue posible actualizar la ejecución.');
+                }
+
+                const executed = Boolean(data.executed);
+                const executionDate = data.execution_date || '—';
+
+                badge.className = [
+                    'inline-flex',
+                    'items-center',
+                    'justify-center',
+                    'rounded-xl',
+                    'px-3',
+                    'py-1.5',
+                    'text-[11px]',
+                    'font-semibold',
+                    'transition',
+                    executed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                ].join(' ');
+
+                badge.innerHTML = executed ? 'EJECUTADO' : 'PENDIENTE';
+
+                if (dateCell) {
+                    dateCell.textContent = executionDate;
+                }
+            } catch (error) {
+                badge.className = previousClassName;
+                badge.innerHTML = previousHtml;
+
+                if (dateCell) {
+                    dateCell.innerHTML = previousDate;
+                }
+
+                alert(error.message || 'Ocurrió un error al actualizar la ejecución.');
+            } finally {
+                badge.disabled = false;
+                badge.classList.remove('opacity-70', 'pointer-events-none');
+            }
+        }
+                document.addEventListener('DOMContentLoaded', () => {
+            try {
+                syncBottomScrollbarWidth();
+                updateBottomScrollbarVisibility();
+                updateCompactMode();
+            } catch (error) {
+                console.warn('Error inicializando layout de tabla:', error);
+            }
         });
 
-        window.addEventListener('scroll', function () {
-            syncBottomScrollbar();
-        }, { passive: true });
-    </script>
-</body>
+        let resizeObserver = null;
+
+        if (typeof ResizeObserver !== 'undefined' && preventiveTable) {
+            resizeObserver = new ResizeObserver(() => {
+                syncBottomScrollbarWidth();
+                updateBottomScrollbarVisibility();
+                updateCompactMode();
+            });
+
+            resizeObserver.observe(preventiveTable);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (resizeObserver && preventiveTable) {
+                resizeObserver.unobserve(preventiveTable);
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                requestAnimationFrame(() => {
+                    syncBottomScrollbarWidth();
+                    updateBottomScrollbarVisibility();
+                });
+            }
+        });
+        </script>
+    </body>
 </html>

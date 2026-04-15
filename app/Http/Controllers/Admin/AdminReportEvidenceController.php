@@ -11,8 +11,6 @@ class AdminReportEvidenceController extends Controller
 {
     public function open(ReportDetailFile $file): RedirectResponse
     {
-        // Si luego quieres endurecer permisos por cliente/tipo, aquí se valida.
-        // Por ahora asumimos que ya pasó por middleware admin.
 
         $disk = Storage::disk($file->disk);
 
