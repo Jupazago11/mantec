@@ -8,6 +8,10 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
+        :root {
+            --topbar-height: 108px;
+        }
+
         html {
             scroll-behavior: smooth;
         }
@@ -24,48 +28,31 @@
         .report-topbar {
             position: sticky;
             top: 0;
-            z-index: 40;
+            z-index: 50;
             backdrop-filter: blur(8px);
         }
 
         .report-topbar-card {
-            background: rgba(255, 255, 255, 0.94);
+            background: rgba(255, 255, 255, 0.96);
         }
 
         .compact-metric {
-            padding: 0.625rem 0.875rem;
-            border-radius: 1rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.95rem;
         }
 
         .compact-table-wrapper {
             position: relative;
         }
 
-        .top-scrollbar {
-            position: sticky;
-            top: 88px;
-            z-index: 35;
-            display: none;
-            overflow-x: auto;
-            overflow-y: hidden;
-            height: 16px;
-            border-left: 1px solid rgb(226 232 240);
-            border-right: 1px solid rgb(226 232 240);
-            border-top: 1px solid rgb(226 232 240);
-            background: rgb(248 250 252);
-        }
-
-        .top-scrollbar.is-visible {
-            display: block;
-        }
-
-        .top-scrollbar-inner {
-            height: 1px;
-        }
-
         .table-scroll-container {
             overflow-x: auto;
             overflow-y: visible;
+            scrollbar-width: none;
+        }
+
+        .table-scroll-container::-webkit-scrollbar {
+            height: 0;
         }
 
         .preventive-table {
@@ -79,44 +66,58 @@
             vertical-align: top;
         }
 
-        .preventive-table .cell-area {
-            width: 110px;
-            min-width: 110px;
-            max-width: 110px;
+        .preventive-table th {
             white-space: normal;
-            line-height: 1.15rem;
-            word-break: normal;
+            line-height: 1rem;
+        }
+
+        .sticky-table-head th {
+            position: sticky;
+            top: var(--topbar-height);
+            z-index: 20;
+            background: rgb(248 250 252);
+            box-shadow: inset 0 -1px 0 rgb(226 232 240);
+        }
+
+        .preventive-table .cell-area {
+            width: 92px;
+            min-width: 92px;
+            max-width: 92px;
+            white-space: normal;
+            line-height: 1.1rem;
             overflow-wrap: break-word;
         }
 
         .preventive-table .cell-element-name {
-            width: 108px;
-            min-width: 108px;
-            max-width: 108px;
+            width: 95px;
+            min-width: 95px;
+            max-width: 95px;
             white-space: normal;
-            line-height: 1.15rem;
+            line-height: 1.1rem;
+            overflow-wrap: break-word;
         }
 
         .preventive-table .cell-warehouse {
-            width: 110px;
-            min-width: 110px;
-            max-width: 110px;
+            width: 92px;
+            min-width: 92px;
+            max-width: 92px;
             white-space: normal;
-            line-height: 1.15rem;
+            line-height: 1.1rem;
+            overflow-wrap: break-word;
         }
 
         .preventive-table .cell-diagnostic {
-            width: 140px;
-            min-width: 140px;
-            max-width: 140px;
+            width: 122px;
+            min-width: 122px;
+            max-width: 122px;
         }
 
         .preventive-table .cell-recommendation {
-            width: 260px;
-            min-width: 260px;
-            max-width: 260px;
+            width: 180px;
+            min-width: 180px;
+            max-width: 180px;
             white-space: normal;
-            line-height: 1.25rem;
+            line-height: 1.15rem;
             overflow-wrap: anywhere;
             word-break: normal;
             hyphens: auto;
@@ -125,92 +126,232 @@
         }
 
         .preventive-table .cell-responsable {
-            width: 150px;
-            min-width: 150px;
-            max-width: 150px;
+            width: 118px;
+            min-width: 118px;
+            max-width: 118px;
             white-space: normal;
-            line-height: 1.2rem;
+            line-height: 1.1rem;
+            overflow-wrap: break-word;
         }
 
         .preventive-table .cell-date {
-            width: 96px;
-            min-width: 96px;
-            max-width: 96px;
+            width: 82px;
+            min-width: 82px;
+            max-width: 82px;
             white-space: normal;
-            line-height: 1.1rem;
+            line-height: 1.05rem;
+        }
+
+        .preventive-table .cell-short {
+            width: 68px;
+            min-width: 68px;
+            max-width: 68px;
+        }
+
+        .preventive-table .cell-week {
+            width: 48px;
+            min-width: 48px;
+            max-width: 48px;
+        }
+
+        .preventive-table .cell-condition-name {
+            width: 108px;
+            min-width: 108px;
+            max-width: 108px;
+        }
+
+        .preventive-table .cell-execution {
+            width: 112px;
+            min-width: 112px;
+            max-width: 112px;
+        }
+
+        .preventive-table .cell-evidence {
+            width: 68px;
+            min-width: 68px;
+            max-width: 68px;
+        }
+
+        .preventive-table th,
+        .preventive-table td {
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
+            padding-left: 0.625rem;
+            padding-right: 0.625rem;
+            font-size: 0.875rem;
         }
 
         .preventive-table.compact-mode th,
         .preventive-table.compact-mode td {
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.5rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            font-size: 0.8125rem !important;
+            padding-top: 0.45rem !important;
+            padding-bottom: 0.45rem !important;
+            padding-left: 0.45rem !important;
+            padding-right: 0.45rem !important;
+            font-size: 0.8rem !important;
         }
 
         .preventive-table.compact-mode .cell-area {
-            width: 92px;
-            min-width: 92px;
-            max-width: 92px;
+            width: 82px;
+            min-width: 82px;
+            max-width: 82px;
         }
 
         .preventive-table.compact-mode .cell-element-name {
-            width: 96px;
-            min-width: 96px;
-            max-width: 96px;
+            width: 88px;
+            min-width: 88px;
+            max-width: 88px;
         }
 
         .preventive-table.compact-mode .cell-warehouse {
+            width: 84px;
+            min-width: 84px;
+            max-width: 84px;
+        }
+
+        .preventive-table.compact-mode .cell-diagnostic {
+            width: 112px;
+            min-width: 112px;
+            max-width: 112px;
+        }
+
+        .preventive-table.compact-mode .cell-recommendation {
+            width: 160px;
+            min-width: 160px;
+            max-width: 160px;
+            font-size: 0.78rem !important;
+            line-height: 1.05rem !important;
+        }
+
+        .preventive-table.compact-mode .cell-responsable {
+            width: 106px;
+            min-width: 106px;
+            max-width: 106px;
+        }
+
+        .preventive-table.compact-mode .cell-date {
+            width: 74px;
+            min-width: 74px;
+            max-width: 74px;
+        }
+
+        .preventive-table.compact-mode .cell-short {
+            width: 58px;
+            min-width: 58px;
+            max-width: 58px;
+        }
+
+        .preventive-table.compact-mode .cell-week {
+            width: 42px;
+            min-width: 42px;
+            max-width: 42px;
+        }
+
+        .preventive-table.compact-mode .cell-condition-name {
             width: 96px;
             min-width: 96px;
             max-width: 96px;
         }
 
-        .preventive-table.compact-mode .cell-diagnostic {
-            width: 126px;
-            min-width: 126px;
-            max-width: 126px;
+        .preventive-table.compact-mode .cell-execution {
+            width: 98px;
+            min-width: 98px;
+            max-width: 98px;
         }
 
-        .preventive-table.compact-mode .cell-recommendation {
-            width: 220px;
-            min-width: 220px;
-            max-width: 220px;
-            font-size: 0.8rem !important;
-            line-height: 1.15rem !important;
+        .preventive-table.compact-mode .cell-evidence {
+            width: 56px;
+            min-width: 56px;
+            max-width: 56px;
         }
 
-        .preventive-table.compact-mode .cell-responsable {
-            width: 128px;
-            min-width: 128px;
-            max-width: 128px;
+        .custom-pagination {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            flex-wrap: wrap;
         }
 
-        .preventive-table.compact-mode .cell-date {
-            width: 86px;
-            min-width: 86px;
-            max-width: 86px;
+        .custom-pagination .page-btn,
+        .custom-pagination .page-current,
+        .custom-pagination .page-disabled {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.25rem;
+            height: 2.25rem;
+            padding: 0 0.75rem;
+            border-radius: 0.8rem;
+            border: 1px solid rgb(203 213 225);
+            font-size: 0.875rem;
+            font-weight: 600;
         }
 
-        .sticky-table-head th {
-            position: sticky;
-            top: 132px;
-            z-index: 20;
+        .custom-pagination .page-btn {
+            background: white;
+            color: rgb(51 65 85);
+            transition: 0.2s ease;
+        }
+
+        .custom-pagination .page-btn:hover {
             background: rgb(248 250 252);
+            border-color: rgb(148 163 184);
+        }
+
+        .custom-pagination .page-current {
+            background: rgb(226 232 240);
+            color: rgb(15 23 42);
+            border-color: rgb(148 163 184);
+        }
+
+        .custom-pagination .page-disabled {
+            background: rgb(248 250 252);
+            color: rgb(148 163 184);
+        }
+
+        .bottom-scrollbar-fixed {
+            position: fixed;
+            bottom: 0;
+            z-index: 60;
+            display: none;
+            height: 18px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            background: rgba(248, 250, 252, 0.98);
+            border: 1px solid rgb(203 213 225);
+            border-bottom: 0;
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
+            box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
+        }
+
+        .bottom-scrollbar-fixed.is-visible {
+            display: block;
+        }
+
+        .bottom-scrollbar-inner {
+            height: 1px;
+        }
+
+        .bottom-scrollbar-fixed::-webkit-scrollbar,
+        .table-scroll-container::-webkit-scrollbar {
+            height: 12px;
+        }
+
+        .bottom-scrollbar-fixed::-webkit-scrollbar-thumb,
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgb(148 163 184);
+            border-radius: 9999px;
+        }
+
+        .bottom-scrollbar-fixed::-webkit-scrollbar-track,
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgb(241 245 249);
         }
 
         @media (max-width: 1280px) {
-            .report-topbar {
-                top: 0;
-            }
-
-            .top-scrollbar {
-                top: 98px;
-            }
-
-            .sticky-table-head th {
-                top: 142px;
+            .preventive-table th,
+            .preventive-table td {
+                font-size: 0.82rem;
             }
         }
     </style>
@@ -243,11 +384,15 @@
         $showWarehouseColumn = $reportItems->contains(function ($report) {
             return filled($report->element?->warehouse_code);
         });
+
+        $pageWindow = 3;
+        $startPage = max(1, $reports->currentPage() - $pageWindow);
+        $endPage = min($reports->lastPage(), $reports->currentPage() + $pageWindow);
     @endphp
 
     <div class="min-h-screen p-3 md:p-4">
         <div class="report-shell space-y-3">
-            <div class="report-topbar">
+            <div id="reportTopbar" class="report-topbar">
                 <div class="report-topbar-card rounded-2xl border border-slate-200 px-4 py-3 shadow-sm">
                     <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div class="min-w-0">
@@ -296,8 +441,26 @@
 
                             <div class="flex flex-wrap items-center gap-2 xl:justify-end">
                                 @if($reports->hasPages())
-                                    <div class="rounded-xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-                                        {{ $reports->appends(['year' => $currentYear])->onEachSide(1)->links() }}
+                                    <div class="custom-pagination">
+                                        @if($reports->onFirstPage())
+                                            <span class="page-disabled">‹</span>
+                                        @else
+                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->previousPageUrl() }}">‹</a>
+                                        @endif
+
+                                        @for($page = $startPage; $page <= $endPage; $page++)
+                                            @if($page === $reports->currentPage())
+                                                <span class="page-current">{{ $page }}</span>
+                                            @else
+                                                <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->url($page) }}">{{ $page }}</a>
+                                            @endif
+                                        @endfor
+
+                                        @if($reports->hasMorePages())
+                                            <a class="page-btn" href="{{ $reports->appends(['year' => $currentYear])->nextPageUrl() }}">›</a>
+                                        @else
+                                            <span class="page-disabled">›</span>
+                                        @endif
                                     </div>
                                 @endif
 
@@ -320,20 +483,16 @@
             </form>
 
             <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div id="topHorizontalScrollbar" class="top-scrollbar">
-                    <div id="topHorizontalScrollbarInner" class="top-scrollbar-inner"></div>
-                </div>
-
                 <div id="tableScrollContainer" class="table-scroll-container">
                     <table id="preventiveTable" class="preventive-table divide-y divide-slate-200">
                         <thead class="sticky-table-head bg-slate-50">
                             <tr>
-                                <th class="cell-area px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-area text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Área</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'area_names')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -341,12 +500,12 @@
                                     </div>
                                 </th>
 
-                                <th class="cell-element-name px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
-                                        <span>Nombre del activo</span>
+                                <th class="cell-element-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
+                                        <span>Nombre del<br>activo</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'element_names')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -355,12 +514,12 @@
                                 </th>
 
                                 @if($showWarehouseColumn)
-                                    <th class="cell-warehouse px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-start gap-2">
-                                            <span>Ubicación técnica</span>
+                                    <th class="cell-warehouse text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        <div class="flex items-start gap-1.5">
+                                            <span>Ubicación<br>técnica</span>
                                             <button type="button"
                                                 onclick="openFilterPopover(event, 'warehouse_codes')"
-                                                class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                                class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                                 </svg>
@@ -369,12 +528,12 @@
                                     </th>
                                 @endif
 
-                                <th class="cell-diagnostic px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-diagnostic text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Diagnóstico</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'diagnostic_pairs')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -382,12 +541,12 @@
                                     </div>
                                 </th>
 
-                                <th class="cell-recommendation px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-recommendation text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Recomendación</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'recommendation_values')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -395,16 +554,16 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                <th class="cell-evidence text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                                     Evidencia
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Condición</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'condition_codes')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('condition_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('condition_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -412,12 +571,12 @@
                                     </div>
                                 </th>
 
-                                <th class="w-[84px] px-2 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Orden</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'orden_values')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('orden_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('orden_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -425,12 +584,12 @@
                                     </div>
                                 </th>
 
-                                <th class="w-[84px] px-2 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Aviso</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'aviso_values')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -438,12 +597,12 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Inspector</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'inspector_names')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -451,12 +610,12 @@
                                     </div>
                                 </th>
 
-                                <th class="cell-responsable px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-responsable text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Responsable</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'responsable_names')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('responsable_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('responsable_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -464,12 +623,12 @@
                                     </div>
                                 </th>
 
-                                <th class="cell-date px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 leading-4">
-                                    <div class="flex items-start gap-2">
-                                        <span>Fecha de reporte</span>
+                                <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
+                                        <span>Fecha de<br>reporte</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'report_date_range')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('report_date_from') || $hasFilter('report_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('report_date_from') || $hasFilter('report_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -477,12 +636,12 @@
                                     </div>
                                 </th>
 
-                                <th class="cell-date px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 leading-4">
-                                    <div class="flex items-start gap-2">
-                                        <span>Fecha de ejecución</span>
+                                <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
+                                        <span>Fecha de<br>ejecución</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'execution_date_range')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('execution_date_from') || $hasFilter('execution_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('execution_date_from') || $hasFilter('execution_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -490,12 +649,12 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 leading-4">
-                                    <div class="flex items-start gap-2">
-                                        <span>Condición del activo</span>
+                                <th class="cell-condition-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
+                                        <span>Condición del<br>activo</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'condition_names')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('condition_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('condition_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -503,12 +662,12 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 leading-4">
-                                    <div class="flex items-start gap-2">
-                                        <span>Ejecución orden</span>
+                                <th class="cell-execution text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
+                                        <span>Ejecución<br>orden</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'execution_statuses')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('execution_statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('execution_statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -516,12 +675,12 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-start gap-2">
+                                <th class="cell-week text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <div class="flex items-start gap-1.5">
                                         <span>Semana</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'weeks')"
-                                            class="mt-0.5 rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('weeks') ? 'text-[#d94d33]' : 'text-slate-400' }}">
+                                            class="mt-0.5 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('weeks') ? 'text-[#d94d33]' : 'text-slate-400' }}">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
                                             </svg>
@@ -538,21 +697,21 @@
                                 @endphp
 
                                 <tr class="align-top hover:bg-slate-50">
-                                    <td class="cell-area px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-area text-sm text-slate-700">
                                         {{ $report->element?->area?->name ?? '—' }}
                                     </td>
 
-                                    <td class="cell-element-name px-3 py-3 text-sm font-medium text-slate-900">
+                                    <td class="cell-element-name text-sm font-medium text-slate-900">
                                         {{ $report->element?->name ?? '—' }}
                                     </td>
 
                                     @if($showWarehouseColumn)
-                                        <td class="cell-warehouse px-3 py-3 text-sm text-slate-700">
+                                        <td class="cell-warehouse text-sm text-slate-700">
                                             {{ $report->element?->warehouse_code ?? '—' }}
                                         </td>
                                     @endif
 
-                                    <td class="cell-diagnostic px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-diagnostic text-sm text-slate-700">
                                         <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                                             {{ $report->component?->name ?? '—' }}
                                         </div>
@@ -561,7 +720,7 @@
                                         </div>
                                     </td>
 
-                                    <td class="cell-recommendation px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-recommendation text-sm text-slate-700">
                                         @if(($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
                                             <div lang="es">{!! nl2br(e(ltrim((string) $report->recommendation))) !!}</div>
                                         @else
@@ -569,7 +728,7 @@
                                         @endif
                                     </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-evidence whitespace-nowrap text-sm text-slate-700">
                                         @if($report->files->count() > 0)
                                             <a
                                                 href="{{ route('admin.preventive-reports.evidence', $report) }}"
@@ -586,27 +745,27 @@
                                         @endif
                                     </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
                                         {{ $report->condition?->code ?? '—' }}
                                     </td>
 
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
                                         {{ $report->orden ?: '—' }}
                                     </td>
 
-                                    <td class="whitespace-nowrap px-2 py-3 text-sm text-slate-700">
+                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
                                         {{ $report->aviso ?: '—' }}
                                     </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
                                         {{ $report->user?->name ?? '—' }}
                                     </td>
 
-                                    <td class="cell-responsable px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-responsable text-sm text-slate-700">
                                         {{ $report->responsable_names ?? '—' }}
                                     </td>
 
-                                    <td class="cell-date px-3 py-3 text-sm text-slate-700">
+                                    <td class="cell-date text-sm text-slate-700">
                                         @if($report->created_at)
                                             <div>{{ $report->created_at->format('Y-m-d') }}</div>
                                             <div class="text-[11px] text-slate-500">{{ $report->created_at->format('H:i') }}</div>
@@ -615,7 +774,7 @@
                                         @endif
                                     </td>
 
-                                    <td class="cell-date px-3 py-3 text-sm text-slate-700" id="execution-date-{{ $report->id }}">
+                                    <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $report->id }}">
                                         @if($isDone && $report->execution_date)
                                             {{ \Illuminate\Support\Carbon::parse($report->execution_date)->format('Y-m-d') }}
                                         @else
@@ -623,10 +782,10 @@
                                         @endif
                                     </td>
 
-                                    <td class="px-3 py-3 text-sm">
+                                    <td class="cell-condition-name text-sm">
                                         @if($report->condition)
                                             <span
-                                                class="inline-flex rounded-lg px-3 py-1 font-medium"
+                                                class="inline-flex rounded-lg px-2.5 py-1 font-medium"
                                                 style="background-color: {{ $report->condition->color ?? '#e2e8f0' }}; color: #0f172a;"
                                             >
                                                 {{ $report->condition->name }}
@@ -636,18 +795,18 @@
                                         @endif
                                     </td>
 
-                                    <td class="px-3 py-3 text-sm">
+                                    <td class="cell-execution text-sm">
                                         @if($isReadOnly ?? false)
                                             <span
                                                 id="execution-badge-{{ $report->id }}"
-                                                class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                                                class="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
                                             >
                                                 <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
                                             </span>
                                         @else
                                             <label
                                                 id="execution-badge-{{ $report->id }}"
-                                                class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                                                class="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -660,7 +819,7 @@
                                         @endif
                                     </td>
 
-                                    <td class="whitespace-nowrap px-3 py-3 text-sm font-semibold text-slate-900">
+                                    <td class="cell-week whitespace-nowrap text-sm font-semibold text-slate-900">
                                         {{ $report->week }}
                                     </td>
                                 </tr>
@@ -674,14 +833,12 @@
                         </tbody>
                     </table>
                 </div>
-
-                @if($reports->hasPages())
-                    <div class="border-t border-slate-200 px-4 py-3">
-                        {{ $reports->appends(['year' => $currentYear])->onEachSide(1)->links() }}
-                    </div>
-                @endif
             </div>
         </div>
+    </div>
+
+    <div id="bottomHorizontalScrollbar" class="bottom-scrollbar-fixed">
+        <div id="bottomHorizontalScrollbarInner" class="bottom-scrollbar-inner"></div>
     </div>
 
     <div id="filterPopover" class="fixed z-50 hidden w-[340px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -812,6 +969,14 @@
 
         const activeFilters = @json($activeFilters);
         let currentPopoverKey = null;
+
+        function updateStickyOffsets() {
+            const topbar = document.getElementById('reportTopbar');
+            if (!topbar) return;
+
+            const height = Math.ceil(topbar.getBoundingClientRect().height) + 8;
+            document.documentElement.style.setProperty('--topbar-height', `${height}px`);
+        }
 
         function buildFiltersForm() {
             const form = document.getElementById('filtersForm');
@@ -1080,37 +1245,49 @@
             });
         }
 
-        function syncHorizontalScrollbars() {
-            const top = document.getElementById('topHorizontalScrollbar');
-            const topInner = document.getElementById('topHorizontalScrollbarInner');
-            const bottom = document.getElementById('tableScrollContainer');
+        function syncBottomScrollbar() {
+            const bar = document.getElementById('bottomHorizontalScrollbar');
+            const barInner = document.getElementById('bottomHorizontalScrollbarInner');
+            const container = document.getElementById('tableScrollContainer');
             const table = document.getElementById('preventiveTable');
 
-            if (!top || !topInner || !bottom || !table) return;
+            if (!bar || !barInner || !container || !table) return;
 
-            const hasOverflow = table.scrollWidth > bottom.clientWidth + 4;
+            const containerRect = container.getBoundingClientRect();
+            const hasOverflow = table.scrollWidth > container.clientWidth + 4;
 
-            top.classList.toggle('is-visible', hasOverflow);
-            topInner.style.width = `${table.scrollWidth}px`;
-
-            if (hasOverflow) {
-                let syncingTop = false;
-                let syncingBottom = false;
-
-                top.addEventListener('scroll', () => {
-                    if (syncingBottom) return;
-                    syncingTop = true;
-                    bottom.scrollLeft = top.scrollLeft;
-                    syncingTop = false;
-                });
-
-                bottom.addEventListener('scroll', () => {
-                    if (syncingTop) return;
-                    syncingBottom = true;
-                    top.scrollLeft = bottom.scrollLeft;
-                    syncingBottom = false;
-                });
+            if (!hasOverflow) {
+                bar.classList.remove('is-visible');
+                return;
             }
+
+            bar.classList.add('is-visible');
+            bar.style.left = `${containerRect.left}px`;
+            bar.style.width = `${containerRect.width}px`;
+            barInner.style.width = `${table.scrollWidth}px`;
+
+            if (!bar.dataset.bound) {
+                let syncingFromBar = false;
+                let syncingFromTable = false;
+
+                bar.addEventListener('scroll', () => {
+                    if (syncingFromTable) return;
+                    syncingFromBar = true;
+                    container.scrollLeft = bar.scrollLeft;
+                    syncingFromBar = false;
+                });
+
+                container.addEventListener('scroll', () => {
+                    if (syncingFromBar) return;
+                    syncingFromTable = true;
+                    bar.scrollLeft = container.scrollLeft;
+                    syncingFromTable = false;
+                });
+
+                bar.dataset.bound = '1';
+            }
+
+            bar.scrollLeft = container.scrollLeft;
         }
 
         function applyCompactModeIfNeeded() {
@@ -1118,13 +1295,15 @@
             const container = document.getElementById('tableScrollContainer');
             if (!table || !container) return;
 
-            const hasOverflow = table.scrollWidth > container.clientWidth + 4;
-            table.classList.toggle('compact-mode', hasOverflow);
+            table.classList.remove('compact-mode');
 
             requestAnimationFrame(() => {
-                const stillHasOverflow = table.scrollWidth > container.clientWidth + 4;
-                table.classList.toggle('compact-mode', stillHasOverflow);
-                syncHorizontalScrollbars();
+                const hasOverflow = table.scrollWidth > container.clientWidth + 4;
+                table.classList.toggle('compact-mode', hasOverflow);
+
+                requestAnimationFrame(() => {
+                    syncBottomScrollbar();
+                });
             });
         }
 
@@ -1141,17 +1320,23 @@
         });
 
         document.addEventListener('DOMContentLoaded', function () {
+            updateStickyOffsets();
             applyCompactModeIfNeeded();
         });
 
         window.addEventListener('load', function () {
+            updateStickyOffsets();
             applyCompactModeIfNeeded();
-            syncHorizontalScrollbars();
         });
 
         window.addEventListener('resize', function () {
+            updateStickyOffsets();
             applyCompactModeIfNeeded();
         });
+
+        window.addEventListener('scroll', function () {
+            syncBottomScrollbar();
+        }, { passive: true });
     </script>
 </body>
 </html>
