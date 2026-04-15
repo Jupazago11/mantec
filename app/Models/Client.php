@@ -10,13 +10,16 @@ class Client extends Model
 {
     protected $fillable = [
         'name',
+        'obs',
         'status',
+        'auto_sync',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => 'boolean',
+            'auto_sync' => 'boolean',
         ];
     }
 

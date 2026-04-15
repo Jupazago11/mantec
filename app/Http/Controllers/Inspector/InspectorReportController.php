@@ -157,7 +157,7 @@ class InspectorReportController extends Controller
         abort_unless($this->userHasClientAccess($user, $client->id), 403);
 
         $areas = $this->allowedAreasQuery($user, $client->id)
-            ->orderBy('name')
+            ->orderBy('name', 'asc')
             ->get(['id', 'name']);
 
         return response()->json($areas);
@@ -216,7 +216,7 @@ class InspectorReportController extends Controller
             ->with('elementType')
             ->where('status', true)
             ->whereIn('element_type_id', $allowedElementTypeIds)
-            ->orderBy('name')
+            ->orderBy('name', 'asc')
             ->get()
             ->map(function ($element) {
                 return [
@@ -243,7 +243,7 @@ class InspectorReportController extends Controller
         $components = $element->components()
             ->where('components.status', true)
             ->where('components.element_type_id', $element->element_type_id)
-            ->orderBy('components.name')
+            ->orderBy('components.name', 'asc')
             ->get([
                 'components.id',
                 'components.name',
@@ -271,7 +271,7 @@ class InspectorReportController extends Controller
         $diagnostics = $component->diagnostics()
             ->where('diagnostics.status', true)
             ->where('diagnostics.element_type_id', $element->element_type_id)
-            ->orderBy('diagnostics.name')
+            ->orderBy('diagnostics.name', 'asc')
             ->get([
                 'diagnostics.id',
                 'diagnostics.client_id',

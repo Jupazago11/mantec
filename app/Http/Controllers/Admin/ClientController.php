@@ -49,11 +49,13 @@ class ClientController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150', 'unique:clients,name,' . $client->id],
             'obs' => ['nullable', 'string'],
+            'auto_sync' => ['required', 'boolean'],
         ]);
 
         $client->update([
             'name' => $validated['name'],
             'obs' => $validated['obs'] ?? null,
+            'auto_sync' => (bool) $validated['auto_sync'],
         ]);
 
         return redirect()
