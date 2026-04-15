@@ -508,70 +508,55 @@
                         <thead class="sticky-table-head bg-slate-50">
                             <tr>
                                 <th class="cell-area text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Área</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'area_names')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'area_names')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('area_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Área
+                                    </button>
                                 </th>
 
                                 <th class="cell-element-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Nombre del<br>activo</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'element_names')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'element_names')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('element_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Nombre del<br>activo
+                                    </button>
                                 </th>
 
                                 @if($showWarehouseColumn)
                                     <th class="cell-warehouse text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center justify-between gap-1">
-                                            <span class="leading-tight">Ubicación<br>técnica</span>
-                                            <button type="button"
-                                                onclick="openFilterPopover(event, 'warehouse_codes')"
-                                                class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onclick="openFilterPopover(event, 'warehouse_codes')"
+                                            class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('warehouse_codes') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                        >
+                                            Ubicación<br>técnica
+                                        </button>
                                     </th>
                                 @endif
 
                                 <th class="cell-diagnostic text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Diagnóstico</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'diagnostic_pairs')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'diagnostic_pairs')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Diagnóstico
+                                    </button>
                                 </th>
 
                                 <th class="cell-recommendation text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Recomendación</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'recommendation_values')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'recommendation_values')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Recomendación
+                                    </button>
                                 </th>
 
                                 <th class="cell-evidence text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -579,133 +564,103 @@
                                 </th>
 
                                 <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Condición</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'condition_codes')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('condition_codes') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'condition_codes')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('condition_codes') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Condición
+                                    </button>
                                 </th>
 
                                 <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Orden</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'orden_values')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('orden_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'orden_values')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('orden_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Orden
+                                    </button>
                                 </th>
 
                                 <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Aviso</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'aviso_values')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'aviso_values')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('aviso_values') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Aviso
+                                    </button>
                                 </th>
 
                                 <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Inspector</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'inspector_names')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'inspector_names')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('inspector_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Inspector
+                                    </button>
                                 </th>
 
                                 <th class="cell-responsable text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Responsable</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'responsable_names')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('responsable_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'responsable_names')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('responsable_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Responsable
+                                    </button>
                                 </th>
 
                                 <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Fecha de<br>reporte</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'report_date_range')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('report_date_from') || $hasFilter('report_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'report_date_range')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('report_date_from') || $hasFilter('report_date_to') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Fecha de<br>reporte
+                                    </button>
                                 </th>
 
                                 <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Fecha de<br>ejecución</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'execution_date_range')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('execution_date_from') || $hasFilter('execution_date_to') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'execution_date_range')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_date_from') || $hasFilter('execution_date_to') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Fecha de<br>ejecución
+                                    </button>
                                 </th>
 
                                 <th class="cell-condition-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Condición del<br>activo</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'condition_names')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('condition_names') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'condition_names')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('condition_names') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Condición del<br>activo
+                                    </button>
                                 </th>
 
                                 <th class="cell-execution text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Ejecución<br>orden</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'execution_statuses')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('execution_statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'execution_statuses')"
+                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_statuses') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Ejecución<br>orden
+                                    </button>
                                 </th>
 
                                 <th class="cell-week text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center justify-between gap-1">
-                                        <span class="leading-tight">Semana</span>
-                                        <button type="button"
-                                            onclick="openFilterPopover(event, 'weeks')"
-                                            class="shrink-0 rounded p-0.5 transition hover:bg-slate-200 {{ $hasFilter('weeks') ? 'text-[#d94d33]' : 'text-slate-400' }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick="openFilterPopover(event, 'weeks')"
+                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('weeks') ? 'text-[#d94d33]' : 'text-slate-500' }}"
+                                    >
+                                        Semana
+                                    </button>
                                 </th>
                             </tr>
                         </thead>
