@@ -92,7 +92,7 @@
 
                             <div>
                                 <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Recomendación</div>
-                                <div class="mt-1 rounded-xl bg-slate-50 px-4 py-3 text-slate-700">
+                                <div class="mt-1 rounded-xl bg-slate-50 px-4 py-3 text-slate-700 break-words whitespace-normal">
                                     {!! (($report->recommendation ?? null) && trim((string) $report->recommendation) !== '')
                                         ? nl2br(e(ltrim((string) $report->recommendation)))
                                         : '—' !!}

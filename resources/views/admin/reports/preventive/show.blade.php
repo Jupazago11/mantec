@@ -381,6 +381,171 @@
                 letter-spacing: inherit;
                 cursor: pointer;
             }
+
+            .inline-edit-trigger {
+                cursor: pointer;
+                border-radius: 0.65rem;
+                padding: 0.2rem 0.35rem;
+                transition: background-color 0.18s ease;
+                display: inline-block;
+                min-width: 36px;
+            }
+
+            .inline-edit-trigger:hover {
+                background: rgb(241 245 249);
+            }
+
+            .inline-edit-box {
+                display: flex;
+                flex-direction: column;
+                gap: 0.35rem;
+            }
+
+            .inline-edit-input {
+                width: 100%;
+                min-width: 70px;
+                border: 1px solid rgb(203 213 225);
+                border-radius: 0.65rem;
+                padding: 0.35rem 0.55rem;
+                font-size: 0.82rem;
+                line-height: 1.2rem;
+                color: rgb(51 65 85);
+                background: white;
+            }
+
+            .inline-edit-input:focus {
+                outline: none;
+                border-color: #d94d33;
+                box-shadow: 0 0 0 3px rgba(217, 77, 51, 0.15);
+            }
+
+            .inline-edit-actions {
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+            }
+
+            .inline-edit-btn {
+                border: 0;
+                border-radius: 0.55rem;
+                width: 26px;
+                height: 26px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.82rem;
+                font-weight: 700;
+                transition: 0.18s ease;
+                cursor: pointer;
+            }
+
+            .inline-edit-btn-cancel {
+                background: rgb(248 250 252);
+                color: rgb(71 85 105);
+                border: 1px solid rgb(226 232 240);
+            }
+
+            .inline-edit-btn-cancel:hover {
+                background: rgb(241 245 249);
+            }
+
+            .inline-edit-btn-save {
+                background: rgb(22 163 74);
+                color: white;
+            }
+
+            .inline-edit-btn-save:hover {
+                background: rgb(21 128 61);
+            }
+
+            .inline-edit-loading {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+
+            .inline-toast {
+                position: fixed;
+                right: 18px;
+                bottom: 24px;
+                z-index: 100;
+                min-width: 220px;
+                max-width: 340px;
+                border-radius: 0.95rem;
+                padding: 0.8rem 1rem;
+                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+                font-size: 0.9rem;
+                font-weight: 600;
+                transform: translateY(10px);
+                opacity: 0;
+                pointer-events: none;
+                transition: 0.22s ease;
+            }
+
+            .inline-toast.show {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            .inline-toast-success {
+                background: rgb(220 252 231);
+                color: rgb(22 101 52);
+                border: 1px solid rgb(187 247 208);
+            }
+
+            .inline-toast-error {
+                background: rgb(254 226 226);
+                color: rgb(153 27 27);
+                border: 1px solid rgb(254 202 202);
+            }
+
+
+            .inline-date-trigger {
+                cursor: pointer;
+                border-radius: 0.65rem;
+                padding: 0.2rem 0.35rem;
+                transition: background-color 0.18s ease;
+                display: inline-block;
+                min-width: 36px;
+            }
+
+            .inline-date-trigger:hover {
+                background: rgb(241 245 249);
+            }
+
+            .inline-date-box {
+                display: flex;
+                flex-direction: column;
+                gap: 0.35rem;
+            }
+
+            .inline-date-input {
+                width: 100%;
+                min-width: 118px;
+                border: 1px solid rgb(203 213 225);
+                border-radius: 0.65rem;
+                padding: 0.35rem 0.55rem;
+                font-size: 0.82rem;
+                line-height: 1.2rem;
+                color: rgb(51 65 85);
+                background: white;
+            }
+
+            .inline-date-input:focus {
+                outline: none;
+                border-color: #d94d33;
+                box-shadow: 0 0 0 3px rgba(217, 77, 51, 0.15);
+            }
+
+            .inline-date-actions {
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+            }
+
+            .inline-date-loading {
+                opacity: 0.6;
+                pointer-events: none;
+            }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -390,6 +555,8 @@
 
         $dateFrom = $dateFrom ?? request('date_from', now()->startOfYear()->toDateString());
         $dateTo = $dateTo ?? request('date_to', now()->toDateString());
+        $canInlineEditOrderAviso = $canInlineEditOrderAviso ?? false;
+        $canInlineEditExecutionDate = $canInlineEditExecutionDate ?? false;
 
         $hasFilter = function ($key) use ($activeFilters) {
             $value = $activeFilters[$key] ?? null;
@@ -871,12 +1038,38 @@
                                         {{ $conditionCode }}
                                     </td>
 
-                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $ordenValue }}
+                                    <td class="cell-short text-sm text-slate-700">
+                                        @if($canInlineEditOrderAviso)
+                                            <div
+                                                class="inline-editable"
+                                                data-report-id="{{ $reportId }}"
+                                                data-field="orden"
+                                                data-value="{{ $report->orden ?? '' }}"
+                                            >
+                                                <span class="inline-edit-trigger">
+                                                    {{ $ordenValue }}
+                                                </span>
+                                            </div>
+                                        @else
+                                            <span class="whitespace-nowrap">{{ $ordenValue }}</span>
+                                        @endif
                                     </td>
 
-                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $avisoValue }}
+                                    <td class="cell-short text-sm text-slate-700">
+                                        @if($canInlineEditOrderAviso)
+                                            <div
+                                                class="inline-editable"
+                                                data-report-id="{{ $reportId }}"
+                                                data-field="aviso"
+                                                data-value="{{ $report->aviso ?? '' }}"
+                                            >
+                                                <span class="inline-edit-trigger">
+                                                    {{ $avisoValue }}
+                                                </span>
+                                            </div>
+                                        @else
+                                            <span class="whitespace-nowrap">{{ $avisoValue }}</span>
+                                        @endif
                                     </td>
 
                                     <td class="cell-inspector text-sm text-slate-700">
@@ -895,9 +1088,23 @@
                                     </td>
 
                                     <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $reportId }}">
-                                        {{ $executionDateText }}
+                                        <div id="execution-date-content-{{ $reportId }}">
+                                            @if($report->executed && $canInlineEditExecutionDate)
+                                                <div
+                                                    class="inline-date-editable"
+                                                    data-report-id="{{ $reportId }}"
+                                                    data-value="{{ $report->execution_date ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d') : now()->toDateString() }}"
+                                                >
+                                                    <span class="inline-date-trigger">
+                                                        {{ $executionDateText }}
+                                                    </span>
+                                                </div>
+                                            @else
+                                                {{ $executionDateText }}
+                                            @endif
+                                        </div>
                                     </td>
-                                                                        <td class="cell-condition-name text-sm text-slate-700">
+                                    <td class="cell-condition-name text-sm text-slate-700">
                                         <span
                                             class="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800"
                                             style="background-color: {{ $conditionBg }}"
@@ -926,7 +1133,46 @@
                                     </td>
 
                                     <td class="cell-week whitespace-nowrap text-sm text-slate-700">
-                                        {{ $weekValue }}
+                                        <div class="flex items-start gap-2">
+                                            
+                                            {{-- NUMERO DE SEMANA --}}
+                                            <span class="mt-[2px]">{{ $weekValue }}</span>
+
+                                            {{-- ICONOS --}}
+                                            <div class="flex flex-col items-center gap-1">
+                                                
+                                                {{-- EDITAR --}}
+                                                @if($canEditReports)
+                                                    <button
+                                                        type="button"
+                                                        onclick="openEditReportModal({{ $reportId }})"
+                                                        class="text-slate-400 hover:text-[#d94d33] transition"
+                                                        title="Editar reporte"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                                                        </svg>
+                                                    </button>
+                                                @endif
+
+                                                {{-- ELIMINAR --}}
+                                                @if(in_array($roleKey, ['superadmin', 'admin_global'], true))
+                                                    <button
+                                                        type="button"
+                                                        onclick="toggleReportStatus({{ $reportId }})"
+                                                        class="text-red-500 hover:text-red-700 transition"
+                                                        title="Ocultar reporte"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                                                        </svg>
+                                                    </button>
+                                                @endif
+
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -950,7 +1196,123 @@
             ></div>
         </div>
     </div>
+    <div id="inlineToast" class="inline-toast"></div>
+    <div id="editReportModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-[2px]">
+    <div class="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+        
+        <div class="flex items-center justify-between border-b px-5 py-4">
+            <h2 class="text-lg font-semibold text-slate-900">
+                Editar reporte
+            </h2>
 
+            <button onclick="closeEditReportModal()" class="text-slate-400 hover:text-slate-700">
+                ✕
+            </button>
+        </div>
+
+        <div class="px-6 py-5">
+
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Área</label>
+                    <select
+                        id="edit-area"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                    ></select>
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Activo</label>
+                    <select
+                        id="edit-element"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                    ></select>
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Componente</label>
+                    <select
+                        id="edit-component"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                    ></select>
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Diagnóstico</label>
+                    <select
+                        id="edit-diagnostic"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                    ></select>
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Condición</label>
+                    <select
+                        id="edit-condition"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                    ></select>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">Fecha del reporte</label>
+
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                                type="radio"
+                                name="edit-date-mode"
+                                value="keep"
+                                checked
+                                class="h-4 w-4 border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                            >
+                            <span>Conservar fecha original</span>
+                        </label>
+
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                                type="radio"
+                                name="edit-date-mode"
+                                value="new"
+                                class="h-4 w-4 border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                            >
+                            <span>Registrar nueva fecha</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-3">
+                        <input
+                            type="date"
+                            id="edit-new-date"
+                            class="hidden w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                        >
+                    </div>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Recomendación</label>
+                    <textarea
+                        id="edit-recommendation"
+                        rows="4"
+                        class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                        placeholder="Escribe la recomendación actualizada..."
+                    ></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t px-5 py-4">
+            <button onclick="closeEditReportModal()" class="px-4 py-2 text-sm border rounded-xl">
+                Cancelar
+            </button>
+
+            <button id="saveEditReportBtn" class="px-4 py-2 text-sm bg-[#d94d33] text-white rounded-xl">
+                Guardar cambios
+            </button>
+        </div>
+
+    </div>
+</div>
     <script>
         const ACTIVE_FILTERS = @json($activeFilters ?? []);
         const FILTER_OPTIONS = @json($filterOptions ?? []);
@@ -1544,8 +1906,16 @@
 
                 badge.innerHTML = executed ? 'REALIZADO' : 'PENDIENTE';
 
-                if (dateCell) {
-                    dateCell.textContent = executionDate;
+                renderExecutionDateCell(reportId, executed, executionDate);
+
+                if (executed) {
+                    const editableDateContainer = document.querySelector(
+                        `#execution-date-content-${reportId} .inline-date-editable`
+                    );
+
+                    if (editableDateContainer) {
+                        mountInlineDateEditor(editableDateContainer);
+                    }
                 }
             } catch (error) {
                 badge.className = previousClassName;
@@ -1597,6 +1967,607 @@
                 });
             }
         });
+        const inlineToast = document.getElementById('inlineToast');
+
+        function showInlineToast(message, type = 'success') {
+            if (!inlineToast) return;
+
+            inlineToast.className = 'inline-toast';
+            inlineToast.classList.add(type === 'success' ? 'inline-toast-success' : 'inline-toast-error');
+            inlineToast.textContent = message;
+            inlineToast.classList.add('show');
+
+            clearTimeout(window.__inlineToastTimeout);
+            window.__inlineToastTimeout = setTimeout(() => {
+                inlineToast.classList.remove('show');
+            }, 2200);
+        }
+
+        function escapeInlineValue(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function mountInlineEditor(container) {
+            if (!container || container.dataset.editing === '1') {
+                return;
+            }
+
+            const reportId = container.dataset.reportId;
+            const field = container.dataset.field;
+            const originalValue = container.dataset.value ?? '';
+
+            container.dataset.editing = '1';
+
+            container.innerHTML = `
+                <div class="inline-edit-box">
+                    <input
+                        type="text"
+                        class="inline-edit-input"
+                        value="${escapeInlineValue(originalValue)}"
+                        maxlength="255"
+                    >
+                    <div class="inline-edit-actions">
+                        <button type="button" class="inline-edit-btn inline-edit-btn-cancel" title="Cancelar">✕</button>
+                        <button type="button" class="inline-edit-btn inline-edit-btn-save" title="Guardar">✓</button>
+                    </div>
+                </div>
+            `;
+
+            const input = container.querySelector('.inline-edit-input');
+            const cancelBtn = container.querySelector('.inline-edit-btn-cancel');
+            const saveBtn = container.querySelector('.inline-edit-btn-save');
+
+            if (input) {
+                input.focus();
+                input.select();
+
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        restoreInlineCell(container, originalValue);
+                    }
+
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        saveInlineCell(container, reportId, field, input.value);
+                    }
+                });
+            }
+
+            cancelBtn?.addEventListener('click', () => {
+                restoreInlineCell(container, originalValue);
+            });
+
+            saveBtn?.addEventListener('click', () => {
+                saveInlineCell(container, reportId, field, input?.value ?? '');
+            });
+        }
+
+        function restoreInlineCell(container, value) {
+            container.dataset.editing = '0';
+            container.dataset.value = value ?? '';
+
+            const displayValue = value && String(value).trim() !== '' ? value : '—';
+
+            container.innerHTML = `
+                <span class="inline-edit-trigger">${escapeInlineValue(displayValue)}</span>
+            `;
+        }
+
+        async function saveInlineCell(container, reportId, field, value) {
+            container.classList.add('inline-edit-loading');
+
+            try {
+                const response = await fetch(
+                    "{{ route('admin.preventive-reports.inline-update', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            field,
+                            value,
+                        }),
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'No fue posible guardar el campo.');
+                }
+
+                restoreInlineCell(container, data.value ?? '');
+                showInlineToast(data.message || 'Guardado exitoso.', 'success');
+            } catch (error) {
+                container.classList.remove('inline-edit-loading');
+                showInlineToast(error.message || 'Ocurrió un error al guardar.', 'error');
+                return;
+            }
+
+            container.classList.remove('inline-edit-loading');
+        }
+
+        document.addEventListener('click', function (event) {
+            const editableContainer = event.target.closest('.inline-editable');
+
+            if (editableContainer && editableContainer.dataset.editing !== '1') {
+                mountInlineEditor(editableContainer);
+            }
+        });
+
+
+        function mountInlineDateEditor(container) {
+            if (!container || container.dataset.editing === '1') {
+                return;
+            }
+
+            const reportId = container.dataset.reportId;
+            const originalValue = container.dataset.value || new Date().toISOString().slice(0, 10);
+
+            container.dataset.editing = '1';
+
+            container.innerHTML = `
+                <div class="inline-date-box">
+                    <input
+                        type="date"
+                        class="inline-date-input"
+                        value="${escapeInlineValue(originalValue)}"
+                    >
+                    <div class="inline-date-actions">
+                        <button type="button" class="inline-edit-btn inline-edit-btn-cancel" title="Cancelar">✕</button>
+                        <button type="button" class="inline-edit-btn inline-edit-btn-save" title="Guardar">✓</button>
+                    </div>
+                </div>
+            `;
+
+            const input = container.querySelector('.inline-date-input');
+            const cancelBtn = container.querySelector('.inline-edit-btn-cancel');
+            const saveBtn = container.querySelector('.inline-edit-btn-save');
+
+            input?.focus();
+
+            input?.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    restoreInlineDateCell(container, originalValue);
+                }
+
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    saveInlineDateCell(container, reportId, input.value);
+                }
+            });
+
+            cancelBtn?.addEventListener('click', () => {
+                restoreInlineDateCell(container, originalValue);
+            });
+
+            saveBtn?.addEventListener('click', () => {
+                saveInlineDateCell(container, reportId, input?.value ?? '');
+            });
+        }
+
+        function restoreInlineDateCell(container, value) {
+            container.dataset.editing = '0';
+            container.dataset.value = value ?? '';
+
+            const displayValue = value && String(value).trim() !== '' ? value : '';
+
+            container.innerHTML = `
+                <span class="inline-date-trigger">${escapeInlineValue(displayValue)}</span>
+            `;
+        }
+
+        async function saveInlineDateCell(container, reportId, executionDate) {
+            if (!executionDate) {
+                showInlineToast('Debes seleccionar una fecha.', 'error');
+                return;
+            }
+
+            container.classList.add('inline-date-loading');
+
+            try {
+                const response = await fetch(
+                    "{{ route('admin.preventive-reports.execution-date.update', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            execution_date: executionDate,
+                        }),
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'No fue posible actualizar la fecha de ejecución.');
+                }
+
+                restoreInlineDateCell(container, data.execution_date || '');
+                showInlineToast(data.message || 'Fecha actualizada correctamente.', 'success');
+            } catch (error) {
+                container.classList.remove('inline-date-loading');
+                showInlineToast(error.message || 'Ocurrió un error al guardar la fecha.', 'error');
+                return;
+            }
+
+            container.classList.remove('inline-date-loading');
+        }
+
+        document.addEventListener('click', function (event) {
+            const editableDateContainer = event.target.closest('.inline-date-editable');
+
+            if (editableDateContainer && editableDateContainer.dataset.editing !== '1') {
+                mountInlineDateEditor(editableDateContainer);
+            }
+        });
+                function renderExecutionDateCell(reportId, executed, executionDate) {
+            const container = document.getElementById(`execution-date-content-${reportId}`);
+            if (!container) return;
+
+            if (!executed) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const dateValue = executionDate && executionDate.trim() !== ''
+                ? executionDate
+                : new Date().toISOString().slice(0, 10);
+
+            const canEdit = @json($canInlineEditExecutionDate);
+
+            if (!canEdit) {
+                container.textContent = dateValue;
+                return;
+            }
+
+            container.innerHTML = `
+                <div
+                    class="inline-date-editable"
+                    data-report-id="${reportId}"
+                    data-value="${escapeInlineValue(dateValue)}"
+                >
+                    <span class="inline-date-trigger">${escapeInlineValue(dateValue)}</span>
+                </div>
+            `;
+        }
+        let CURRENT_REPORT_ID = null;
+
+        async function openEditReportModal(reportId) {
+            CURRENT_REPORT_ID = reportId;
+
+            resetEditReportModalFields();
+
+            document.getElementById('editReportModal').classList.remove('hidden');
+            document.getElementById('editReportModal').classList.add('flex');
+
+            try {
+                const response = await fetch(
+                    "{{ route('admin.preventive-reports.edit-data', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'No fue posible cargar el reporte.');
+                }
+
+                fillSelect(editArea, data.areas || [], data.report.area_id, 'Seleccione un área');
+
+                await reloadElementsByArea(data.report.area_id, data.report.element_id);
+                await reloadComponentsByElement(data.report.element_id, data.report.component_id);
+                await reloadDiagnosticsByComponent(data.report.component_id, data.report.diagnostic_id);
+                await reloadConditionsByComponent(data.report.component_id, data.report.condition_id);
+
+                if (editRecommendation) {
+                    editRecommendation.value = data.report.recommendation || '';
+                }
+
+                if (editNewDate) {
+                    editNewDate.value = data.report.report_date || new Date().toISOString().slice(0, 10);
+                }
+            } catch (error) {
+                showInlineToast(error.message || 'No fue posible cargar los datos del reporte.', 'error');
+                closeEditReportModal();
+            }
+        }
+
+        function closeEditReportModal() {
+            CURRENT_REPORT_ID = null;
+            resetEditReportModalFields();
+
+            document.getElementById('editReportModal').classList.add('hidden');
+            document.getElementById('editReportModal').classList.remove('flex');
+        }
+
+        document.addEventListener('change', function (e) {
+            if (e.target.name === 'edit-date-mode') {
+                const input = document.getElementById('edit-new-date');
+
+                if (e.target.value === 'new') {
+                    input.classList.remove('hidden');
+                } else {
+                    input.classList.add('hidden');
+                }
+            }
+        });
+
+        const editArea = document.getElementById('edit-area');
+        const editElement = document.getElementById('edit-element');
+        const editComponent = document.getElementById('edit-component');
+        const editDiagnostic = document.getElementById('edit-diagnostic');
+        const editRecommendation = document.getElementById('edit-recommendation');
+        const editCondition = document.getElementById('edit-condition');
+        const editNewDate = document.getElementById('edit-new-date');
+
+        function fillSelect(select, items, selectedValue = null, placeholder = 'Seleccione') {
+            if (!select) return;
+
+            const normalizedSelected = selectedValue !== null && selectedValue !== undefined
+                ? String(selectedValue)
+                : '';
+
+            select.innerHTML = '';
+
+            const firstOption = document.createElement('option');
+            firstOption.value = '';
+            firstOption.textContent = placeholder;
+            select.appendChild(firstOption);
+
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = String(item.id);
+                option.textContent = item.code ? `${item.code} - ${item.name}` : item.name;
+                option.selected = String(item.id) === normalizedSelected;
+                select.appendChild(option);
+            });
+        }
+
+        function resetEditReportModalFields() {
+            fillSelect(editArea, [], null, '');
+            fillSelect(editElement, [], null, '');
+            fillSelect(editComponent, [], null, '');
+            fillSelect(editDiagnostic, [], null, '');
+            fillSelect(editCondition, [], null, '');
+
+            if (editRecommendation) {
+                editRecommendation.value = '';
+            }
+
+            if (editNewDate) {
+                editNewDate.value = '';
+                editNewDate.classList.add('hidden');
+            }
+
+            const keepRadio = document.querySelector('input[name="edit-date-mode"][value="keep"]');
+            if (keepRadio) {
+                keepRadio.checked = true;
+            }
+        }
+
+        async function fetchJsonOrFail(url, defaultMessage) {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            let data = null;
+
+            try {
+                data = await response.json();
+            } catch (_) {
+                data = null;
+            }
+
+            if (!response.ok) {
+                throw new Error(data?.message || defaultMessage);
+            }
+
+            return data;
+        }
+
+        async function reloadElementsByArea(areaId, selectedElementId = null) {
+            fillSelect(editElement, [], null, 'Cargando activos...');
+            fillSelect(editComponent, [], null, 'Seleccione un componente');
+            fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+            fillSelect(editCondition, [], null, 'Seleccione una condición');
+
+            if (!areaId) {
+                fillSelect(editElement, [], null, 'Seleccione un activo');
+                return;
+            }
+
+            const data = await fetchJsonOrFail(
+                "{{ route('admin.preventive-report-data.elements-by-area', ['area' => '__AREA__']) }}".replace('__AREA__', areaId),
+                'No fue posible cargar los activos.'
+            );
+
+            fillSelect(editElement, data || [], selectedElementId, 'Seleccione un activo');
+        }
+
+        async function reloadComponentsByElement(elementId, selectedComponentId = null) {
+            fillSelect(editComponent, [], null, 'Cargando componentes...');
+            fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+            fillSelect(editCondition, [], null, 'Seleccione una condición');
+
+            if (!elementId) {
+                fillSelect(editComponent, [], null, 'Seleccione un componente');
+                return;
+            }
+
+            const data = await fetchJsonOrFail(
+                "{{ route('admin.preventive-report-data.components-by-element', ['element' => '__ELEMENT__']) }}".replace('__ELEMENT__', elementId),
+                'No fue posible cargar los componentes.'
+            );
+
+            fillSelect(editComponent, data || [], selectedComponentId, 'Seleccione un componente');
+        }
+
+        async function reloadDiagnosticsByComponent(componentId, selectedDiagnosticId = null) {
+            fillSelect(editDiagnostic, [], null, 'Cargando diagnósticos...');
+
+            if (!componentId) {
+                fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+                return;
+            }
+
+            const data = await fetchJsonOrFail(
+                "{{ route('admin.preventive-report-data.diagnostics-by-component', ['component' => '__COMPONENT__']) }}".replace('__COMPONENT__', componentId),
+                'No fue posible cargar los diagnósticos.'
+            );
+
+            fillSelect(editDiagnostic, data || [], selectedDiagnosticId, 'Seleccione un diagnóstico');
+        }
+
+        if (editArea) {
+            editArea.addEventListener('change', async function () {
+                try {
+                    await reloadElementsByArea(this.value, null);
+                } catch (error) {
+                    showInlineToast(error.message || 'Error cargando activos.', 'error');
+                }
+            });
+        }
+
+        if (editElement) {
+            editElement.addEventListener('change', async function () {
+                try {
+                    await reloadComponentsByElement(this.value, null);
+                } catch (error) {
+                    showInlineToast(error.message || 'Error cargando componentes.', 'error');
+                }
+            });
+        }
+
+        if (editComponent) {
+            editComponent.addEventListener('change', async function () {
+                try {
+                    await reloadDiagnosticsByComponent(this.value, null);
+                    await reloadConditionsByComponent(this.value, null);
+                } catch (error) {
+                    showInlineToast(error.message || 'Error cargando diagnósticos o condiciones.', 'error');
+                }
+            });
+        }
+
+        document.getElementById('saveEditReportBtn').addEventListener('click', async function () {
+
+            if (!CURRENT_REPORT_ID) return;
+
+            const dateMode = document.querySelector('input[name="edit-date-mode"]:checked')?.value;
+
+            const payload = {
+                area_id: editArea.value,
+                element_id: editElement.value,
+                component_id: editComponent.value,
+                diagnostic_id: editDiagnostic.value,
+                condition_id: editCondition.value,
+                recommendation: editRecommendation.value,
+                date_mode: dateMode,
+                new_date: editNewDate.value,
+            };
+
+            try {
+                const response = await fetch(
+                    "{{ route('admin.preventive-reports.admin-update', ['reportDetail' => '__ID__']) }}".replace('__ID__', CURRENT_REPORT_ID),
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        },
+                        body: JSON.stringify(payload),
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.message);
+
+                showInlineToast('Reporte actualizado correctamente');
+                closeEditReportModal();
+
+                location.reload(); // luego optimizamos esto
+
+            } catch (err) {
+                showInlineToast(err.message, 'error');
+            }
+        });
+
+        async function reloadConditionsByComponent(componentId, selectedConditionId = null) {
+            fillSelect(editCondition, [], null, 'Cargando condiciones...');
+
+            if (!componentId) {
+                fillSelect(editCondition, [], null, 'Seleccione una condición');
+                return;
+            }
+
+            const data = await fetchJsonOrFail(
+                "{{ route('admin.preventive-report-data.conditions-by-component', ['component' => '__COMPONENT__']) }}".replace('__COMPONENT__', componentId),
+                'No fue posible cargar las condiciones.'
+            );
+
+            fillSelect(editCondition, data || [], selectedConditionId, 'Seleccione una condición');
+        }
+
+        async function toggleReportStatus(reportId) {
+    const confirmed = confirm('¿Seguro que deseas ELIMINAR este reporte?');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(
+            "{{ route('admin.preventive-reports.toggle-status', ['reportDetail' => '__ID__']) }}".replace('__ID__', reportId),
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({})
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No fue posible modificar el reporte.');
+        }
+
+        showInlineToast(data.message || 'Operación realizada correctamente.', 'success');
+        location.reload();
+    } catch (error) {
+        showInlineToast(error.message || 'Ocurrió un error al modificar el reporte.', 'error');
+    }
+}
         </script>
     </body>
 </html>

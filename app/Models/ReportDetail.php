@@ -22,6 +22,7 @@ class ReportDetail extends Model
         'is_belt_change',
         'execution_status_id',
         'execution_date',
+        'status',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class ReportDetail extends Model
             'week' => 'integer',
             'is_belt_change' => 'boolean',
             'execution_date' => 'date',
+            'status' => 'boolean',
         ];
     }
 

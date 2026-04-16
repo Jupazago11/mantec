@@ -245,6 +245,7 @@ class AdminPreventiveReportController extends Controller
                 'condition',
                 'executionStatus',
             ])
+            ->where('status', true)
             ->where('year', $year)
             ->whereHas('element', function ($query) use ($user, $client) {
                 $query->whereHas('area', function ($areaQuery) use ($client) {
@@ -551,6 +552,7 @@ class AdminPreventiveReportController extends Controller
                 'condition',
                 'executionStatus',
             ])
+            ->where('status', true)
             ->where('year', $year)
             ->whereHas('element', function ($query) use ($client, $elementType, $user) {
                 $query->where('element_type_id', $elementType->id)
@@ -865,21 +867,43 @@ class AdminPreventiveReportController extends Controller
                 'files:id,report_detail_id',
                 'executionStatus:id,code,name',
             ])
+            ->where('status', true)
             ->whereHas('element', function ($elementQuery) use ($group) {
                 $elementQuery->where('group_id', $group->id);
             })
             ->whereDate('created_at', '>=', $dateFrom)
             ->whereDate('created_at', '<=', $dateTo);
 
-        if (in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
-            $allowedAreaIds = $user->areas()->pluck('areas.id')->map(fn ($id) => (int) $id)->all();
+            if ($this->mustRestrictByElementTypes($user)) {
+                $allowedElementTypeIds = $this->getAllowedElementTypeIdsForClient($user, (int) $group->client_id);
 
-            if (!empty($allowedAreaIds)) {
-                $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaIds) {
-                    $elementQuery->whereIn('area_id', $allowedAreaIds);
-                });
+                if (empty($allowedElementTypeIds)) {
+                    $baseQuery->whereRaw('1 = 0');
+                } else {
+                    $baseQuery->whereHas('element', function ($elementQuery) use ($allowedElementTypeIds) {
+                        $elementQuery->whereIn('element_type_id', $allowedElementTypeIds);
+                    });
+                }
             }
-        }
+
+            if ($this->mustRestrictByAreas($user)) {
+                $allowedAreaMap = $this->getAllowedAreaIdsGroupedByElementType($user, (int) $group->client_id);
+
+                if (empty($allowedAreaMap)) {
+                    $baseQuery->whereRaw('1 = 0');
+                } else {
+                    $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaMap) {
+                        $elementQuery->where(function ($outer) use ($allowedAreaMap) {
+                            foreach ($allowedAreaMap as $elementTypeId => $areaIds) {
+                                $outer->orWhere(function ($inner) use ($elementTypeId, $areaIds) {
+                                    $inner->where('element_type_id', (int) $elementTypeId)
+                                        ->whereIn('area_id', $areaIds);
+                                });
+                            }
+                        });
+                    });
+                }
+            }
 
         $query = clone $baseQuery;
         $this->applyGroupFilters($query, $request);
@@ -1100,59 +1124,304 @@ class AdminPreventiveReportController extends Controller
             'showWarehouseColumn' => $showWarehouseColumn,
             'totalGenerated' => $totalReportsGenerated,
             'totalFiltered' => $totalReportsFiltered,
+            'canInlineEditOrderAviso' => $roleKey === 'admin_cliente',
+            'canInlineEditExecutionDate' => in_array($roleKey, ['superadmin', 'admin_global', 'admin', 'admin_cliente'], true),
+            'canEditReports' => in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
         ]);
     }
 
-    public function evidence(\App\Models\ReportDetail $reportDetail)
+    public function editData(\App\Models\ReportDetail $reportDetail)
     {
         $user = auth()->user();
         $roleKey = $user->role?->key;
 
         abort_unless(
-            in_array($roleKey, [
-                'superadmin',
-                'admin_global',
-                'admin',
-                'admin_cliente',
-                'observador',
-                'observador_cliente',
-            ], true),
+            in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
             403,
-            'No tienes permisos para ver evidencia.'
+            'No tienes permisos para editar reportes.'
         );
 
-        $file = \App\Models\ReportDetailFile::query()
-            ->where('report_detail_id', $reportDetail->id)
-            ->orderBy('id')
-            ->first();
+        $report = \App\Models\ReportDetail::with([
+            'element.area',
+            'element.elementType',
+            'component',
+            'diagnostic',
+            'condition',
+            'user',
+        ])
+            ->where('status', true)
+            ->findOrFail($reportDetail->id);
 
-        if (!$file) {
-            abort(404, 'Este detalle de reporte no tiene evidencia asociada.');
-        }
+        $clientId = (int) ($report->element?->area?->client_id ?? 0);
+        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+        $areaId = (int) ($report->element?->area_id ?? 0);
 
-        $disk = \Illuminate\Support\Facades\Storage::disk($file->disk);
+        abort_unless(
+            in_array($clientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para editar este reporte.'
+        );
 
-        if (!$disk->exists($file->path)) {
-            abort(404, 'El archivo no existe en el almacenamiento.');
-        }
+        abort_unless(
+            $this->canAccessElementType($user, $clientId, $elementTypeId),
+            403,
+            'No autorizado para editar este reporte.'
+        );
 
-        $safeName = $file->original_name ?: $file->stored_name;
-
-        try {
-            $temporaryUrl = $disk->temporaryUrl(
-                $file->path,
-                now()->addMinutes(10),
-                [
-                    'ResponseContentDisposition' => 'inline; filename="' . addslashes($safeName) . '"',
-                ]
+        if ($this->mustRestrictByAreas($user)) {
+            abort_unless(
+                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
+                403,
+                'No autorizado para editar este reporte.'
             );
-
-            return redirect()->away($temporaryUrl);
-        } catch (\Throwable $e) {
-            $url = $disk->url($file->path);
-
-            return redirect()->away($url);
         }
+
+        $areas = \App\Models\Area::query()
+            ->where('client_id', $clientId)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $elements = \App\Models\Element::query()
+            ->where('area_id', $areaId)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $components = $report->element
+            ? $report->element->components()
+                ->where('components.status', true)
+                ->orderBy('components.name')
+                ->get(['components.id', 'components.name'])
+            : collect();
+
+        $diagnostics = \App\Models\Diagnostic::query()
+            ->where('client_id', $clientId)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->whereHas('components', function ($q) use ($report) {
+                $q->where('components.id', $report->component_id);
+            })
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $conditions = \App\Models\Condition::query()
+            ->where('client_id', $clientId)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->whereHas('components', function ($q) use ($report) {
+                $q->where('components.id', $report->component_id);
+            })
+            ->orderBy('severity')
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'color']);
+
+        return response()->json([
+            'success' => true,
+            'report' => [
+                'id' => $report->id,
+                'area_id' => $report->element?->area?->id,
+                'element_id' => $report->element_id,
+                'element_type_id' => $report->element?->element_type_id,
+                'component_id' => $report->component_id,
+                'diagnostic_id' => $report->diagnostic_id,
+                'condition_id' => $report->condition_id,
+                'recommendation' => $report->recommendation ?? '',
+                'report_date' => optional($report->created_at)?->format('Y-m-d'),
+                'inspector_name' => $report->user?->name ?? '—',
+            ],
+            'areas' => $areas,
+            'elements' => $elements,
+            'components' => $components,
+            'diagnostics' => $diagnostics,
+            'conditions' => $conditions,
+        ]);
+    }
+
+    public function evidence(\App\Models\ReportDetail $reportDetail): \Illuminate\View\View
+    {
+        $user = auth()->user();
+
+        $report = \App\Models\ReportDetail::with([
+            'element.area',
+            'element.elementType',
+            'component',
+            'diagnostic',
+            'condition',
+            'files',
+            'executionStatus',
+            'user',
+        ])
+            ->where('status', true)
+            ->findOrFail($reportDetail->id);
+
+        $clientId = (int) ($report->element?->area?->client_id ?? 0);
+        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+        $areaId = (int) ($report->element?->area_id ?? 0);
+
+        abort_unless(
+            in_array($clientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para ver la evidencia de este reporte.'
+        );
+
+        abort_unless(
+            $this->canAccessElementType($user, $clientId, $elementTypeId),
+            403,
+            'No autorizado para ver la evidencia de este reporte.'
+        );
+
+        if ($this->mustRestrictByAreas($user)) {
+            abort_unless(
+                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
+                403,
+                'No autorizado para ver la evidencia de este reporte.'
+            );
+        }
+
+        return view('admin.preventive-reports.evidence', compact('report'));
+    }
+
+    public function getConditionsByComponent(\App\Models\Component $component)
+    {
+        $conditions = $component->conditions()
+            ->where('conditions.status', true)
+            ->orderBy('conditions.severity')
+            ->orderBy('conditions.name')
+            ->get(['conditions.id', 'conditions.code', 'conditions.name', 'conditions.color']);
+
+        return response()->json($conditions);
+    }
+
+    public function updateExecutionDate(\App\Models\ReportDetail $reportDetail, \Illuminate\Http\Request $request)
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            in_array($roleKey, ['superadmin', 'admin_global', 'admin', 'admin_cliente'], true),
+            403,
+            'No tienes permisos para editar la fecha de ejecución.'
+        );
+
+        $validated = $request->validate([
+            'execution_date' => ['required', 'date'],
+        ]);
+
+        $report = \App\Models\ReportDetail::with([
+            'element.area',
+            'element.elementType',
+            'executionStatus',
+        ])
+            ->where('status', true)
+            ->findOrFail($reportDetail->id);
+
+        $clientId = (int) ($report->element?->area?->client_id ?? 0);
+        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+        $areaId = (int) ($report->element?->area_id ?? 0);
+
+        abort_unless(
+            in_array($clientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para editar este reporte.'
+        );
+
+        abort_unless(
+            $this->canAccessElementType($user, $clientId, $elementTypeId),
+            403,
+            'No autorizado para editar este reporte.'
+        );
+
+        if ($this->mustRestrictByAreas($user)) {
+            abort_unless(
+                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
+                403,
+                'No autorizado para editar este reporte.'
+            );
+        }
+
+        $statusName = mb_strtoupper(trim((string) ($report->executionStatus?->name ?? '')));
+        $isExecuted = in_array($statusName, [
+            'EJECUTADO',
+            'EJECUTADA',
+            'FINALIZADO',
+            'FINALIZADA',
+            'REALIZADO',
+            'REALIZADA',
+        ], true);
+
+        abort_unless(
+            $isExecuted,
+            422,
+            'Solo se puede definir fecha de ejecución cuando la orden está en estado realizado.'
+        );
+
+        $report->execution_date = $validated['execution_date'];
+        $report->save();
+
+        return response()->json([
+            'success' => true,
+            'execution_date' => \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d'),
+            'message' => 'Fecha de ejecución actualizada correctamente.',
+        ]);
+    }
+
+    public function inlineUpdate(\App\Models\ReportDetail $reportDetail, \Illuminate\Http\Request $request)
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless($roleKey === 'admin_cliente', 403, 'No tienes permisos para editar este campo.');
+
+        $validated = $request->validate([
+            'field' => ['required', 'string', 'in:orden,aviso'],
+            'value' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $field = $validated['field'];
+        $value = isset($validated['value']) ? trim((string) $validated['value']) : null;
+        $value = $value === '' ? null : $value;
+
+        $report = \App\Models\ReportDetail::with([
+            'element.area',
+            'element.elementType',
+        ])
+            ->where('status', true)
+            ->findOrFail($reportDetail->id);
+
+        $clientId = (int) ($report->element?->area?->client_id ?? 0);
+        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+        $areaId = (int) ($report->element?->area_id ?? 0);
+
+        abort_unless(
+            in_array($clientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para editar este reporte.'
+        );
+
+        abort_unless(
+            $this->canAccessElementType($user, $clientId, $elementTypeId),
+            403,
+            'No autorizado para editar este reporte.'
+        );
+
+        if ($this->mustRestrictByAreas($user)) {
+            abort_unless(
+                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
+                403,
+                'No autorizado para editar este reporte.'
+            );
+        }
+
+        $report->{$field} = $value;
+        $report->save();
+
+        return response()->json([
+            'success' => true,
+            'field' => $field,
+            'value' => $report->{$field} ?? '',
+            'message' => ucfirst($field) . ' actualizado correctamente.',
+        ]);
     }
 
     private function applyGroupFilters($query, \Illuminate\Http\Request $request): void
@@ -1376,8 +1645,9 @@ class AdminPreventiveReportController extends Controller
     }
     private function getAvailableYearsForClient($user, int $clientId): array
     {
-        $query = ReportDetail::query()
-            ->whereHas('element', function ($elementQuery) use ($user, $clientId) {
+            $query = ReportDetail::query()
+                ->where('status', true)
+                ->whereHas('element', function ($elementQuery) use ($user, $clientId) {
                 $elementQuery->whereHas('area', function ($areaQuery) use ($clientId) {
                     $areaQuery->where('client_id', $clientId);
                 });
@@ -1431,6 +1701,7 @@ class AdminPreventiveReportController extends Controller
     private function getAvailableYearsForClientAndElementType($user, int $clientId, int $elementTypeId): array
     {
         $query = ReportDetail::query()
+            ->where('status', true)
             ->whereHas('element', function ($elementQuery) use ($user, $clientId, $elementTypeId) {
                 $elementQuery->where('element_type_id', $elementTypeId)
                     ->whereHas('area', function ($areaQuery) use ($clientId) {
@@ -1479,5 +1750,173 @@ class AdminPreventiveReportController extends Controller
             ->sortDesc()
             ->values()
             ->all();
+    }
+
+    public function getElementsByArea(\App\Models\Area $area)
+    {
+        $elements = $area->elements()
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($elements);
+    }
+
+    public function getComponentsByElement(\App\Models\Element $element)
+    {
+        $components = $element->components()
+            ->where('components.status', true)
+            ->orderBy('components.name')
+            ->get(['components.id', 'components.name']);
+
+        return response()->json($components);
+    }    
+
+    public function getDiagnosticsByComponent(\App\Models\Component $component)
+    {
+        $diagnostics = $component->diagnostics()
+            ->where('diagnostics.status', true)
+            ->orderBy('diagnostics.name')
+            ->get(['diagnostics.id', 'diagnostics.name']);
+
+        return response()->json($diagnostics);
+    }
+
+    public function adminUpdate(\App\Models\ReportDetail $reportDetail, \Illuminate\Http\Request $request)
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
+            403
+        );
+
+        $validated = $request->validate([
+            'area_id' => ['required', 'integer'],
+            'element_id' => ['required', 'integer'],
+            'component_id' => ['required', 'integer'],
+            'diagnostic_id' => ['required', 'integer'],
+            'condition_id' => ['required', 'integer'],
+            'recommendation' => ['nullable', 'string'],
+            'date_mode' => ['required', 'in:keep,new'],
+            'new_date' => ['nullable', 'date'],
+        ]);
+
+        $element = \App\Models\Element::query()
+            ->with(['area', 'elementType'])
+            ->findOrFail($validated['element_id']);
+
+        $componentAllowed = $element->components()
+            ->where('components.id', $validated['component_id'])
+            ->exists();
+
+        abort_unless(
+            $componentAllowed,
+            422,
+            'El componente seleccionado no pertenece al activo indicado.'
+        );
+
+        $diagnosticAllowed = \App\Models\Diagnostic::query()
+            ->where('id', $validated['diagnostic_id'])
+            ->where('client_id', $element->area?->client_id)
+            ->where('element_type_id', $element->element_type_id)
+            ->whereHas('components', function ($q) use ($validated) {
+                $q->where('components.id', $validated['component_id']);
+            })
+            ->exists();
+
+        abort_unless(
+            $diagnosticAllowed,
+            422,
+            'El diagnóstico seleccionado no pertenece al componente indicado.'
+        );
+
+        $conditionAllowed = \App\Models\Condition::query()
+            ->where('id', $validated['condition_id'])
+            ->where('client_id', $element->area?->client_id)
+            ->where('element_type_id', $element->element_type_id)
+            ->whereHas('components', function ($q) use ($validated) {
+                $q->where('components.id', $validated['component_id']);
+            })
+            ->exists();
+
+        abort_unless(
+            $conditionAllowed,
+            422,
+            'La condición seleccionada no pertenece al componente indicado.'
+        );
+
+        $reportDetail->element_id = $validated['element_id'];
+        $reportDetail->component_id = $validated['component_id'];
+        $reportDetail->diagnostic_id = $validated['diagnostic_id'];
+        $reportDetail->condition_id = $validated['condition_id'];
+        $reportDetail->recommendation = $validated['recommendation'];
+
+        if ($validated['date_mode'] === 'new' && !empty($validated['new_date'])) {
+            $newDate = \Carbon\Carbon::parse($validated['new_date'])
+                ->setTimeFrom(now());
+
+            $reportDetail->created_at = $newDate;
+        }
+
+        $reportDetail->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte actualizado correctamente.',
+        ]);
+    }
+
+    public function toggleStatus(\App\Models\ReportDetail $reportDetail)
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            in_array($roleKey, ['superadmin', 'admin_global'], true),
+            403,
+            'No tienes permisos para modificar este reporte.'
+        );
+
+        $report = \App\Models\ReportDetail::with([
+            'element.area',
+            'element.elementType',
+        ])->findOrFail($reportDetail->id);
+
+        $clientId = (int) ($report->element?->area?->client_id ?? 0);
+        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+        $areaId = (int) ($report->element?->area_id ?? 0);
+
+        abort_unless(
+            in_array($clientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para modificar este reporte.'
+        );
+
+        abort_unless(
+            $this->canAccessElementType($user, $clientId, $elementTypeId),
+            403,
+            'No autorizado para modificar este reporte.'
+        );
+
+        if ($this->mustRestrictByAreas($user)) {
+            abort_unless(
+                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
+                403,
+                'No autorizado para modificar este reporte.'
+            );
+        }
+
+        $report->status = !$report->status;
+        $report->save();
+
+        return response()->json([
+            'success' => true,
+            'status' => $report->status,
+            'message' => $report->status
+                ? 'Reporte restaurado correctamente.'
+                : 'Reporte ocultado correctamente.',
+        ]);
     }
 }

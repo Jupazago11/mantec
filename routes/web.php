@@ -162,23 +162,40 @@ Route::middleware('auth')->group(function () {
         Route::get('/clients/{client}/element-types', [AdminComponentController::class, 'getElementTypesByClient'])->name('clients.element-types');
 
         // Reportes preventivos / evidencias
-        Route::get('/preventive-reports/group/{group}', [AdminPreventiveReportController::class, 'showByGroup'])
-            ->name('preventive-reports.group');
+        Route::get('/preventive-reports/group/{group}', [AdminPreventiveReportController::class, 'showByGroup'])->name('preventive-reports.group');
+        Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('preventive-reports.general');
+        Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])->name('preventive-reports.evidence');
+        Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('preventive-reports.toggle-execution');
+        Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('report-evidence.open');
+        Route::get('/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])->name('preventive-reports.show');
+        Route::patch('/preventive-reports/report-details/{reportDetail}/execution-date', [AdminPreventiveReportController::class, 'updateExecutionDate'])->name('preventive-reports.execution-date.update');
+        Route::patch('/preventive-reports/report-details/{reportDetail}/inline-update', [AdminPreventiveReportController::class, 'inlineUpdate'])->name('preventive-reports.inline-update');
+        Route::get('/preventive-reports/report-details/{reportDetail}/edit-data', [AdminPreventiveReportController::class, 'editData'])->name('preventive-reports.edit-data');
 
-        Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])
-            ->name('preventive-reports.general');
+        Route::patch('/preventive-reports/report-details/{reportDetail}/admin-update', [AdminPreventiveReportController::class, 'adminUpdate'])->name('preventive-reports.admin-update');
+    });
 
-        Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])
-            ->name('preventive-reports.evidence');
 
-        Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])
-            ->name('preventive-reports.toggle-execution');
+    Route::prefix('ajax')->group(function () {
+        Route::get('/preventive-report-data/elements-by-area/{area}', [AdminPreventiveReportController::class, 'getElementsByArea'])
+            ->whereNumber('area')
+            ->name('admin.preventive-report-data.elements-by-area');
 
-        Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])
-            ->name('report-evidence.open');
+        Route::get('/preventive-report-data/components-by-element/{element}', [AdminPreventiveReportController::class, 'getComponentsByElement'])
+            ->whereNumber('element')
+            ->name('admin.preventive-report-data.components-by-element');
 
-        Route::get('/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])
-            ->name('preventive-reports.show');
+        Route::get('/preventive-report-data/diagnostics-by-component/{component}', [AdminPreventiveReportController::class, 'getDiagnosticsByComponent'])
+            ->whereNumber('component')
+            ->name('admin.preventive-report-data.diagnostics-by-component');
+
+        Route::get('/preventive-report-data/conditions-by-component/{component}', [AdminPreventiveReportController::class, 'getConditionsByComponent'])
+            ->whereNumber('component')
+            ->name('admin.preventive-report-data.conditions-by-component');
+
+        Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-status', [AdminPreventiveReportController::class, 'toggleStatus'])
+            ->name('admin.preventive-reports.toggle-status');
+
     });
 
     /*
