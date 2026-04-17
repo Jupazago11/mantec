@@ -237,9 +237,18 @@
         }
 
         function closeEditConditionModal() {
+            clearAjaxErrors('editConditionAjaxErrors');
+
             const modal = document.getElementById('editConditionModal');
-            modal.classList.remove('flex');
-            modal.classList.add('hidden');
+            const content = document.getElementById('editConditionModalContent');
+
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+
+            setTimeout(() => {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            }, 150);
         }
     </script>
 @endsection

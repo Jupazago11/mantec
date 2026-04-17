@@ -1200,7 +1200,7 @@
     <div id="editReportModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-[2px]">
     <div class="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
         
-        <div class="flex items-center justify-between border-b px-5 py-4">
+        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
             <h2 class="text-lg font-semibold text-slate-900">
                 Editar reporte
             </h2>
@@ -1211,8 +1211,6 @@
         </div>
 
         <div class="px-6 py-5">
-
-
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Área</label>
@@ -1301,16 +1299,21 @@
             </div>
         </div>
 
-        <div class="flex justify-end gap-2 border-t px-5 py-4">
-            <button onclick="closeEditReportModal()" class="px-4 py-2 text-sm border rounded-xl">
+        <div class="flex justify-end gap-2 px-5 py-4">
+            <button
+                onclick="closeEditReportModal()"
+                class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
                 Cancelar
             </button>
 
-            <button id="saveEditReportBtn" class="px-4 py-2 text-sm bg-[#d94d33] text-white rounded-xl">
+            <button
+                id="saveEditReportBtn"
+                class="rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+            >
                 Guardar cambios
             </button>
         </div>
-
     </div>
 </div>
     <script>

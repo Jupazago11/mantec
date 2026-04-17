@@ -196,6 +196,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-status', [AdminPreventiveReportController::class, 'toggleStatus'])
             ->name('admin.preventive-reports.toggle-status');
 
+        Route::patch('/managed-conditions/{condition}/toggle-status-ajax', [AdminConditionController::class, 'toggleStatusAjax'])
+            ->name('admin.managed-conditions.toggle-status-ajax');
+
     });
 
     /*

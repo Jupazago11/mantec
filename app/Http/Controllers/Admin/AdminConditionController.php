@@ -181,7 +181,7 @@ class AdminConditionController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -224,16 +224,43 @@ class AdminConditionController extends Controller
                 ->withInput();
         }
 
-        Condition::create([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
+        $condition = Condition::create([
+            'client_id' => (int) $validated['client_id'],
+            'element_type_id' => (int) $validated['element_type_id'],
             'code' => trim($validated['code']),
             'name' => trim($validated['name']),
-            'description' => $validated['description'] ? trim($validated['description']) : null,
+            'description' => filled($validated['description'] ?? null)
+                ? trim($validated['description'])
+                : null,
             'severity' => (int) $validated['severity'],
             'color' => trim($validated['color']),
             'status' => true,
         ]);
+
+        if ($this->isAjaxRequest($request)) {
+            $condition->load(['client', 'elementType']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Condición creada correctamente.',
+                'condition' => [
+                    'id' => $condition->id,
+                    'client_id' => $condition->client_id,
+                    'client_name' => $condition->client?->name ?? '—',
+                    'element_type_id' => $condition->element_type_id,
+                    'element_type_name' => $condition->elementType?->name ?? '—',
+                    'code' => $condition->code,
+                    'name' => $condition->name,
+                    'description' => $condition->description,
+                    'severity' => $condition->severity,
+                    'color' => $condition->color,
+                    'status' => (bool) $condition->status,
+                    'report_details_count' => 0,
+                    'update_url' => route('admin.managed-conditions.update', $condition),
+                    'destroy_url' => route('admin.managed-conditions.destroy', $condition),
+                ],
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
@@ -244,7 +271,7 @@ class AdminConditionController extends Controller
             ]);
     }
 
-    public function update(Request $request, Condition $condition): RedirectResponse
+    public function update(Request $request, Condition $condition): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -294,38 +321,70 @@ class AdminConditionController extends Controller
         }
 
         $condition->update([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
+            'client_id' => (int) $validated['client_id'],
+            'element_type_id' => (int) $validated['element_type_id'],
             'code' => trim($validated['code']),
             'name' => trim($validated['name']),
-            'description' => $validated['description'] ? trim($validated['description']) : null,
+            'description' => filled($validated['description'] ?? null)
+                ? trim($validated['description'])
+                : null,
             'severity' => (int) $validated['severity'],
             'color' => trim($validated['color']),
-            'status' => $condition->status,
         ]);
+
+        $condition->load('elementType');
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Condición actualizada correctamente.',
+                'condition' => [
+                    'id' => $condition->id,
+                    'client_id' => $condition->client_id,
+                    'element_type_id' => $condition->element_type_id,
+                    'element_type_name' => $condition->elementType?->name ?? '—',
+                    'code' => $condition->code,
+                    'name' => $condition->name,
+                    'description' => $condition->description,
+                    'severity' => $condition->severity,
+                    'color' => $condition->color,
+                ],
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
             ->with('success', 'Condición actualizada correctamente.');
     }
 
-    public function destroy(Request $request, Condition $condition): RedirectResponse
+    public function destroy(Request $request, Condition $condition): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+        abort_unless(in_array((int) $condition->client_id, $allowedClientIds, true), 403);
 
-        $condition->loadCount('reportDetails');
+        if ($condition->reportDetails()->exists()) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar la condición porque tiene reportes asociados.',
+                ], 422);
+            }
 
-        $hasDependencies = ($condition->report_details_count ?? 0) > 0;
-
-        if ($hasDependencies) {
             return redirect()
                 ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Esta condición no se puede eliminar porque ya tiene uso. Solo puedes inactivarla.');
+                ->with('error', 'No se puede eliminar la condición porque tiene reportes asociados.');
         }
 
         $condition->delete();
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Condición eliminada correctamente.',
+                'condition_id' => $condition->id,
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
@@ -477,5 +536,33 @@ class AdminConditionController extends Controller
         }
 
         return $query;
+    }
+
+    public function toggleStatusAjax(Condition $condition, Request $request): JsonResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(
+            in_array((int) $condition->client_id, $allowedClientIds, true),
+            403,
+            'No autorizado para modificar esta condición.'
+        );
+
+        $condition->status = !$condition->status;
+        $condition->save();
+
+        return response()->json([
+            'success' => true,
+            'status' => (bool) $condition->status,
+            'label' => $condition->status ? 'Activo' : 'Inactivo',
+            'message' => $condition->status
+                ? 'Condición activada correctamente.'
+                : 'Condición inactivada correctamente.',
+        ]);
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
     }
 }
