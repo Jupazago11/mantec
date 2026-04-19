@@ -198,22 +198,12 @@ class AdminConditionController extends Controller
                         ->where('element_type_id', $request->input('element_type_id'));
                 }),
             ],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('conditions', 'name')->where(function ($query) use ($request) {
-                    return $query
-                        ->where('client_id', $request->input('client_id'))
-                        ->where('element_type_id', $request->input('element_type_id'));
-                }),
-            ],
+            'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
             'code.unique' => 'Ya existe una condición con ese código para este cliente y tipo de activo.',
-            'name.unique' => 'Ya existe una condición con ese nombre para este cliente y tipo de activo.',
         ]);
 
         $elementType = ElementType::findOrFail($validated['element_type_id']);
@@ -292,24 +282,12 @@ class AdminConditionController extends Controller
                             ->where('element_type_id', $request->input('element_type_id'));
                     }),
             ],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('conditions', 'name')
-                    ->ignore($condition->id)
-                    ->where(function ($query) use ($request) {
-                        return $query
-                            ->where('client_id', $request->input('client_id'))
-                            ->where('element_type_id', $request->input('element_type_id'));
-                    }),
-            ],
+            'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'severity' => ['required', 'integer', 'min:0'],
             'color' => ['required', 'string', 'max:20'],
         ], [
             'code.unique' => 'Ya existe una condición con ese código para este cliente y tipo de activo.',
-            'name.unique' => 'Ya existe una condición con ese nombre para este cliente y tipo de activo.',
         ]);
 
         $elementType = ElementType::findOrFail($validated['element_type_id']);
