@@ -22,6 +22,9 @@ use App\Http\Controllers\Admin\AdminComponentDiagnosticController;
 use App\Http\Controllers\Admin\AdminElementController;
 use App\Http\Controllers\Admin\AdminPreventiveReportController;
 use App\Http\Controllers\Admin\AdminReportEvidenceController;
+use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
+use App\Http\Controllers\Admin\AdminSystemModuleController;
+use App\Http\Controllers\Admin\SystemModules\MeasurementController;
 
 Route::get('/', function () {
     return view('public.home');
@@ -173,6 +176,47 @@ Route::middleware('auth')->group(function () {
         Route::get('/preventive-reports/report-details/{reportDetail}/edit-data', [AdminPreventiveReportController::class, 'editData'])->name('preventive-reports.edit-data');
 
         Route::patch('/preventive-reports/report-details/{reportDetail}/admin-update', [AdminPreventiveReportController::class, 'adminUpdate'])->name('preventive-reports.admin-update');
+   
+    Route::get('/client-element-type-modules', [AdminClientElementTypeModuleController::class, 'index'])
+        ->name('client-element-type-modules.index');
+
+    Route::post('/client-element-type-modules', [AdminClientElementTypeModuleController::class, 'store'])
+        ->name('client-element-type-modules.store');
+
+    Route::patch('/client-element-type-modules/{clientElementTypeModule}/toggle-module-enabled', [AdminClientElementTypeModuleController::class, 'toggleModuleEnabled'])
+        ->name('client-element-type-modules.toggle-module-enabled');
+
+    Route::patch('/client-element-type-modules/{clientElementTypeModule}/toggle-creation-enabled', [AdminClientElementTypeModuleController::class, 'toggleCreationEnabled'])
+        ->name('client-element-type-modules.toggle-creation-enabled');
+
+
+    Route::get('/system-modules/measurements', [MeasurementController::class, 'index'])
+        ->name('system-modules.measurements.index');
+
+    Route::get('/system-modules/measurements/level-one', [MeasurementController::class, 'levelOne'])
+        ->name('system-modules.measurements.level-one');
+
+    Route::get('/system-modules/measurements/{element}', [MeasurementController::class, 'show'])
+        ->name('system-modules.measurements.show');
+    
+
+
+    Route::post('/system-modules/measurements/{element}/thickness-draft/create', [MeasurementController::class, 'createThicknessDraft'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.thickness-draft.create');
+
+    Route::put('/system-modules/measurements/{element}/thickness-draft', [MeasurementController::class, 'updateThicknessDraft'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.thickness-draft.update');
+
+    Route::post('/system-modules/measurements/{element}/thickness-draft/add-cover', [MeasurementController::class, 'addThicknessDraftCover'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.thickness-draft.add-cover');
+
+    Route::delete('/system-modules/measurements/{element}/thickness-draft/remove-last-cover', [MeasurementController::class, 'removeLastThicknessDraftCover'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.thickness-draft.remove-last-cover');
+   
     });
 
 
@@ -196,9 +240,20 @@ Route::middleware('auth')->group(function () {
         Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-status', [AdminPreventiveReportController::class, 'toggleStatus'])
             ->name('admin.preventive-reports.toggle-status');
 
-        Route::patch('/managed-conditions/{condition}/toggle-status-ajax', [AdminConditionController::class, 'toggleStatusAjax'])
-            ->name('admin.managed-conditions.toggle-status-ajax');
+        Route::get('/client-element-type-modules', [AdminClientElementTypeModuleController::class, 'index'])
+            ->name('client-element-type-modules.index');
 
+        Route::post('/client-element-type-modules', [AdminClientElementTypeModuleController::class, 'store'])
+            ->name('client-element-type-modules.store');
+
+        Route::patch('/client-element-type-modules/{clientElementTypeModule}/toggle-module-enabled', [AdminClientElementTypeModuleController::class, 'toggleModuleEnabled'])
+            ->name('client-element-type-modules.toggle-module-enabled');
+
+        Route::patch('/client-element-type-modules/{clientElementTypeModule}/toggle-creation-enabled', [AdminClientElementTypeModuleController::class, 'toggleCreationEnabled'])
+            ->name('client-element-type-modules.toggle-creation-enabled');
+
+        Route::get('/system-modules/measurements', [AdminSystemModuleController::class, 'measurements'])
+            ->name('system-modules.measurements.index');
     });
 
     /*

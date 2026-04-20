@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             BeltComponentDiagnosticSeeder::class,
             ElementComponentSeeder::class,
             DemoUsersSeeder::class,
+            SystemModuleSeeder::class,
         ]);
     }
 }

@@ -48,4 +48,9 @@ class ElementType extends Model
             ->withPivot('client_id')
             ->withTimestamps();
     }
+
+    public function clientElementTypeModules(): HasMany
+    {
+        return $this->hasMany(ClientElementTypeModule::class);
+    }
 }

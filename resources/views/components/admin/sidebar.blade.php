@@ -21,6 +21,9 @@
     $conditionsActive = $isRoute('admin.managed-conditions.*');
     $inspectorReportsActive = $isRoute('inspector.reports.*');
 
+    $modulesConfigActive = $isRoute('admin.client-element-type-modules.*');
+    $measurementsModuleActive = $isRoute('admin.system-modules.measurements.*');
+
     $itemClass = function (bool $active) {
         return $active
             ? 'flex items-center gap-3 rounded-xl bg-[#d55b20]/10 px-3 py-2 text-sm font-semibold text-[#d55b20] transition'
@@ -30,6 +33,45 @@
     $iconClass = function (bool $active) {
         return $active ? 'h-5 w-5 text-[#d55b20]' : 'h-5 w-5 text-slate-400';
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Módulos configurables
+    |--------------------------------------------------------------------------
+    */
+    $canManageMeasurementsCrud = $user?->canManageSystemModule('mediciones') ?? false;
+    $canViewMeasurementsByRole = $user?->canViewSystemModule('mediciones') ?? false;
+
+    $userClientIds = collect();
+
+    if ($user && method_exists($user, 'clients')) {
+        try {
+            $userClientIds = $user->clients()->pluck('clients.id');
+        } catch (\Throwable $e) {
+            $userClientIds = collect();
+        }
+    }
+
+    $hasMeasurementsEnabledConfig = false;
+
+    if ($user && $canViewMeasurementsByRole) {
+        $measurementsQuery = \App\Models\ClientElementTypeModule::query()
+            ->whereHas('module', fn ($query) => $query->where('key', 'mediciones')->where('status', true))
+            ->where('status', true)
+            ->where('module_enabled', true);
+
+        if (!$isPowerAdmin) {
+            if ($userClientIds->isEmpty()) {
+                $measurementsQuery->whereRaw('1 = 0');
+            } else {
+                $measurementsQuery->whereIn('client_id', $userClientIds);
+            }
+        }
+
+        $hasMeasurementsEnabledConfig = $measurementsQuery->exists();
+    }
+
+    $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledConfig;
 @endphp
 
 <aside
@@ -137,7 +179,6 @@
                         </a>
                     </div>
 
-
                     <div class="mt-4 space-y-1">
                         <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
                             Configuración técnica
@@ -168,6 +209,60 @@
                             <span>Condiciones</span>
                         </a>
                     </div>
+
+                    {{-- Configuración de módulos: solo superadmin / admin_global según permisos --}}
+                    @if($canManageMeasurementsCrud)
+                        <div class="mt-4 space-y-1">
+                            <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                Módulos
+                            </p>
+
+                            <a href="{{ route('admin.client-element-type-modules.index') }}" class="{{ $itemClass($modulesConfigActive) }}">
+                                <i data-lucide="sliders-horizontal" class="{{ $iconClass($modulesConfigActive) }}"></i>
+                                <span>Config. módulos</span>
+                            </a>
+                        </div>
+                    @endif
+
+                    {{-- Módulo operativo visible para roles permitidos y con config habilitada --}}
+                    @if($showMeasurementsEntry)
+                        <div class="mt-4 space-y-1">
+                            <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                Módulos operativos
+                            </p>
+
+                                <a
+                                    href="{{ route('admin.system-modules.measurements.index') }}"
+                                    class="{{ $itemClass($measurementsModuleActive) }}"
+                                >
+                                <i data-lucide="ruler" class="{{ $iconClass($measurementsModuleActive) }}"></i>
+                                <span>Mediciones</span>
+                            </a>
+                        </div>
+                    @endif
+                @endif
+
+                {{-- ADMIN_CLIENTE --}}
+                @if($role === 'admin_cliente')
+                    <a href="{{ route('admin.dashboard') }}" class="{{ $itemClass($dashboardActive) }}">
+                        <i data-lucide="layout-dashboard" class="{{ $iconClass($dashboardActive) }}"></i>
+                        <span>Dashboard</span>
+                    </a>
+
+                    @if($showMeasurementsEntry)
+                        <div class="mt-4 space-y-1">
+                            <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                Módulos operativos
+                            </p>
+                                <a
+                                    href="{{ route('admin.system-modules.measurements.index') }}"
+                                    class="{{ $itemClass($measurementsModuleActive) }}"
+                                >
+                                <i data-lucide="ruler" class="{{ $iconClass($measurementsModuleActive) }}"></i>
+                                <span>Mediciones</span>
+                            </a>
+                        </div>
+                    @endif
                 @endif
 
                 {{-- INSPECTOR --}}

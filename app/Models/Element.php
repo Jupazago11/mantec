@@ -44,4 +44,14 @@ class Element extends Model
     {
         return $this->hasMany(ReportDetail::class);
     }
+
+    public function thicknessDraft()
+    {
+        return $this->hasOne(\App\Models\MeasurementThicknessDraft::class);
+    }
+
+    public function thicknessReports()
+    {
+        return $this->hasMany(\App\Models\MeasurementThicknessReport::class);
+    }
 }

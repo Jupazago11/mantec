@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\SystemModule;
+use App\Models\RoleModulePermission;
+use App\Models\ClientElementTypeModule;
 
 class User extends Authenticatable
 {
@@ -91,5 +94,67 @@ class User extends Authenticatable
     public function isRole(string $roleKey): bool
     {
         return $this->role?->key === $roleKey;
+    }
+
+    public function canManageSystemModule(string $moduleKey): bool
+    {
+        if (!$this->role_id) {
+            return false;
+        }
+
+        return RoleModulePermission::query()
+            ->where('role_id', $this->role_id)
+            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->where('can_manage', true)
+            ->exists();
+    }
+
+    public function canViewSystemModule(string $moduleKey): bool
+    {
+        if (!$this->role_id) {
+            return false;
+        }
+
+        return RoleModulePermission::query()
+            ->where('role_id', $this->role_id)
+            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->where('can_view', true)
+            ->exists();
+    }
+
+    public function canCreateInSystemModule(string $moduleKey): bool
+    {
+        if (!$this->role_id) {
+            return false;
+        }
+
+        return RoleModulePermission::query()
+            ->where('role_id', $this->role_id)
+            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->where('can_create', true)
+            ->exists();
+    }
+
+    public function hasEnabledModuleForClientAndElementType(string $moduleKey, int $clientId, int $elementTypeId): bool
+    {
+        return ClientElementTypeModule::query()
+            ->where('client_id', $clientId)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->where('module_enabled', true)
+            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->exists();
+    }
+
+    public function hasCreationEnabledForClientAndElementType(string $moduleKey, int $clientId, int $elementTypeId): bool
+    {
+        return ClientElementTypeModule::query()
+            ->where('client_id', $clientId)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->where('module_enabled', true)
+            ->where('creation_enabled', true)
+            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->exists();
     }
 }

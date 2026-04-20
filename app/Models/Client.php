@@ -76,4 +76,9 @@ class Client extends Model
             || $this->conditions()->exists();
     }
 
+    public function clientElementTypeModules(): HasMany
+    {
+        return $this->hasMany(ClientElementTypeModule::class);
+    }
+
 }

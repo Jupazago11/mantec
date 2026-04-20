@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Role extends Model
+class SystemModule extends Model
 {
     protected $fillable = [
         'name',
@@ -21,13 +21,13 @@ class Role extends Model
         ];
     }
 
-    public function users()
-    {
-        return $this->hasMany(User::class);
-    }
-
-    public function modulePermissions(): HasMany
+    public function rolePermissions(): HasMany
     {
         return $this->hasMany(RoleModulePermission::class);
+    }
+
+    public function clientElementTypeModules(): HasMany
+    {
+        return $this->hasMany(ClientElementTypeModule::class);
     }
 }
