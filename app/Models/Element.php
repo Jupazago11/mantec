@@ -54,4 +54,24 @@ class Element extends Model
     {
         return $this->hasMany(\App\Models\MeasurementThicknessReport::class);
     }
+
+    public function measurementThicknessDraft()
+    {
+        return $this->hasOne(\App\Models\MeasurementThicknessDraft::class, 'element_id');
+    }
+
+    public function measurementThicknessReports()
+    {
+        return $this->hasMany(\App\Models\MeasurementThicknessReport::class, 'element_id');
+    }
+
+    public function bandStateDraft()
+    {
+        return $this->hasOne(\App\Models\BandStateDraft::class, 'element_id');
+    }
+
+    public function bandStateReports()
+    {
+        return $this->hasMany(\App\Models\BandStateReport::class, 'element_id');
+    }
 }

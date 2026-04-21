@@ -4,23 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class MeasurementThicknessReport extends Model
+class BandStateDraft extends Model
 {
     protected $fillable = [
         'element_id',
-        'report_date',
+        'description',
+        'width',
+        'top_cover',
+        'bottom_cover',
         'created_by',
-        'published_at',
-        'notes',
+        'updated_by',
     ];
 
     protected function casts(): array
     {
         return [
-            'report_date' => 'date',
-            'published_at' => 'datetime',
+            'width' => 'decimal:2',
+            'top_cover' => 'decimal:2',
+            'bottom_cover' => 'decimal:2',
         ];
     }
 
@@ -34,9 +36,8 @@ class MeasurementThicknessReport extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function lines(): HasMany
+    public function updater(): BelongsTo
     {
-        return $this->hasMany(MeasurementThicknessReportLine::class, 'report_id')
-            ->orderBy('cover_number');
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

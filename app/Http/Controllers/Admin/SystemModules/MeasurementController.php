@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Admin\SystemModules;
 
 use App\Http\Controllers\Controller;
+use App\Models\BandStateDraft;
+use App\Models\BandStateReport;
 use App\Models\ClientElementTypeModule;
 use App\Models\Element;
 use App\Models\MeasurementThicknessDraft;
 use App\Models\MeasurementThicknessDraftLine;
+use App\Models\MeasurementThicknessReport;
+use App\Models\MeasurementThicknessReportLine;
 use App\Models\SystemModule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -129,13 +133,66 @@ class MeasurementController extends Controller
             ->where('element_id', $measurementElement->id)
             ->first();
 
+        $latestReport = MeasurementThicknessReport::query()
+            ->with([
+                'lines' => fn ($query) => $query->orderBy('cover_number'),
+                'creator:id,name',
+            ])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $historicalReports = MeasurementThicknessReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $bandStateDraft = BandStateDraft::query()
+            ->where('element_id', $measurementElement->id)
+            ->first();
+
+        $latestBandStateReport = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $bandStateHistoricalReports = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
         return view('admin.system-modules.measurements.show', [
             'element' => $measurementElement,
             'client' => $measurementElement->area->client,
             'area' => $measurementElement->area,
             'elementType' => $measurementElement->elementType,
+
             'thicknessDraft' => $draft,
             'thicknessDraftData' => $this->serializeThicknessDraft($draft),
+            'latestThicknessReport' => $latestReport,
+            'latestThicknessReportData' => $this->serializeThicknessReport($latestReport),
+            'thicknessHistoricalReportsData' => $historicalReports
+                ->map(fn (MeasurementThicknessReport $report) => $this->serializeThicknessReportSummary($report))
+                ->values(),
+
+            'bandStateDraft' => $bandStateDraft,
+            'bandStateDraftData' => $this->serializeBandStateDraft($bandStateDraft),
+            'latestBandStateReport' => $latestBandStateReport,
+            'latestBandStateReportData' => $this->serializeBandStateReport($latestBandStateReport),
+            'bandStateHistoricalReportsData' => $bandStateHistoricalReports
+                ->map(fn (BandStateReport $report) => $this->serializeBandStateReportSummary($report))
+                ->values(),
         ]);
     }
 
@@ -423,5 +480,485 @@ class MeasurementController extends Controller
                     ]);
                 }
             });
+    }
+
+    public function removeThicknessDraftCover(int $element, int $coverNumber): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        $draft = MeasurementThicknessDraft::query()
+            ->with(['lines' => fn ($query) => $query->orderBy('cover_number')])
+            ->where('element_id', $measurementElement->id)
+            ->first();
+
+        if (!$draft || $draft->lines->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay cubiertas para eliminar.',
+            ], 422);
+        }
+
+        $lineToDelete = $draft->lines->firstWhere('cover_number', $coverNumber);
+
+        if (!$lineToDelete) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cubierta seleccionada no existe.',
+            ], 422);
+        }
+
+        $hasValues = collect([
+            $lineToDelete->top_left,
+            $lineToDelete->top_center,
+            $lineToDelete->top_right,
+            $lineToDelete->bottom_left,
+            $lineToDelete->bottom_center,
+            $lineToDelete->bottom_right,
+            $lineToDelete->hardness_left,
+            $lineToDelete->hardness_center,
+            $lineToDelete->hardness_right,
+        ])->contains(fn ($value) => $value !== null && $value !== '');
+
+        if ($hasValues) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cubierta seleccionada tiene datos. Debes limpiarla antes de eliminarla.',
+            ], 422);
+        }
+
+        $lineToDelete->delete();
+
+        $this->normalizeThicknessDraftCoverNumbers($draft);
+
+        $draft->update([
+            'updated_by' => $user?->id,
+        ]);
+
+        $draft->load(['lines' => fn ($query) => $query->orderBy('cover_number')]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cubierta eliminada correctamente.',
+            'draft' => $this->serializeThicknessDraft($draft),
+        ]);
+    }
+
+    public function publishThicknessDraft(Request $request, int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'report_date' => ['required', 'date'],
+        ]);
+
+        $draft = MeasurementThicknessDraft::query()
+            ->with(['lines' => fn ($query) => $query->orderBy('cover_number')])
+            ->where('element_id', $measurementElement->id)
+            ->first();
+
+        if (!$draft || $draft->lines->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No existe un borrador con cubiertas para publicar.',
+            ], 422);
+        }
+
+        $missingFields = [];
+
+        foreach ($draft->lines as $line) {
+            $requiredFields = [
+                'top_left' => 'cubierta superior izquierda',
+                'top_center' => 'cubierta superior centro',
+                'top_right' => 'cubierta superior derecha',
+                'bottom_left' => 'cubierta inferior izquierda',
+                'bottom_center' => 'cubierta inferior centro',
+                'bottom_right' => 'cubierta inferior derecha',
+                'hardness_left' => 'dureza izquierda',
+                'hardness_center' => 'dureza centro',
+                'hardness_right' => 'dureza derecha',
+            ];
+
+            foreach ($requiredFields as $field => $label) {
+                $value = $line->{$field};
+
+                if ($value === null || $value === '') {
+                    $missingFields[] = 'Cubierta ' . $line->cover_number . ': falta ' . $label . '.';
+                }
+            }
+        }
+
+        if (!empty($missingFields)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede publicar porque hay cubiertas incompletas.',
+                'errors' => $missingFields,
+            ], 422);
+        }
+
+        $report = DB::transaction(function () use ($draft, $validated, $measurementElement, $user) {
+            $report = MeasurementThicknessReport::query()->create([
+                'element_id' => $measurementElement->id,
+                'report_date' => $validated['report_date'],
+                'created_by' => $user?->id,
+                'published_at' => now(),
+            ]);
+
+            foreach ($draft->lines as $line) {
+                MeasurementThicknessReportLine::query()->create([
+                    'report_id' => $report->id,
+                    'cover_number' => $line->cover_number,
+                    'top_left' => $line->top_left,
+                    'top_center' => $line->top_center,
+                    'top_right' => $line->top_right,
+                    'bottom_left' => $line->bottom_left,
+                    'bottom_center' => $line->bottom_center,
+                    'bottom_right' => $line->bottom_right,
+                    'hardness_left' => $line->hardness_left,
+                    'hardness_center' => $line->hardness_center,
+                    'hardness_right' => $line->hardness_right,
+                ]);
+            }
+
+            $draft->delete();
+
+            return $report;
+        });
+
+        $report->load([
+            'lines' => fn ($query) => $query->orderBy('cover_number'),
+            'creator:id,name',
+        ]);
+
+        $latestReport = MeasurementThicknessReport::query()
+            ->with([
+                'lines' => fn ($query) => $query->orderBy('cover_number'),
+                'creator:id,name',
+            ])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte publicado correctamente. El borrador fue convertido en reporte oficial.',
+            'report' => $this->serializeThicknessReport($report),
+            'latest_report' => $this->serializeThicknessReport($latestReport),
+            'draft' => null,
+        ]);
+    }
+
+    public function listThicknessReports(int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+
+        $reports = MeasurementThicknessReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'reports' => $reports
+                ->map(fn (MeasurementThicknessReport $report) => $this->serializeThicknessReportSummary($report))
+                ->values(),
+        ]);
+    }
+
+    public function showThicknessReport(int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+
+        $reportModel = MeasurementThicknessReport::query()
+            ->with([
+                'lines' => fn ($query) => $query->orderBy('cover_number'),
+                'creator:id,name',
+            ])
+            ->where('element_id', $measurementElement->id)
+            ->findOrFail($report);
+
+        return response()->json([
+            'success' => true,
+            'report' => $this->serializeThicknessReport($reportModel),
+        ]);
+    }
+
+    protected function serializeThicknessReport(?MeasurementThicknessReport $report): ?array
+    {
+        if (!$report) {
+            return null;
+        }
+
+        return [
+            'id' => $report->id,
+            'element_id' => $report->element_id,
+            'report_date' => optional($report->report_date)?->format('Y-m-d'),
+            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+            'published_by' => $report->creator?->name,
+            'lines' => $report->lines
+                ->sortBy('cover_number')
+                ->values()
+                ->map(function (MeasurementThicknessReportLine $line) {
+                    return [
+                        'id' => $line->id,
+                        'cover_number' => $line->cover_number,
+                        'top_left' => $line->top_left,
+                        'top_center' => $line->top_center,
+                        'top_right' => $line->top_right,
+                        'bottom_left' => $line->bottom_left,
+                        'bottom_center' => $line->bottom_center,
+                        'bottom_right' => $line->bottom_right,
+                        'hardness_left' => $line->hardness_left,
+                        'hardness_center' => $line->hardness_center,
+                        'hardness_right' => $line->hardness_right,
+                    ];
+                })
+                ->values(),
+        ];
+    }
+
+    protected function serializeThicknessReportSummary(MeasurementThicknessReport $report): array
+    {
+        return [
+            'id' => $report->id,
+            'report_date' => optional($report->report_date)?->format('Y-m-d'),
+            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+            'published_by' => $report->creator?->name,
+        ];
+    }
+
+    public function createBandStateDraft(int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        $draft = BandStateDraft::query()->firstOrCreate(
+            ['element_id' => $measurementElement->id],
+            [
+                'created_by' => $user?->id,
+                'updated_by' => $user?->id,
+            ]
+        );
+
+        if ($user && !$draft->created_by) {
+            $draft->created_by = $user->id;
+            $draft->updated_by = $user->id;
+            $draft->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Borrador del informe de estado de banda creado correctamente.',
+            'draft' => $this->serializeBandStateDraft($draft->fresh()),
+        ]);
+    }
+
+    public function updateBandStateDraft(Request $request, int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:255'],
+            'width' => ['nullable', 'numeric'],
+            'top_cover' => ['nullable', 'numeric'],
+            'bottom_cover' => ['nullable', 'numeric'],
+        ]);
+
+        $draft = BandStateDraft::query()->firstOrCreate(
+            ['element_id' => $measurementElement->id],
+            [
+                'created_by' => $user?->id,
+                'updated_by' => $user?->id,
+            ]
+        );
+
+        $draft->fill([
+            'description' => $validated['description'] ?? null,
+            'width' => $validated['width'] ?? null,
+            'top_cover' => $validated['top_cover'] ?? null,
+            'bottom_cover' => $validated['bottom_cover'] ?? null,
+            'updated_by' => $user?->id,
+        ]);
+
+        if (!$draft->created_by && $user) {
+            $draft->created_by = $user->id;
+        }
+
+        $draft->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Borrador del informe de estado de banda guardado correctamente.',
+            'draft' => $this->serializeBandStateDraft($draft->fresh()),
+        ]);
+    }
+
+    public function publishBandStateDraft(Request $request, int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'report_date' => ['required', 'date'],
+        ]);
+
+        $draft = BandStateDraft::query()
+            ->where('element_id', $measurementElement->id)
+            ->first();
+
+        if (!$draft) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No existe un borrador del informe de estado de banda para publicar.',
+            ], 422);
+        }
+
+        $missingFields = [];
+
+        if ($draft->description === null || trim((string) $draft->description) === '') {
+            $missingFields[] = 'Falta la descripción.';
+        }
+
+        if ($draft->width === null || $draft->width === '') {
+            $missingFields[] = 'Falta el ancho.';
+        }
+
+        if ($draft->top_cover === null || $draft->top_cover === '') {
+            $missingFields[] = 'Falta la cubierta superior.';
+        }
+
+        if ($draft->bottom_cover === null || $draft->bottom_cover === '') {
+            $missingFields[] = 'Falta la cubierta inferior.';
+        }
+
+        if (!empty($missingFields)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede publicar porque el informe de estado de banda está incompleto.',
+                'errors' => $missingFields,
+            ], 422);
+        }
+
+        $report = DB::transaction(function () use ($draft, $validated, $measurementElement, $user) {
+            $report = BandStateReport::query()->create([
+                'element_id' => $measurementElement->id,
+                'report_date' => $validated['report_date'],
+                'description' => $draft->description,
+                'width' => $draft->width,
+                'top_cover' => $draft->top_cover,
+                'bottom_cover' => $draft->bottom_cover,
+                'created_by' => $user?->id,
+                'published_at' => now(),
+            ]);
+
+            $draft->delete();
+
+            return $report;
+        });
+
+        $report->load(['creator:id,name']);
+
+        $latestReport = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Informe de estado de banda publicado correctamente.',
+            'report' => $this->serializeBandStateReport($report),
+            'latest_report' => $this->serializeBandStateReport($latestReport),
+            'draft' => null,
+        ]);
+    }
+
+    public function listBandStateReports(int $element): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+
+        $reports = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'reports' => $reports
+                ->map(fn (BandStateReport $report) => $this->serializeBandStateReportSummary($report))
+                ->values(),
+        ]);
+    }
+
+    public function showBandStateReport(int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+
+        $reportModel = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->findOrFail($report);
+
+        return response()->json([
+            'success' => true,
+            'report' => $this->serializeBandStateReport($reportModel),
+        ]);
+    }
+
+    protected function serializeBandStateDraft(?BandStateDraft $draft): ?array
+    {
+        if (!$draft) {
+            return null;
+        }
+
+        return [
+            'id' => $draft->id,
+            'element_id' => $draft->element_id,
+            'description' => $draft->description,
+            'width' => $draft->width,
+            'top_cover' => $draft->top_cover,
+            'bottom_cover' => $draft->bottom_cover,
+        ];
+    }
+
+    protected function serializeBandStateReport(?BandStateReport $report): ?array
+    {
+        if (!$report) {
+            return null;
+        }
+
+        return [
+            'id' => $report->id,
+            'element_id' => $report->element_id,
+            'report_date' => optional($report->report_date)?->format('Y-m-d'),
+            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+            'published_by' => $report->creator?->name,
+            'description' => $report->description,
+            'width' => $report->width,
+            'top_cover' => $report->top_cover,
+            'bottom_cover' => $report->bottom_cover,
+        ];
+    }
+
+    protected function serializeBandStateReportSummary(BandStateReport $report): array
+    {
+        return [
+            'id' => $report->id,
+            'report_date' => optional($report->report_date)?->format('Y-m-d'),
+            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+            'published_by' => $report->creator?->name,
+        ];
     }
 }

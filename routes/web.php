@@ -213,11 +213,21 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('element')
         ->name('system-modules.measurements.thickness-draft.add-cover');
 
-    Route::delete('/system-modules/measurements/{element}/thickness-draft/remove-last-cover', [MeasurementController::class, 'removeLastThicknessDraftCover'])
+    Route::delete('/system-modules/measurements/{element}/thickness-draft/covers/{coverNumber}', [MeasurementController::class, 'removeThicknessDraftCover'])
         ->whereNumber('element')
-        ->name('system-modules.measurements.thickness-draft.remove-last-cover');
+        ->whereNumber('coverNumber')
+        ->name('system-modules.measurements.thickness-draft.remove-cover');
+
+    Route::post('/system-modules/measurements/{element}/band-state-draft/create', [MeasurementController::class, 'createBandStateDraft'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.band-state-draft.create');
+
+    Route::put('/system-modules/measurements/{element}/band-state-draft', [MeasurementController::class, 'updateBandStateDraft'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.band-state-draft.update');
    
     });
+
 
 
     Route::prefix('ajax')->group(function () {
@@ -254,6 +264,37 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/system-modules/measurements', [AdminSystemModuleController::class, 'measurements'])
             ->name('system-modules.measurements.index');
+
+        Route::post('/system-modules/measurements/{element}/thickness-draft/publish', [MeasurementController::class, 'publishThicknessDraft'])
+            ->whereNumber('element')
+            ->name('admin.system-modules.measurements.thickness-draft.publish');
+
+        Route::get('/system-modules/measurements/{element}/reports', [MeasurementController::class, 'listThicknessReports'])
+            ->whereNumber('element')
+            ->name('admin.system-modules.measurements.reports.index');
+
+        Route::get('/system-modules/measurements/{element}/reports/{report}', [MeasurementController::class, 'showThicknessReport'])
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.reports.show');
+            
+        Route::post('/system-modules/measurements/{element}/band-state-draft/publish', [MeasurementController::class, 'publishBandStateDraft'])
+            ->whereNumber('element')
+            ->name('admin.system-modules.measurements.band-state-draft.publish');
+
+        Route::get('/system-modules/measurements/{element}/band-state-reports', [MeasurementController::class, 'listBandStateReports'])
+            ->whereNumber('element')
+            ->name('admin.system-modules.measurements.band-state-reports.index');
+
+        Route::get('/system-modules/measurements/{element}/band-state-reports/{report}', [MeasurementController::class, 'showBandStateReport'])
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.band-state-reports.show');
+
+
+
+
+
     });
 
     /*
