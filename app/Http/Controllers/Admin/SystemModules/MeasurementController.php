@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\SystemModules;
 use App\Http\Controllers\Controller;
 use App\Models\BandStateDraft;
 use App\Models\BandStateReport;
+use App\Models\BandEvent;
 use App\Models\ClientElementTypeModule;
 use App\Models\Element;
 use App\Models\MeasurementThicknessDraft;
@@ -172,6 +173,47 @@ class MeasurementController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $bandEventLatestReport = BandEvent::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $bandEventActiveBand = BandEvent::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('type', 'band')
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $bandEventBands = BandEvent::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('type', 'band')
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $bandEventHistoricalTree = BandEvent::query()
+            ->with(['children' => function ($query) {
+                $query->where('status', true)
+                    ->orderBy('report_date')
+                    ->orderBy('published_at')
+                    ->orderBy('id');
+            }])
+            ->where('element_id', $measurementElement->id)
+            ->where('type', 'band')
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get();
+
         return view('admin.system-modules.measurements.show', [
             'element' => $measurementElement,
             'client' => $measurementElement->area->client,
@@ -192,6 +234,21 @@ class MeasurementController extends Controller
             'latestBandStateReportData' => $this->serializeBandStateReport($latestBandStateReport),
             'bandStateHistoricalReportsData' => $bandStateHistoricalReports
                 ->map(fn (BandStateReport $report) => $this->serializeBandStateReportSummary($report))
+                ->values(),
+            'bandEventLatestReportData' => $this->serializeBandEvent($bandEventLatestReport),
+            'bandEventActiveBandData' => $this->serializeBandEvent($bandEventActiveBand),
+            'bandEventBandsData' => $bandEventBands
+                ->map(fn (BandEvent $event) => $this->serializeBandEventSummary($event))
+                ->values(),
+            'bandEventHistoricalTreeData' => $bandEventHistoricalTree
+                ->map(function (BandEvent $band) {
+                    return [
+                        ...$this->serializeBandEvent($band),
+                        'children' => $band->children
+                            ->map(fn (BandEvent $child) => $this->serializeBandEvent($child))
+                            ->values(),
+                    ];
+                })
                 ->values(),
         ]);
     }
@@ -916,6 +973,40 @@ class MeasurementController extends Controller
             'report' => $this->serializeBandStateReport($reportModel),
         ]);
     }
+    protected function resolveLatestThicknessMaxHardnessForElement(int $elementId): ?string
+    {
+        $latestThicknessReport = MeasurementThicknessReport::query()
+            ->with(['lines' => fn ($query) => $query->orderBy('cover_number')])
+            ->where('element_id', $elementId)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$latestThicknessReport || $latestThicknessReport->lines->isEmpty()) {
+            return null;
+        }
+
+        $values = [];
+
+        foreach ($latestThicknessReport->lines as $line) {
+            foreach ([
+                $line->hardness_left,
+                $line->hardness_center,
+                $line->hardness_right,
+            ] as $value) {
+                if ($value !== null && $value !== '') {
+                    $values[] = (float) $value;
+                }
+            }
+        }
+
+        if (empty($values)) {
+            return null;
+        }
+
+        return number_format(max($values), 2, '.', '');
+    }
 
     protected function serializeBandStateDraft(?BandStateDraft $draft): ?array
     {
@@ -949,6 +1040,7 @@ class MeasurementController extends Controller
             'width' => $report->width,
             'top_cover' => $report->top_cover,
             'bottom_cover' => $report->bottom_cover,
+            'calculated_hardness' => $this->resolveLatestThicknessMaxHardnessForElement($report->element_id),
         ];
     }
 
@@ -959,6 +1051,49 @@ class MeasurementController extends Controller
             'report_date' => optional($report->report_date)?->format('Y-m-d'),
             'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
             'published_by' => $report->creator?->name,
+        ];
+    }
+
+    protected function serializeBandEvent(?BandEvent $event): ?array
+    {
+        if (!$event) {
+            return null;
+        }
+
+        return [
+            'id' => $event->id,
+            'element_id' => $event->element_id,
+            'parent_id' => $event->parent_id,
+            'type' => $event->type,
+            'brand' => $event->brand,
+            'width' => $event->width,
+            'length' => $event->length,
+            'roll_count' => $event->roll_count,
+            'temperature' => $event->temperature,
+            'pressure' => $event->pressure,
+            'time' => $event->time,
+            'section_length' => $event->section_length,
+            'section_width' => $event->section_width,
+            'observation' => $event->observation,
+            'report_date' => optional($event->report_date)?->format('Y-m-d'),
+            'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
+            'status' => (bool) $event->status,
+        ];
+    }
+
+    protected function serializeBandEventSummary(BandEvent $event): array
+    {
+        return [
+            'id' => $event->id,
+            'parent_id' => $event->parent_id,
+            'type' => $event->type,
+            'brand' => $event->brand,
+            'width' => $event->width,
+            'length' => $event->length,
+            'roll_count' => $event->roll_count,
+            'report_date' => optional($event->report_date)?->format('Y-m-d'),
+            'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
+            'observation' => $event->observation,
         ];
     }
 }

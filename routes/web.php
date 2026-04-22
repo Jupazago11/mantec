@@ -225,10 +225,22 @@ Route::middleware('auth')->group(function () {
     Route::put('/system-modules/measurements/{element}/band-state-draft', [MeasurementController::class, 'updateBandStateDraft'])
         ->whereNumber('element')
         ->name('system-modules.measurements.band-state-draft.update');
+
+    
    
     });
 
+    Route::prefix('band-events')->group(function () {
 
+        Route::post('/{element}/draft/create', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'create'])
+            ->name('band-events.draft.create');
+
+        Route::put('/{element}/draft/update', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'update'])
+            ->name('band-events.draft.update');
+
+        Route::post('/{element}/draft/publish', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'publish'])
+            ->name('band-events.draft.publish');
+    });
 
     Route::prefix('ajax')->group(function () {
         Route::get('/preventive-report-data/elements-by-area/{area}', [AdminPreventiveReportController::class, 'getElementsByArea'])

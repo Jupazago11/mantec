@@ -74,4 +74,14 @@ class Element extends Model
     {
         return $this->hasMany(\App\Models\BandStateReport::class, 'element_id');
     }
+
+    public function bandEvents()
+    {
+        return $this->hasMany(\App\Models\BandEvent::class, 'element_id');
+    }
+
+    public function bandEventDrafts()
+    {
+        return $this->hasMany(\App\Models\BandEventDraft::class, 'element_id');
+    }
 }
