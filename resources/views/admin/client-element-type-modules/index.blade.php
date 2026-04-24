@@ -247,7 +247,7 @@
             }
 
             toast.className =
-                'fixed bottom-6 right-6 z-[80] rounded-2xl px-4 py-3 text-sm font-semibold shadow-xl transition ' +
+                'fixed bottom-6 right-6 z-[20000] max-w-[420px] rounded-2xl px-4 py-3 text-sm font-semibold shadow-2xl transition ' +
                 (type === 'success'
                     ? 'border border-green-200 bg-green-100 text-green-700'
                     : 'border border-red-200 bg-red-100 text-red-700');
@@ -258,7 +258,7 @@
             clearTimeout(window.__crudToastTimeout);
             window.__crudToastTimeout = setTimeout(() => {
                 toast.classList.add('hidden');
-            }, 2200);
+            }, 4200);
         }
 
         function renderAjaxErrors(containerId, errors) {

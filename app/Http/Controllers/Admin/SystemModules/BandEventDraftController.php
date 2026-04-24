@@ -70,12 +70,23 @@ class BandEventDraftController extends Controller
             ->firstOrFail();
 
         $request->validate([
+            'type' => 'required|in:band,vulcanization,section_change',
             'report_date' => 'required|date',
         ]);
 
+        // 1. Guardar automáticamente lo que viene del formulario antes de publicar
+        $data = $this->validateDraftByType($request);
+
+        $draft->update(array_merge($data, [
+            'report_date' => $request->report_date,
+            'updated_by' => auth()->id(),
+        ]));
+
+        $draft = $draft->fresh();
+
+        // 2. Validar contra el draft ya actualizado
         $this->validatePublishDraftData($draft, $type);
 
-        // determinar banda activa si es hijo
         $parentId = null;
 
         if ($type !== 'band') {
@@ -86,6 +97,7 @@ class BandEventDraftController extends Controller
                     ->where('type', 'band')
                     ->where('status', true)
                     ->orderByDesc('report_date')
+                    ->orderByDesc('id')
                     ->value('id');
             }
         }
@@ -96,7 +108,6 @@ class BandEventDraftController extends Controller
             'parent_id' => $parentId,
             'report_date' => $request->report_date,
 
-            // REFERENCIA BANDA
             'brand' => $draft->brand,
             'total_thickness' => $draft->total_thickness,
             'top_cover_thickness' => $draft->top_cover_thickness,
@@ -106,46 +117,133 @@ class BandEventDraftController extends Controller
             'length' => $draft->length,
             'roll_count' => $draft->roll_count,
 
-            // VULCANIZADO
             'temperature' => $draft->temperature,
             'pressure' => $draft->pressure,
             'time' => $draft->time,
             'cooling_time' => $draft->cooling_time,
 
-            // ENTREGA EQUIPO
             'motor_current' => $draft->motor_current,
             'alignment' => $draft->alignment,
             'material_accumulation' => $draft->material_accumulation,
             'guard' => $draft->guard,
             'idler_condition' => $draft->idler_condition,
 
-            // CAMBIO TRAMO
             'section_brand' => $draft->section_brand,
             'section_thickness' => $draft->section_thickness,
             'section_plies' => $draft->section_plies,
             'section_length' => $draft->section_length,
             'section_width' => $draft->section_width,
 
-            // LÓGICA
             'same_reference' => $draft->same_reference,
-
-            // COMUNES
             'observation' => $draft->observation,
 
-            // CONTROL
             'created_by' => auth()->id(),
-            'published_at' => now()
+            'published_at' => now(),
+            'status' => true,
         ]);
 
-        // eliminar draft
         $draft->delete();
 
-        return response()->json([
+        return response()->json(array_merge([
             'success' => true,
-            'report' => $event
-        ]);
+            'message' => 'Reporte publicado correctamente.',
+            'report' => $this->serializeBandEvent($event->fresh()),
+        ], $this->bandEventPayload($elementId)));
     }
 
+    private function bandEventPayload($elementId): array
+    {
+        $latestReport = BandEvent::where('element_id', $elementId)
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('id')
+            ->first();
+
+        $activeBand = BandEvent::where('element_id', $elementId)
+            ->where('type', 'band')
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('id')
+            ->first();
+
+        $bands = BandEvent::where('element_id', $elementId)
+            ->where('type', 'band')
+            ->where('status', true)
+            ->orderByDesc('report_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $children = BandEvent::where('element_id', $elementId)
+            ->whereIn('type', ['vulcanization', 'section_change'])
+            ->where('status', true)
+            ->orderBy('report_date')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('parent_id');
+
+        $historicalTree = $bands->map(function ($band) use ($children) {
+            $data = $this->serializeBandEvent($band);
+            $data['children'] = ($children->get($band->id) ?? collect())
+                ->map(fn ($child) => $this->serializeBandEvent($child))
+                ->values()
+                ->all();
+
+            return $data;
+        })->values()->all();
+
+        return [
+            'latest_report' => $this->serializeBandEvent($latestReport),
+            'active_band' => $this->serializeBandEvent($activeBand),
+            'bands' => $bands->map(fn ($band) => $this->serializeBandEvent($band))->values()->all(),
+            'historical_tree' => $historicalTree,
+        ];
+    }
+
+    private function serializeBandEvent(?BandEvent $event): ?array
+    {
+        if (!$event) {
+            return null;
+        }
+
+        return [
+            'id' => $event->id,
+            'element_id' => $event->element_id,
+            'parent_id' => $event->parent_id,
+            'type' => $event->type,
+
+            'brand' => $event->brand,
+            'total_thickness' => $event->total_thickness,
+            'top_cover_thickness' => $event->top_cover_thickness,
+            'bottom_cover_thickness' => $event->bottom_cover_thickness,
+            'plies' => $event->plies,
+            'width' => $event->width,
+            'length' => $event->length,
+            'roll_count' => $event->roll_count,
+
+            'temperature' => $event->temperature,
+            'pressure' => $event->pressure,
+            'time' => $event->time,
+            'cooling_time' => $event->cooling_time,
+
+            'motor_current' => $event->motor_current,
+            'alignment' => $event->alignment,
+            'material_accumulation' => $event->material_accumulation,
+            'guard' => $event->guard,
+            'idler_condition' => $event->idler_condition,
+
+            'section_brand' => $event->section_brand,
+            'section_thickness' => $event->section_thickness,
+            'section_plies' => $event->section_plies,
+            'section_length' => $event->section_length,
+            'section_width' => $event->section_width,
+
+            'same_reference' => (bool) $event->same_reference,
+            'observation' => $event->observation,
+            'report_date' => optional($event->report_date)?->format('Y-m-d'),
+            'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
+            'status' => (bool) $event->status,
+        ];
+    }
 
     private function validateDraftByType(Request $request): array
     {

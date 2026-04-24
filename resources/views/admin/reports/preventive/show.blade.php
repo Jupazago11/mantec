@@ -1983,7 +1983,7 @@
             clearTimeout(window.__inlineToastTimeout);
             window.__inlineToastTimeout = setTimeout(() => {
                 inlineToast.classList.remove('show');
-            }, 2200);
+            }, 4200);
         }
 
         function escapeInlineValue(value) {

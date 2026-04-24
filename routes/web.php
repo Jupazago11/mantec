@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminReportEvidenceController;
 use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
+use App\Http\Controllers\Admin\SystemModules\BandEventReportController;
 
 Route::get('/', function () {
     return view('public.home');
@@ -233,13 +234,26 @@ Route::middleware('auth')->group(function () {
     Route::prefix('band-events')->group(function () {
 
         Route::post('/{element}/draft/create', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'create'])
+            ->whereNumber('element')
             ->name('band-events.draft.create');
 
         Route::put('/{element}/draft/update', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'update'])
+            ->whereNumber('element')
             ->name('band-events.draft.update');
 
         Route::post('/{element}/draft/publish', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'publish'])
+            ->whereNumber('element')
             ->name('band-events.draft.publish');
+
+        Route::put('/{element}/reports/{event}', [BandEventReportController::class, 'update'])
+            ->whereNumber('element')
+            ->whereNumber('event')
+            ->name('band-events.reports.update');
+
+        Route::delete('/{element}/reports/{event}', [BandEventReportController::class, 'destroy'])
+            ->whereNumber('element')
+            ->whereNumber('event')
+            ->name('band-events.reports.destroy');
     });
 
     Route::prefix('ajax')->group(function () {
@@ -289,6 +303,16 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('element')
             ->whereNumber('report')
             ->name('admin.system-modules.measurements.reports.show');
+
+        Route::put('/system-modules/measurements/{element}/reports/{report}', [MeasurementController::class, 'updateThicknessReport'])
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.reports.update');
+
+        Route::delete('/system-modules/measurements/{element}/reports/{report}', [MeasurementController::class, 'deleteThicknessReport'])
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.reports.delete');
             
         Route::post('/system-modules/measurements/{element}/band-state-draft/publish', [MeasurementController::class, 'publishBandStateDraft'])
             ->whereNumber('element')
@@ -302,6 +326,16 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('element')
             ->whereNumber('report')
             ->name('admin.system-modules.measurements.band-state-reports.show');
+
+        Route::put(
+            '/ajax/system-modules/measurements/{element}/band-state-reports/{report}',
+            [MeasurementController::class, 'updateBandStateReport']
+        )->name('admin.system-modules.measurements.band-state-reports.update');
+
+        Route::delete(
+            '/ajax/system-modules/measurements/{element}/band-state-reports/{report}',
+            [MeasurementController::class, 'deleteBandStateReport']
+        )->name('admin.system-modules.measurements.band-state-reports.delete');
 
 
 

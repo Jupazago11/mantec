@@ -50,15 +50,40 @@
                     'element' => $element->id,
                     'report' => '__REPORT__',
                 ])),
+                historyUpdateTemplate: @js(route('admin.system-modules.measurements.reports.update', [
+                    'element' => $element->id,
+                    'report' => '__REPORT__',
+                ])),
+                historyDeleteTemplate: @js(route('admin.system-modules.measurements.reports.delete', [
+                    'element' => $element->id,
+                    'report' => '__REPORT__',
+                ])),
                 bandCreate: @js(route('band-events.draft.create', $element->id)),
                 bandUpdate: @js(route('band-events.draft.update', $element->id)),
                 bandPublish: @js(route('band-events.draft.publish', $element->id)),
+
+                bandReportUpdateTemplate: @js(route('band-events.reports.update', [
+                    'element' => $element->id,
+                    'event' => '__EVENT__',
+                ])),
+                bandReportDeleteTemplate: @js(route('band-events.reports.destroy', [
+                    'element' => $element->id,
+                    'event' => '__EVENT__',
+                ])),
 
                 bandStateCreate: @js(route('admin.system-modules.measurements.band-state-draft.create', $element->id)),
                 bandStateUpdate: @js(route('admin.system-modules.measurements.band-state-draft.update', $element->id)),
                 bandStatePublish: @js(route('admin.system-modules.measurements.band-state-draft.publish', $element->id)),
                 bandStateHistoryIndex: @js(route('admin.system-modules.measurements.band-state-reports.index', $element->id)),
                 bandStateHistoryShowTemplate: @js(route('admin.system-modules.measurements.band-state-reports.show', [
+                    'element' => $element->id,
+                    'report' => '__REPORT__',
+                ])),
+                bandStateHistoryUpdateTemplate: @js(route('admin.system-modules.measurements.band-state-reports.update', [
+                    'element' => $element->id,
+                    'report' => '__REPORT__',
+                ])),
+                bandStateHistoryDeleteTemplate: @js(route('admin.system-modules.measurements.band-state-reports.delete', [
                     'element' => $element->id,
                     'report' => '__REPORT__',
                 ])),
@@ -137,7 +162,7 @@
                                             DESCRIPCIÓN
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="latestBandStateReport?.description || '—'"
                                         ></td>
                                     </tr>
@@ -147,7 +172,7 @@
                                             ANCHO
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(latestBandStateReport?.width)"
                                         ></td>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
@@ -163,14 +188,14 @@
                                             CUBIERTA SUPERIOR
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(latestBandStateReport?.top_cover)"
                                         ></td>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                             CUBIERTA INFERIOR
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(latestBandStateReport?.bottom_cover)"
                                         ></td>
                                     </tr>
@@ -213,146 +238,170 @@
                     </div>
                 </div>
             </div>
-        {{-- Superior derecha --}}
-            {{-- Superior derecha - Cambio de banda --}}
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="p-6">
-                    <div
-                        x-show="!bandEventLatestReport"
-                        x-cloak
-                        class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"
-                    >
-                        <p class="text-sm font-semibold text-slate-700">
-                            Aún no existe un reporte oficial de cambio de banda.
-                        </p>
 
-                        <p class="mt-2 text-sm text-slate-500">
-                            Usa el asistente para registrar una banda nueva, un vulcanizado o un cambio de tramo.
-                        </p>
+        {{-- Superior derecha - Cambio de banda --}}
+        {{-- Superior derecha - Cambio de banda --}}
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="p-6">
+                <div
+                    x-show="!latestBandChangeReport()"
+                    x-cloak
+                    class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"
+                >
+                    <p class="text-sm font-semibold text-slate-700">
+                        Aún no existe un reporte oficial de cambio de banda.
+                    </p>
 
-                        <div class="mt-5 flex flex-wrap justify-center gap-2">
-                            <button
-                                type="button"
-                                @click="openBandWizard('band')"
-                                class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                            >
-                                Banda nueva
-                            </button>
+                    <p class="mt-2 text-sm text-slate-500">
+                        Registra una banda nueva para iniciar el histórico técnico del activo.
+                    </p>
 
-                            <button
-                                type="button"
-                                @click="openBandWizard('vulcanization')"
-                                class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                                Vulcanizado
-                            </button>
+                    <div class="mt-4 flex justify-center gap-2">
+                        <button
+                            type="button"
+                            @click="openBandWizard('band')"
+                            title="Nuevo cambio de banda"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
+                        >
+                            <i data-lucide="file-pen-line" class="h-5 w-5"></i>
+                        </button>
 
-                            <button
-                                type="button"
-                                @click="openBandWizard('section_change')"
-                                class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                                Cambio tramo
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            @click="openBandHistoryModal()"
+                            title="Ver histórico"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                        >
+                            <i data-lucide="history" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    x-show="latestBandChangeReport()"
+                    x-cloak
+                    class="flex items-start gap-3"
+                >
+                    <div class="min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        <table class="w-full border-collapse text-sm">
+                            <tbody>
+                                <tr class="bg-[#4f79bd] text-white">
+                                    <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
+                                        Cambio de banda
+                                        <span
+                                            class="ml-2 font-semibold normal-case"
+                                            x-text="latestBandChangeReport()?.report_date ? ' - ' + formatDate(latestBandChangeReport().report_date) : ''"
+                                        ></span>
+                                    </th>
+                                </tr>
+
+                                <tr class="bg-white">
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        MARCA
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="latestBandChangeReport()?.brand || '—'"
+                                    ></td>
+
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        ROLLOS
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="latestBandChangeReport()?.roll_count ?? '—'"
+                                    ></td>
+                                </tr>
+
+                                <tr class="bg-white">
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        ANCHO
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="displayValue(latestBandChangeReport()?.width)"
+                                    ></td>
+
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        LONGITUD
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="displayValue(latestBandChangeReport()?.length)"
+                                    ></td>
+                                </tr>
+                                <tr class="bg-white">
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        VULCANIZADOS
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="latestBandChangeReport()?.children?.filter(child => child.type === 'vulcanization').length ?? 0"
+                                    ></td>
+
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        CAMBIOS DE TRAMO
+                                    </th>
+                                    <td
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="latestBandChangeReport()?.children?.filter(child => child.type === 'section_change').length ?? 0"
+                                    ></td>
+                                </tr>
+                                <tr class="bg-white">
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        OBSERVACIÓN
+                                    </th>
+                                    <td
+                                        colspan="3"
+                                        class="border border-slate-300 px-3 py-2 text-center font-semibold"
+                                        :class="latestBandChangeReport()?.observation ? 'text-slate-900' : 'text-slate-500'"
+                                        x-text="latestBandChangeReport()?.observation || '—'"
+                                    ></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
-                    <div
-                        x-show="bandEventLatestReport"
-                        x-cloak
-                        class="space-y-4"
-                    >
-                        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                            <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
-                                            Cambio de banda
-                                        </span>
+                    <div class="flex shrink-0 flex-col gap-2 pt-1">
+                        <button
+                            type="button"
+                            @click="openBandWizard('band')"
+                            title="Nuevo cambio de banda"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
+                        >
+                            <i data-lucide="file-pen-line" class="h-5 w-5"></i>
+                        </button>
 
-                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                                            <span x-text="bandEventTypeLabel(bandEventLatestReport?.type)"></span>
-                                        </span>
+                        <button
+                            type="button"
+                            @click="openBandHistoryModal()"
+                            title="Ver histórico"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                        >
+                            <i data-lucide="history" class="h-5 w-5"></i>
+                        </button>
 
-                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                                            <span x-text="bandEventLatestReport?.report_date ? formatDate(bandEventLatestReport.report_date) : 'Sin fecha'"></span>
-                                        </span>
-                                    </div>
+                        <button
+                            type="button"
+                            @click="openBandWizard('vulcanization')"
+                            title="Registrar vulcanizado"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                        >
+                            <i data-lucide="wrench" class="h-5 w-5"></i>
+                        </button>
 
-                                    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Marca</div>
-                                            <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandEventLatestReport?.brand || '—'"></div>
-                                        </div>
-
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Rollos</div>
-                                            <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandEventLatestReport?.roll_count ?? '—'"></div>
-                                        </div>
-
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Ancho</div>
-                                            <div class="mt-1 text-sm font-semibold text-slate-800" x-text="displayValue(bandEventLatestReport?.width)"></div>
-                                        </div>
-
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Longitud</div>
-                                            <div class="mt-1 text-sm font-semibold text-slate-800" x-text="displayValue(bandEventLatestReport?.length)"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                                        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Observación</div>
-                                        <div
-                                            class="mt-1 text-sm font-semibold"
-                                            :class="bandEventLatestReport?.observation ? 'text-slate-800' : 'text-slate-400'"
-                                            x-text="bandEventLatestReport?.observation || 'Sin observación registrada'"
-                                        ></div>
-                                    </div>
-                                </div>
-
-                                <div class="grid shrink-0 grid-cols-2 gap-2 xl:w-[220px] xl:grid-cols-2">
-                                    <button
-                                        type="button"
-                                        @click="openBandWizard('band')"
-                                        title="Crear cambio de banda"
-                                        class="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                                    >
-                                        Banda nueva
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="openBandHistoryModal()"
-                                        title="Ver histórico"
-                                        class="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                    >
-                                        Histórico
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="openBandWizard('vulcanization')"
-                                        title="Registrar vulcanizado"
-                                        class="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                    >
-                                        Vulcanizado
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="openBandWizard('section_change')"
-                                        title="Registrar cambio de tramo"
-                                        class="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                    >
-                                        Cambio tramo
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <button
+                            type="button"
+                            @click="openBandWizard('section_change')"
+                            title="Registrar cambio de tramo"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                        >
+                            <i data-lucide="scissors-line-dashed" class="h-5 w-5"></i>
+                        </button>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
         {{-- Modal histórico - Cambio de banda --}}
         <div
@@ -366,7 +415,7 @@
                 x-show="bandHistoryModalOpen"
                 x-transition
                 class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
-                @click.outside="closeBandHistoryModal()"
+                @click.outside="if (!bandEditModalOpen) closeBandHistoryModal()"
             >
                 <div class="border-b border-slate-200 px-6 py-4">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -378,13 +427,33 @@
                             </p>
                         </div>
 
-                        <button
-                            type="button"
-                            @click="closeBandHistoryModal()"
-                            class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                        >
-                            Cerrar
-                        </button>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                x-show="selectedBandHistory"
+                                @click="openBandEditModal(selectedBandHistory)"
+                                class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                            >
+                                Editar banda
+                            </button>
+
+                            <button
+                                type="button"
+                                x-show="selectedBandHistory"
+                                @click="deleteBandHistoricalEvent(selectedBandHistory)"
+                                class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                            >
+                                Eliminar banda
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="closeBandHistoryModal()"
+                                class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -446,48 +515,143 @@
                                 class="space-y-5"
                             >
                                 {{-- PADRE --}}
-                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                    <table class="w-full border-collapse text-sm">
-                                        <tbody>
-                                            <tr class="bg-[#4f79bd] text-white">
-                                                <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
-                                                    Cambio de banda
-                                                    <span
-                                                        class="ml-2 font-semibold normal-case"
-                                                        x-text="selectedBandHistory?.report_date ? ' - ' + formatDate(selectedBandHistory.report_date) : ''"
-                                                    ></span>
-                                                </th>
-                                            </tr>
+                                {{-- PADRE --}}
+                                <div class="space-y-4">
+                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                        <table class="w-full border-collapse text-sm">
+                                            <tbody>
+                                                <tr class="bg-[#4f79bd] text-white">
+                                                    <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
+                                                        Cambio de banda
+                                                        <span
+                                                            class="ml-2 font-semibold normal-case"
+                                                            x-text="selectedBandHistory?.report_date ? ' - ' + formatDate(selectedBandHistory.report_date) : ''"
+                                                        ></span>
+                                                    </th>
+                                                </tr>
 
-                                            <tr class="bg-white">
-                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th>
-                                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                    x-text="selectedBandHistory?.brand || '—'"></td>
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="selectedBandHistory?.brand || '—'"></td>
 
-                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rollos</th>
-                                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                    x-text="selectedBandHistory?.roll_count ?? '—'"></td>
-                                            </tr>
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rollos</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="selectedBandHistory?.roll_count ?? '—'"></td>
+                                                </tr>
 
-                                            <tr class="bg-white">
-                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th>
-                                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                    x-text="displayValue(selectedBandHistory?.width)"></td>
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.width)"></td>
 
-                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th>
-                                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                    x-text="displayValue(selectedBandHistory?.length)"></td>
-                                            </tr>
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.length)"></td>
+                                                </tr>
 
-                                            <tr class="bg-white">
-                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Observación</th>
-                                                <td colspan="3"
-                                                    class="border border-slate-300 px-3 py-2 text-center font-semibold"
-                                                    :class="selectedBandHistory?.observation ? 'text-slate-900' : 'text-slate-500'"
-                                                    x-text="selectedBandHistory?.observation || '—'"></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor total</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.total_thickness)"></td>
+
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.plies)"></td>
+                                                </tr>
+
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Cubierta superior</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.top_cover_thickness)"></td>
+
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Cubierta inferior</th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="displayValue(selectedBandHistory?.bottom_cover_thickness)"></td>
+                                                </tr>
+
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Observación</th>
+                                                    <td colspan="3"
+                                                        class="border border-slate-300 px-3 py-2 text-center font-semibold"
+                                                        :class="selectedBandHistory?.observation ? 'text-slate-900' : 'text-slate-500'"
+                                                        x-text="selectedBandHistory?.observation || '—'"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="grid gap-4 xl:grid-cols-2">
+                                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                            <table class="w-full border-collapse text-sm">
+                                                <tbody>
+                                                    <tr class="bg-[#4f79bd] text-white">
+                                                        <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
+                                                            Datos de vulcanizado
+                                                        </th>
+                                                    </tr>
+
+                                                    <tr class="bg-white">
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="displayValue(selectedBandHistory?.temperature)"></td>
+
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="displayValue(selectedBandHistory?.pressure)"></td>
+                                                    </tr>
+
+                                                    <tr class="bg-white">
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="displayValue(selectedBandHistory?.time)"></td>
+
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="displayValue(selectedBandHistory?.cooling_time)"></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                            <table class="w-full border-collapse text-sm">
+                                                <tbody>
+                                                    <tr class="bg-[#4f79bd] text-white">
+                                                        <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
+                                                            Datos de entrega de equipo
+                                                        </th>
+                                                    </tr>
+
+                                                    <tr class="bg-white">
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="displayValue(selectedBandHistory?.motor_current)"></td>
+
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="selectedBandHistory?.alignment || '—'"></td>
+                                                    </tr>
+
+                                                    <tr class="bg-white">
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="selectedBandHistory?.material_accumulation || '—'"></td>
+
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th>
+                                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="selectedBandHistory?.guard || '—'"></td>
+                                                    </tr>
+
+                                                    <tr class="bg-white">
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th>
+                                                        <td colspan="3" class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            x-text="selectedBandHistory?.idler_condition || '—'"></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {{-- HIJOS --}}
@@ -509,10 +673,34 @@
                                             <table class="w-full border-collapse text-sm">
                                                 <tbody>
                                                     <tr class="bg-slate-100 text-slate-700">
-                                                        <th colspan="4" class="border border-slate-200 px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                                            <span x-text="bandEventTypeLabel(child.type)"></span>
-                                                            <span class="ml-2 normal-case font-semibold"
-                                                                x-text="child.report_date ? formatDate(child.report_date) : '—'"></span>
+                                                        <th colspan="4" class="border border-slate-200 px-3 py-2">
+                                                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                                                <div class="text-left text-xs font-bold uppercase tracking-wider">
+                                                                    <span x-text="bandEventTypeLabel(child.type)"></span>
+                                                                    <span
+                                                                        class="ml-2 normal-case font-semibold"
+                                                                        x-text="child.report_date ? formatDate(child.report_date) : '—'"
+                                                                    ></span>
+                                                                </div>
+
+                                                                <div class="flex gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        @click.stop="openBandEditModal(child)"
+                                                                        class="rounded-lg bg-[#d94d33] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b83f29]"
+                                                                    >
+                                                                        Editar
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        @click.stop="deleteBandHistoricalEvent(child)"
+                                                                        class="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                                                                    >
+                                                                        Eliminar
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         </th>
                                                     </tr>
 
@@ -567,6 +755,758 @@
                 </div>
             </div>
         </div>
+
+
+{{-- Modal editar histórico - Cambio de banda / Vulcanizado / Cambio de tramo --}}
+<div
+    x-cloak
+    x-show="bandEditModalOpen"
+    x-transition.opacity
+    class="fixed top-0 left-0 z-[10000] flex h-screen w-screen items-center justify-center bg-slate-900/60 px-4 py-6"
+    @keydown.escape.window="closeBandEditModal()"
+>
+    <div
+        x-show="bandEditModalOpen"
+        x-transition
+        class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        @click.outside="closeBandEditModal()"
+        @click.stop
+    >
+        <div class="border-b border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
+                            <span x-text="bandEventTypeLabel(bandEditForm?.type || 'band')"></span>
+                        </span>
+
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                            Edición oficial
+                        </span>
+                    </div>
+
+                    <h3 class="mt-2 text-xl font-semibold text-slate-900">
+                        Editar evento histórico
+                    </h3>
+
+                    <p class="mt-1 text-sm text-slate-500">
+                        Modifica el evento oficial seleccionado del activo
+                        <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Fecha
+                        </label>
+
+                        <input
+                            type="date"
+                            x-model="bandEditForm.report_date"
+                            class="w-[145px] bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                        >
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="updateBandHistoricalEvent()"
+                        :disabled="loading || !bandEditForm"
+                        class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Guardar cambios
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="closeBandEditModal()"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-5">
+            <div
+                x-show="bandEditErrors.length > 0"
+                x-cloak
+                class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+                <div class="font-semibold">Hay errores en la edición.</div>
+                <ul class="mt-2 list-disc pl-5">
+                    <template x-for="error in bandEditErrors" :key="error">
+                        <li x-text="error"></li>
+                    </template>
+                </ul>
+            </div>
+
+            <template x-if="bandEditForm">
+                <div class="space-y-5">
+
+                    {{-- Selector de banda padre para eventos hijos --}}
+                    <template x-if="bandEditForm.type !== 'band'">
+                        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                Banda asociada
+                            </h4>
+
+                            <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                        Banda actual
+                                    </div>
+                                    <div
+                                        class="mt-2 text-sm font-semibold text-slate-800"
+                                        x-text="bandOptionLabel(bandEventBands.find(band => String(band.id) === String(bandEditForm?.parent_id)) || null)"
+                                    ></div>
+                                </div>
+
+                                <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                        Seleccionar banda padre
+                                    </label>
+
+                                    <select
+                                        x-model="bandEditForm.parent_id"
+                                        class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                    >
+                                        <option value="">Seleccionar banda</option>
+                                        <template x-for="band in bandEventBands" :key="'edit-parent-option-' + band.id">
+                                            <option :value="band.id" x-text="bandOptionLabel(band)"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Cambio de banda padre --}}
+                    <template x-if="bandEditForm.type === 'band'">
+                        <div class="grid gap-5 xl:grid-cols-3">
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Referencia de la banda
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Marca
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="text"
+                                                    x-model="bandEditForm.brand"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Espesor total
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.total_thickness"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Cubierta superior
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.top_cover_thickness"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Cubierta inferior
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.bottom_cover_thickness"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Lonas
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    x-model="bandEditForm.plies"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Ancho
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.width"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Longitud
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.length"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Rollos
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    x-model="bandEditForm.roll_count"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Vulcanizado
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Temperatura
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="number" step="0.01" x-model="bandEditForm.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Presión
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="number" step="0.01" x-model="bandEditForm.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Tiempo vulcanizado
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="number" step="0.01" x-model="bandEditForm.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Tiempo enfriamiento
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="number" step="0.01" x-model="bandEditForm.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Entrega de equipo
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Corriente motor
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="number" step="0.01" x-model="bandEditForm.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Alineación
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="text" x-model="bandEditForm.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Mat acumul
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="text" x-model="bandEditForm.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Guardilña
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="text" x-model="bandEditForm.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Rodillería
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input type="text" x-model="bandEditForm.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+                                        {{-- Vulcanizado hijo --}}
+                    <template x-if="bandEditForm.type === 'vulcanization'">
+                        <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Parámetros de vulcanizado
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="w-[42%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Temperatura
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.temperature"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Presión
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.pressure"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Tiempo vulcanizado
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.time"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Tiempo enfriamiento
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-model="bandEditForm.cooling_time"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Observación
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <textarea
+                                                    x-model="bandEditForm.observation"
+                                                    rows="8"
+                                                    class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                                ></textarea>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Cambio de tramo hijo --}}
+                    <template x-if="bandEditForm.type === 'section_change'">
+                        <div class="space-y-5">
+                            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <label class="flex items-center gap-3 text-sm font-semibold text-slate-800">
+                                    <input
+                                        type="checkbox"
+                                        x-model="bandEditForm.same_reference"
+                                        class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                    >
+                                    ¿La referencia es igual a la instalada?
+                                </label>
+                            </div>
+
+                            <div class="grid gap-5 xl:grid-cols-3">
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                    Vulcanizado
+                                                </th>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Temperatura
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.temperature"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Presión
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.pressure"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Tiempo vulcanizado
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.time"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Tiempo enfriamiento
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.cooling_time"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                    Entrega de equipo
+                                                </th>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Corriente motor
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.motor_current"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Alineación
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="bandEditForm.alignment"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Mat acumul
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="bandEditForm.material_accumulation"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Guardilña
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="bandEditForm.guard"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Rodillería
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="bandEditForm.idler_condition"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                    Cambio de tramo
+                                                </th>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Marca
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="text"
+                                                        x-model="bandEditForm.section_brand"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Espesor
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.section_thickness"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Lonas
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        x-model="bandEditForm.section_plies"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Longitud
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.section_length"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                    Ancho
+                                                </th>
+                                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        x-model="bandEditForm.section_width"
+                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                    >
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                                Observación
+                                            </th>
+                                        </tr>
+
+                                        <tr>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <textarea
+                                                    x-model="bandEditForm.observation"
+                                                    rows="5"
+                                                    class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                                ></textarea>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Observación para cambio de banda padre --}}
+                    <template x-if="bandEditForm.type === 'band'">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                            Observación
+                                        </th>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                            <textarea
+                                                x-model="bandEditForm.observation"
+                                                rows="5"
+                                                class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                            ></textarea>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+
         {{-- Inferior ancho completo --}}
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="p-6">
@@ -796,7 +1736,7 @@
 
                         <button
                             type="button"
-                            @click="openBandStatePublishConfirm()"
+                            @click="publishBandStateDraft()"
                             :disabled="loading || !hasBandStateDraft()"
                             class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
                         >
@@ -847,7 +1787,7 @@
                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                     DESCRIPCIÓN
                                 </th>
-                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2">
+                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                     <input
                                         type="text"
                                         x-model="bandStateDraft.description"
@@ -860,7 +1800,7 @@
                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                     ANCHO
                                 </th>
-                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2">
+                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                     <input
                                         type="number"
                                         step="0.01"
@@ -880,7 +1820,7 @@
                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                     CUBIERTA SUPERIOR
                                 </th>
-                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2">
+                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                     <input
                                         type="number"
                                         step="0.01"
@@ -891,7 +1831,7 @@
                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                     CUBIERTA INFERIOR
                                 </th>
-                                <td class="border border-slate-300 bg-yellow-200 px-3 py-2">
+                                <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                     <input
                                         type="number"
                                         step="0.01"
@@ -907,6 +1847,18 @@
                                 </th>
                                 <td colspan="3" class="border border-slate-300 px-3 py-2 text-center font-semibold text-slate-500">
                                     —
+                                </td>
+                            </tr>
+                            <tr class="bg-white">
+                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                    FECHA REPORTE
+                                </th>
+                                <td colspan="3" class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                    <input
+                                        type="date"
+                                        x-model="bandStatePublishForm.report_date"
+                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                    >
                                 </td>
                             </tr>
                         </tbody>
@@ -928,7 +1880,7 @@
             x-show="bandStateHistoryModalOpen"
             x-transition
             class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
-            @click.outside="closeBandStateHistoryModal()"
+            @click.outside="if (!bandStateEditModalOpen) closeBandStateHistoryModal()"
         >
             <div class="border-b border-slate-200 px-6 py-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -940,13 +1892,33 @@
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        @click="closeBandStateHistoryModal()"
-                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                    >
-                        Cerrar
-                    </button>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            x-show="selectedBandStateHistoryReport"
+                            @click="openBandStateEditModal()"
+                            class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                        >
+                            Editar
+                        </button>
+
+                        <button
+                            type="button"
+                            x-show="selectedBandStateHistoryReport"
+                            @click="deleteBandStateHistoricalReport()"
+                            class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                            Eliminar
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="closeBandStateHistoryModal()"
+                            class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1036,7 +2008,7 @@
                                             DESCRIPCIÓN
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="selectedBandStateHistoryReport?.description || '—'"
                                         ></td>
                                     </tr>
@@ -1046,7 +2018,7 @@
                                             ANCHO
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(selectedBandStateHistoryReport?.width)"
                                         ></td>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
@@ -1062,14 +2034,14 @@
                                             CUBIERTA SUPERIOR
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(selectedBandStateHistoryReport?.top_cover)"
                                         ></td>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
                                             CUBIERTA INFERIOR
                                         </th>
                                         <td
-                                            class="border border-slate-300 bg-yellow-200 px-3 py-2 text-center font-semibold text-slate-900"
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(selectedBandStateHistoryReport?.bottom_cover)"
                                         ></td>
                                     </tr>
@@ -1092,9 +2064,160 @@
                 </div>
             </div>
         </div>
-    </div>  
+    </div>
+
+{{-- Modal editar histórico - Informe de estado de banda --}}
+<div
+    x-cloak
+    x-show="bandStateEditModalOpen"
+    x-transition.opacity
+    class="fixed top-0 left-0 z-[10000] flex h-screen w-screen items-center justify-center bg-slate-900/60 px-4 py-6"
+    @keydown.escape.window="closeBandStateEditModal()"
+>
+    <div
+        x-show="bandStateEditModalOpen"
+        x-transition
+        class="flex w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+        @click.outside="closeBandStateEditModal()"
+        @click.stop
+    >
+        <div class="border-b border-slate-200 px-6 py-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h3 class="text-xl font-semibold text-slate-900">
+                        Editar reporte - Informe de estado de banda
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Modifica el reporte oficial seleccionado.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    @click="closeBandStateEditModal()"
+                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <div
+                x-show="bandStateEditErrors.length > 0"
+                x-cloak
+                class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+                <div class="font-semibold">Hay errores en la edición.</div>
+                <ul class="mt-2 list-disc pl-5">
+                    <template x-for="error in bandStateEditErrors" :key="error">
+                        <li x-text="error"></li>
+                    </template>
+                </ul>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <table class="w-full border-collapse text-sm">
+                    <tbody>
+                        <tr class="bg-[#4f79bd] text-white">
+                            <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
+                                Informe de estado de bandas
+                            </th>
+                        </tr>
+
+                        <tr class="bg-white">
+                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                FECHA REPORTE
+                            </th>
+                            <td colspan="3" class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                <input
+                                    type="date"
+                                    x-model="bandStateEditForm.report_date"
+                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                >
+                            </td>
+                        </tr>
+
+                        <tr class="bg-white">
+                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                DESCRIPCIÓN
+                            </th>
+                            <td colspan="3" class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                <input
+                                    type="text"
+                                    x-model="bandStateEditForm.description"
+                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                >
+                            </td>
+                        </tr>
+
+                        <tr class="bg-white">
+                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                ANCHO
+                            </th>
+                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    x-model="bandStateEditForm.width"
+                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                >
+                            </td>
+
+                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                CUBIERTA SUPERIOR
+                            </th>
+                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    x-model="bandStateEditForm.top_cover"
+                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                >
+                            </td>
+                        </tr>
+
+                        <tr class="bg-white">
+                            <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                CUBIERTA INFERIOR
+                            </th>
+                            <td colspan="3" class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    x-model="bandStateEditForm.bottom_cover"
+                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                >
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 flex flex-wrap justify-end gap-2">
+                <button
+                    type="button"
+                    @click="closeBandStateEditModal()"
+                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                    Cancelar
+                </button>
+
+                <button
+                    type="button"
+                    @click="updateBandStateHistoricalReport()"
+                    :disabled="loading"
+                    class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
+                >
+                    Guardar cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {{-- Wizard - Cambio de banda / Vulcanizado / Cambio de tramo --}}
 {{-- Nuevo wizard - Cambio de banda / Vulcanizado / Cambio de tramo --}}
+{{-- Wizard compacto - Cambio de banda / Vulcanizado / Cambio de tramo --}}
 <div
     x-cloak
     x-show="bandWizardOpen"
@@ -1105,706 +2228,575 @@
     <div
         x-show="bandWizardOpen"
         x-transition
-        class="flex h-[92vh] w-full max-w-[1500px] overflow-hidden rounded-[32px] border border-slate-200 bg-slate-50 shadow-2xl"
+        class="flex h-[90vh] w-full max-w-[1350px] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 shadow-2xl"
         @click.outside="closeBandWizard()"
     >
-        {{-- Sidebar --}}
-        <aside class="hidden w-[280px] shrink-0 border-r border-slate-200 bg-slate-900 text-white xl:flex xl:flex-col">
-            <div class="border-b border-slate-800 px-6 py-6">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Band Events</p>
-                <h3 class="mt-2 text-xl font-semibold" x-text="bandWizardTitle()"></h3>
-                <p class="mt-2 text-sm text-slate-400">
-                    Activo <span class="font-semibold text-white">{{ $element->name }}</span>
-                </p>
-            </div>
+        {{-- Header compacto --}}
+        <div class="border-b border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
+                            <span x-text="bandEventTypeLabel(bandType)"></span>
+                        </span>
 
-            <div class="flex-1 space-y-2 px-4 py-5">
-                <template x-for="step in [
-                    {id:1,title:'Tipo de registro',desc:'Define qué vas a crear'},
-                    {id:2,title:'Contexto',desc:'Banda asociada o padre'},
-                    {id:3,title:'Captura técnica',desc:'Completa las tablas requeridas'},
-                    {id:4,title:'Cierre',desc:'Observación, evidencia y fecha'},
-                    {id:5,title:'Revisión',desc:'Verifica antes de publicar'}
-                ]" :key="'wizard-nav-step-' + step.id">
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                            Paso <span class="mx-1" x-text="bandWizardStep"></span> de <span class="ml-1" x-text="bandWizardTotalSteps()"></span>
+                        </span>
+
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                            Activo: {{ $element->name }}
+                        </span>
+                    </div>
+
+                    <h3 class="mt-2 text-xl font-semibold text-slate-900" x-text="bandWizardTitle()"></h3>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        @click="saveBandDraft()"
+                        :disabled="loading || !bandDraft"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Guardar borrador
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="closeBandWizard()"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- Progreso compacto --}}
+        <div class="border-b border-slate-200 bg-slate-900 px-6 py-3">
+            <div class="grid gap-2 md:grid-cols-3">
+                <template x-for="step in compactBandSteps()" :key="'compact-band-step-' + step.id">
                     <button
                         type="button"
                         @click="bandWizardStep = step.id"
-                        class="block w-full rounded-2xl px-4 py-4 text-left transition"
+                        class="rounded-xl px-3 py-2 text-left text-sm transition"
                         :class="bandWizardStep === step.id
-                            ? 'bg-white text-slate-900 shadow'
+                            ? 'bg-white text-slate-900'
                             : bandWizardStep > step.id
-                                ? 'bg-emerald-500/15 text-white'
+                                ? 'bg-emerald-500/20 text-white'
                                 : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
                     >
-                        <div class="flex items-start gap-3">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
                                 :class="bandWizardStep === step.id
                                     ? 'bg-[#d94d33] text-white'
                                     : bandWizardStep > step.id
                                         ? 'bg-emerald-500 text-white'
                                         : 'bg-slate-700 text-slate-300'"
                                 x-text="step.id"
-                            ></div>
+                            ></span>
 
-                            <div class="min-w-0">
-                                <div class="text-sm font-semibold" x-text="step.title"></div>
-                                <div class="mt-1 text-xs opacity-80" x-text="step.desc"></div>
-                            </div>
+                            <span class="font-semibold" x-text="step.title"></span>
                         </div>
                     </button>
                 </template>
             </div>
+        </div>
 
-            <div class="border-t border-slate-800 px-6 py-5">
-                <div class="rounded-2xl bg-slate-800 p-4">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Borrador</div>
-                    <div class="mt-2 text-sm font-semibold text-white">
-                        <span x-text="bandDraft?.id ? 'Activo' : 'No creado'"></span>
-                    </div>
-                    <div class="mt-1 text-xs text-slate-400">
-                        Guarda avances sin completar todos los campos.
-                    </div>
-                </div>
+        {{-- Body --}}
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div
+                x-show="bandErrors.length > 0"
+                x-cloak
+                class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+                <div class="font-semibold">Hay errores en el borrador.</div>
+                <ul class="mt-2 list-disc pl-5">
+                    <template x-for="error in bandErrors" :key="error">
+                        <li x-text="error"></li>
+                    </template>
+                </ul>
             </div>
-        </aside>
 
-        {{-- Main --}}
-        <div class="flex min-w-0 flex-1 flex-col">
-            {{-- Header --}}
-            <div class="border-b border-slate-200 bg-white px-6 py-5">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
-                                Paso <span class="ml-1" x-text="bandWizardStep"></span> de <span class="ml-1" x-text="bandWizardTotalSteps()"></span>
-                            </span>
-
-                            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                                <span x-text="bandEventTypeLabel(bandType)"></span>
-                            </span>
-                        </div>
-
-                        <h3 class="mt-3 text-2xl font-semibold text-slate-900" x-text="bandWizardTitle()"></h3>
+            {{-- Paso 1: tipo solo cuando no se abrió explícitamente como band/vulcanization/section_change --}}
+            <section x-show="bandWizardStep === 1" x-cloak class="space-y-5">
+                <template x-if="bandType === 'band'">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h4 class="text-lg font-semibold text-slate-900">Nuevo cambio de banda</h4>
                         <p class="mt-1 text-sm text-slate-500">
-                            Flujo guiado para registrar información del activo
-                            <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
+                            Registra la información técnica de la nueva banda. No se muestran opciones de vulcanizado ni tramo para evitar confusión.
                         </p>
                     </div>
+                </template>
 
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            @click="saveBandDraft()"
-                            :disabled="loading || !bandDraft"
-                            class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-70"
-                        >
-                            Guardar borrador
-                        </button>
+                <template x-if="bandType !== 'band'">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <h4 class="text-lg font-semibold text-slate-900">Banda asociada</h4>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Selecciona la banda oficial a la que se asociará este evento.
+                        </p>
 
-                        <button
-                            type="button"
-                            @click="closeBandWizard()"
-                            class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                        >
-                            Cerrar
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Body --}}
-            <div class="min-h-0 flex-1 overflow-hidden">
-                <div class="grid h-full xl:grid-cols-[minmax(0,1fr)_320px]">
-                    {{-- Step content --}}
-                    <div class="min-h-0 overflow-y-auto px-6 py-6">
-                        <div
-                            x-show="bandErrors.length > 0"
-                            x-cloak
-                            class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                        >
-                            <div class="font-semibold">Hay errores en el borrador.</div>
-                            <ul class="mt-2 list-disc pl-5">
-                                <template x-for="error in bandErrors" :key="error">
-                                    <li x-text="error"></li>
-                                </template>
-                            </ul>
-                        </div>
-
-                        {{-- Paso 1 --}}
-                        <section x-show="bandWizardStep === 1" x-cloak class="space-y-6">
-                            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                <div class="max-w-3xl">
-                                    <h4 class="text-xl font-semibold text-slate-900">¿Qué deseas registrar?</h4>
-                                    <p class="mt-2 text-sm text-slate-500">
-                                        Elige el tipo de evento. El flujo cambiará automáticamente según la selección.
-                                    </p>
-                                </div>
-
-                                <div class="mt-6 grid gap-4 lg:grid-cols-3">
-                                    <button
-                                        type="button"
-                                        @click="changeBandWizardType('band')"
-                                        class="group rounded-[24px] border p-6 text-left transition"
-                                        :class="bandType === 'band' ? 'border-[#d94d33] bg-[#d94d33]/5 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                                    >
-                                        <div class="flex items-center justify-between">
-                                            <div class="rounded-2xl bg-slate-100 p-3 text-slate-700">
-                                                <i data-lucide="package-plus" class="h-5 w-5"></i>
-                                            </div>
-                                            <span
-                                                class="rounded-full px-3 py-1 text-[11px] font-semibold"
-                                                :class="bandType === 'band' ? 'bg-[#d94d33] text-white' : 'bg-slate-100 text-slate-500'"
-                                            >
-                                                Padre
-                                            </span>
-                                        </div>
-
-                                        <div class="mt-5 text-base font-semibold text-slate-900">Cambio de banda</div>
-                                        <p class="mt-2 text-sm text-slate-500">
-                                            Crea una nueva banda padre y registra su referencia, vulcanizado y entrega de equipo.
-                                        </p>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="changeBandWizardType('vulcanization')"
-                                        class="group rounded-[24px] border p-6 text-left transition"
-                                        :class="bandType === 'vulcanization' ? 'border-[#d94d33] bg-[#d94d33]/5 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                                    >
-                                        <div class="flex items-center justify-between">
-                                            <div class="rounded-2xl bg-slate-100 p-3 text-slate-700">
-                                                <i data-lucide="wrench" class="h-5 w-5"></i>
-                                            </div>
-                                            <span
-                                                class="rounded-full px-3 py-1 text-[11px] font-semibold"
-                                                :class="bandType === 'vulcanization' ? 'bg-[#d94d33] text-white' : 'bg-slate-100 text-slate-500'"
-                                            >
-                                                Hijo
-                                            </span>
-                                        </div>
-
-                                        <div class="mt-5 text-base font-semibold text-slate-900">Vulcanizado</div>
-                                        <p class="mt-2 text-sm text-slate-500">
-                                            Registra un vulcanizado asociado a una banda existente.
-                                        </p>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="changeBandWizardType('section_change')"
-                                        class="group rounded-[24px] border p-6 text-left transition"
-                                        :class="bandType === 'section_change' ? 'border-[#d94d33] bg-[#d94d33]/5 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                                    >
-                                        <div class="flex items-center justify-between">
-                                            <div class="rounded-2xl bg-slate-100 p-3 text-slate-700">
-                                                <i data-lucide="scissors-line-dashed" class="h-5 w-5"></i>
-                                            </div>
-                                            <span
-                                                class="rounded-full px-3 py-1 text-[11px] font-semibold"
-                                                :class="bandType === 'section_change' ? 'bg-[#d94d33] text-white' : 'bg-slate-100 text-slate-500'"
-                                            >
-                                                Hijo
-                                            </span>
-                                        </div>
-
-                                        <div class="mt-5 text-base font-semibold text-slate-900">Cambio de tramo</div>
-                                        <p class="mt-2 text-sm text-slate-500">
-                                            Registra un cambio de tramo ligado a una banda instalada.
-                                        </p>
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-
-                        {{-- Paso 2 --}}
-                        <section x-show="bandWizardStep === 2" x-cloak class="space-y-6">
-                            <template x-if="bandType === 'band'">
-                                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                    <h4 class="text-xl font-semibold text-slate-900">Contexto del registro</h4>
-                                    <p class="mt-2 text-sm text-slate-500">
-                                        Este evento se registrará como una nueva banda padre dentro del histórico del activo.
-                                    </p>
-
-                                    <div class="mt-6 grid gap-4 md:grid-cols-2">
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                                            <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Activo</div>
-                                            <div class="mt-2 text-sm font-semibold text-slate-800">{{ $element->name }}</div>
-                                        </div>
-
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                                            <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Resultado</div>
-                                            <div class="mt-2 text-sm font-semibold text-slate-800">
-                                                Nueva banda padre
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-
-                            <template x-if="bandType !== 'band'">
-                                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                    <h4 class="text-xl font-semibold text-slate-900">Selecciona la banda asociada</h4>
-                                    <p class="mt-2 text-sm text-slate-500">
-                                        El sistema propone la banda activa, pero puedes cambiarla por otra banda oficial del activo.
-                                    </p>
-
-                                    <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                                        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                            <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Banda activa sugerida</div>
-                                            <div class="mt-3 text-sm font-semibold text-slate-800" x-text="bandActiveBandLabel()"></div>
-                                        </div>
-
-                                        <div class="rounded-3xl border border-slate-200 bg-white p-5">
-                                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                                Banda asociada
-                                            </label>
-
-                                            <select
-                                                x-model="bandDraft.parent_id"
-                                                class="mt-3 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                                            >
-                                                <option value="">Seleccionar banda</option>
-                                                <template x-for="band in bandEventBands" :key="'wizard-parent-option-' + band.id">
-                                                    <option :value="band.id" x-text="bandOptionLabel(band)"></option>
-                                                </template>
-                                            </select>
-
-                                            <p class="mt-3 text-xs text-slate-500">
-                                                Si no cambias nada, se mantendrá la banda activa seleccionada automáticamente.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-                        </section>
-
-                        {{-- Paso 3 --}}
-                        <section x-show="bandWizardStep === 3" x-cloak class="space-y-6">
-                            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                    <div>
-                                        <h4 class="text-xl font-semibold text-slate-900">Captura técnica</h4>
-                                        <p class="mt-1 text-sm text-slate-500">
-                                            Completa las tablas requeridas para este tipo de evento.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div class="mt-6 space-y-6">
-                                    <template x-if="bandType === 'band'">
-                                        <div class="space-y-6">
-                                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                <table class="w-full border-collapse text-sm">
-                                                    <tbody>
-                                                        <tr class="bg-[#4f79bd] text-white">
-                                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Referencia de la banda</th>
-                                                        </tr>
-                                                        <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.brand" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor total</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.total_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor cubierta superior</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.top_cover_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor cubierta inferior</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.bottom_cover_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" min="1" x-model="bandDraft.plies" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.width" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.length" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Cantidad de rollos</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" min="1" x-model="bandDraft.roll_count" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            <div class="grid gap-6 xl:grid-cols-2">
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                    <table class="w-full border-collapse text-sm">
-                                                        <tbody>
-                                                            <tr class="bg-[#4f79bd] text-white">
-                                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Parámetros de vulcanizado</th>
-                                                            </tr>
-                                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de vulcanizado</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de enfriamiento</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                    <table class="w-full border-collapse text-sm">
-                                                        <tbody>
-                                                            <tr class="bg-[#4f79bd] text-white">
-                                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Datos de entrega de equipo</th>
-                                                            </tr>
-                                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="bandType === 'vulcanization'">
-                                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                            <table class="w-full border-collapse text-sm">
-                                                <tbody>
-                                                    <tr class="bg-[#4f79bd] text-white">
-                                                        <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Parámetros de vulcanizado</th>
-                                                    </tr>
-                                                    <tr><th class="w-[35%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                    <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                    <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de vulcanizado</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                    <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de enfriamiento</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="bandType === 'section_change'">
-                                        <div class="space-y-6">
-                                            <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                                                <label class="flex items-center gap-3 text-sm font-semibold text-slate-800">
-                                                    <input
-                                                        type="checkbox"
-                                                        x-model="bandDraft.same_reference"
-                                                        class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                    >
-                                                    ¿La referencia es igual a la instalada?
-                                                </label>
-                                            </div>
-
-                                            <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                    <table class="w-full border-collapse text-sm">
-                                                        <tbody>
-                                                            <tr class="bg-[#4f79bd] text-white">
-                                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Parámetros de vulcanizado</th>
-                                                            </tr>
-                                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de vulcanizado</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo de enfriamiento</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                    <table class="w-full border-collapse text-sm">
-                                                        <tbody>
-                                                            <tr class="bg-[#4f79bd] text-white">
-                                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Datos de entrega de equipo</th>
-                                                            </tr>
-                                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                                    <table class="w-full border-collapse text-sm">
-                                                        <tbody>
-                                                            <tr class="bg-[#4f79bd] text-white">
-                                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Cambio de tramo de banda</th>
-                                                            </tr>
-                                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="text" x-model="bandDraft.section_brand" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" min="1" x-model="bandDraft.section_plies" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_length" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th><td class="border border-slate-300 bg-yellow-200 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_width" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </section>
-
-                        {{-- Paso 4 --}}
-                        <section x-show="bandWizardStep === 4" x-cloak class="space-y-6">
-                            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                <h4 class="text-xl font-semibold text-slate-900">Cierre del registro</h4>
-                                <p class="mt-2 text-sm text-slate-500">
-                                    Completa la observación, deja preparada la evidencia y registra la fecha manual.
-                                </p>
-
-                                <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)_minmax(260px,0.8fr)]">
-                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                        <table class="w-full border-collapse text-sm">
-                                            <tbody>
-                                                <tr class="bg-[#4f79bd] text-white">
-                                                    <th class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Observación</th>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border border-slate-300 bg-yellow-200 px-3 py-2">
-                                                        <textarea
-                                                            x-model="bandDraft.observation"
-                                                            rows="10"
-                                                            class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
-                                                        ></textarea>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                        <table class="w-full border-collapse text-sm">
-                                            <tbody>
-                                                <tr class="bg-[#4f79bd] text-white">
-                                                    <th class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Evidencia</th>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border border-slate-300 bg-yellow-200 px-3 py-6 text-center">
-                                                        <div class="space-y-2">
-                                                            <p class="text-sm font-semibold text-slate-800">Fotos y videos</p>
-                                                            <p class="text-xs text-slate-500">La carga se habilitará al publicar en R2.</p>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                        <table class="w-full border-collapse text-sm">
-                                            <tbody>
-                                                <tr class="bg-[#4f79bd] text-white">
-                                                    <th class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">Fecha</th>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border border-slate-300 bg-yellow-200 px-3 py-4">
-                                                        <input
-                                                            type="date"
-                                                            x-model="bandDraft.report_date"
-                                                            class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
-                                                        >
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border border-slate-300 px-3 py-2 text-center text-xs text-slate-500">
-                                                        Fecha manual del reporte
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {{-- Paso 5 --}}
-                        <section x-show="bandWizardStep === 5" x-cloak class="space-y-6">
-                            <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                                <h4 class="text-xl font-semibold text-slate-900">Revisión final</h4>
-                                <p class="mt-2 text-sm text-slate-500">
-                                    Verifica la información antes de publicar el reporte oficial.
-                                </p>
-
-                                <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandEventTypeLabel(bandType)"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fecha</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.report_date || '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Banda padre</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandParentLabel()"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Marca</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.brand || bandDraft?.section_brand || '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ancho</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.width || bandDraft?.section_width || '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Longitud</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.length || bandDraft?.section_length || '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Temperatura</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.temperature ?? '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Presión</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.pressure ?? '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tiempo enfriamiento</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.cooling_time ?? '—'"></div>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 xl:col-span-3">
-                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Observación</div>
-                                        <div class="mt-1 text-sm font-semibold text-slate-800" x-text="bandDraft?.observation || '—'"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-
-                    {{-- Context panel --}}
-                    <aside class="hidden min-h-0 overflow-y-auto border-l border-slate-200 bg-white px-5 py-6 xl:block">
-                        <div class="space-y-5">
-                            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Activo</div>
-                                <div class="mt-2 text-sm font-semibold text-slate-800">{{ $element->name }}</div>
-                                <div class="mt-1 text-xs text-slate-500">Área: {{ $area->name }}</div>
-                            </div>
-
-                            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo actual</div>
-                                <div class="mt-2 text-sm font-semibold text-slate-800" x-text="bandEventTypeLabel(bandType)"></div>
-                            </div>
-
-                            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Banda activa</div>
+                        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Banda activa sugerida</div>
                                 <div class="mt-2 text-sm font-semibold text-slate-800" x-text="bandActiveBandLabel()"></div>
                             </div>
 
-                            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fecha borrador</div>
-                                <div class="mt-2 text-sm font-semibold text-slate-800" x-text="bandDraft?.report_date || 'Sin fecha'"></div>
-                            </div>
+                            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    Banda asociada
+                                </label>
 
-                            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</div>
-                                <div class="mt-2 text-sm font-semibold text-slate-800">
-                                    <span x-text="bandDraft?.id ? 'Borrador en progreso' : 'Sin borrador'"></span>
-                                </div>
-                                <div class="mt-2 text-xs text-slate-500">
-                                    Puedes guardar avances aunque el formulario esté incompleto.
-                                </div>
+                                <select
+                                    x-model="bandDraft.parent_id"
+                                    class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                >
+                                    <option value="">Seleccionar banda</option>
+                                    <template x-for="band in bandEventBands" :key="'compact-parent-option-' + band.id">
+                                        <option :value="band.id" x-text="bandOptionLabel(band)"></option>
+                                    </template>
+                                </select>
                             </div>
                         </div>
-                    </aside>
-                </div>
-            </div>
+                    </div>
+                </template>
+            </section>
+                        {{-- Paso 2: captura técnica --}}
+            <section x-show="bandWizardStep === 2" x-cloak class="space-y-5">
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h4 class="text-lg font-semibold text-slate-900">Captura técnica</h4>
 
-            {{-- Footer --}}
-            <div class="border-t border-slate-200 bg-white px-6 py-4">
-                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="mt-5 space-y-5">
+                        <template x-if="bandType === 'band'">
+                            <div class="grid gap-5 xl:grid-cols-3">
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Referencia de la banda</th>
+                                            </tr>
+                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.brand" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor total</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.total_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Cubierta superior</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.top_cover_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Cubierta inferior</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.bottom_cover_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" min="1" x-model="bandDraft.plies" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.width" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.length" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rollos</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" min="1" x-model="bandDraft.roll_count" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Vulcanizado</th>
+                                            </tr>
+                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <table class="w-full border-collapse text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Entrega de equipo</th>
+                                            </tr>
+                                            <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="bandType === 'vulcanization'">
+                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                <table class="w-full border-collapse text-sm">
+                                    <tbody>
+                                        <tr class="bg-[#4f79bd] text-white">
+                                            <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Parámetros de vulcanizado</th>
+                                        </tr>
+                                        <tr><th class="w-[35%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                                                <template x-if="bandType === 'section_change'">
+                            <div class="space-y-5">
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <label class="flex items-center gap-3 text-sm font-semibold text-slate-800">
+                                        <input
+                                            type="checkbox"
+                                            x-model="bandDraft.same_reference"
+                                            class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                        >
+                                        ¿La referencia es igual a la instalada?
+                                    </label>
+                                </div>
+
+                                <div class="grid gap-5 xl:grid-cols-3">
+                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                        <table class="w-full border-collapse text-sm">
+                                            <tbody>
+                                                <tr class="bg-[#4f79bd] text-white">
+                                                    <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Vulcanizado</th>
+                                                </tr>
+                                                <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                        <table class="w-full border-collapse text-sm">
+                                            <tbody>
+                                                <tr class="bg-[#4f79bd] text-white">
+                                                    <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Entrega de equipo</th>
+                                                </tr>
+                                                <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                        <table class="w-full border-collapse text-sm">
+                                            <tbody>
+                                                <tr class="bg-[#4f79bd] text-white">
+                                                    <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Cambio de tramo</th>
+                                                </tr>
+                                                <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.section_brand" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" min="1" x-model="bandDraft.section_plies" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_length" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_width" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            {{-- Paso 3: cierre --}}
+            <section x-show="bandWizardStep === 3" x-cloak class="space-y-5">
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h4 class="text-lg font-semibold text-slate-900">Cierre del registro</h4>
+
+                    <div class="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px_260px]">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Observación</th>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                            <textarea
+                                                x-model="bandDraft.observation"
+                                                rows="8"
+                                                class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                            ></textarea>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Evidencia</th>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-slate-300 bg-slate-100 px-3 py-6 text-center">
+                                            <p class="text-sm font-semibold text-slate-800">Fotos y videos</p>
+                                            <p class="mt-1 text-xs text-slate-500">Pendiente carga en R2.</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Fecha reporte</th>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-slate-300 bg-slate-100 px-3 py-4">
+                                            <input
+                                                type="date"
+                                                x-model="bandDraft.report_date"
+                                                class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                            >
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-slate-300 px-3 py-2 text-center text-xs text-slate-500">
+                                            Fecha manual ingresada por el usuario
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        {{-- Footer compacto --}}
+        <div class="border-t border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <button
+                    type="button"
+                    @click="prevBandStep()"
+                    :disabled="bandWizardStep === 1"
+                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
+                >
+                    Anterior
+                </button>
+
+                <div class="flex flex-wrap gap-2">
                     <button
                         type="button"
-                        @click="prevBandStep()"
-                        :disabled="bandWizardStep === 1"
-                        class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
+                        @click="saveBandDraft()"
+                        :disabled="loading || !bandDraft"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
                     >
-                        Anterior
+                        Guardar borrador
                     </button>
 
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            @click="saveBandDraft()"
-                            :disabled="loading || !bandDraft"
-                            class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
-                        >
-                            Guardar borrador
-                        </button>
+                    <button
+                        type="button"
+                        x-show="bandWizardStep < bandWizardTotalSteps()"
+                        @click="nextBandStep()"
+                        class="rounded-xl bg-[#d94d33] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                    >
+                        Siguiente
+                    </button>
 
-                        <button
-                            type="button"
-                            x-show="bandWizardStep < bandWizardTotalSteps()"
-                            @click="nextBandStep()"
-                            class="rounded-2xl bg-[#d94d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                        >
-                            Siguiente
-                        </button>
-
-                        <button
-                            type="button"
-                            x-show="bandWizardStep === bandWizardTotalSteps()"
-                            @click="publishBandDraft()"
-                            :disabled="loading || !bandDraft"
-                            class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
-                        >
-                            Publicar reporte
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        x-show="bandWizardStep === bandWizardTotalSteps()"
+                        @click="publishBandDraft()"
+                        :disabled="loading || !bandDraft"
+                        class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Publicar reporte
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-{{-- Confirmación de publicación --}}
+{{-- Modal borrador - Medición de espesores y dureza --}}
+<div
+    x-cloak
+    x-show="draftModalOpen"
+    x-transition.opacity
+    class="fixed top-0 left-0 z-[9999] flex h-screen w-screen items-center justify-center bg-slate-900/60 px-4 py-6"
+    @keydown.escape.window="closeDraftModal()"
+>
     <div
-        x-cloak
-        x-show="publishConfirmOpen"
-        x-transition.opacity
-        class="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 px-4"
+        x-show="draftModalOpen"
+        x-transition
+        class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        @click.outside="closeDraftModal()"
     >
-        <div
-            x-show="publishConfirmOpen"
-            x-transition
-            class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-            @click.stop
-        >
-            <h3 class="text-lg font-semibold text-slate-900">Confirmar publicación</h3>
-            <p class="mt-2 text-sm text-slate-600">
-                Selecciona la fecha del reporte y confirma la publicación del borrador como reporte oficial histórico.
-            </p>
+        <div class="border-b border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h3 class="text-xl font-semibold text-slate-900">
+                        Borrador - Medición de espesores y dureza
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Registra las mediciones por cubierta del activo
+                        <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
+                    </p>
+                </div>
 
-            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <label for="publish_report_date_confirm" class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Fecha del reporte
-                </label>
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Fecha
+                        </label>
 
-                <input
-                    id="publish_report_date_confirm"
-                    type="date"
-                    x-model="publishForm.report_date"
-                    class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
-                >
+                        <input
+                            type="date"
+                            x-model="publishForm.report_date"
+                            class="w-[145px] bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                        >
+                    </div>
 
-                <p class="mt-2 text-xs text-slate-500">
-                    Selecciona la fecha con la que se publicará este reporte oficial.
-                </p>
+                    <button
+                        type="button"
+                        @click="addCover()"
+                        :disabled="loading"
+                        class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Agregar cubierta
+                    </button>
+                    <button
+                        type="button"
+                        @click="saveDraft()"
+                        :disabled="loading"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Guardar borrador
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="publishDraft()"
+                        :disabled="loading || !hasDraft()"
+                        class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Publicar reporte
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="closeDraftModal()"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+                </div>
             </div>
+        </div>
 
-            <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                Después de publicar, el borrador desaparecerá y la vista principal mostrará el nuevo reporte oficial.
-            </div>
+        <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-5">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="bg-[#4f79bd] px-4 py-3 text-center text-sm font-bold uppercase tracking-wider text-white">
+                    Medición de espesores y dureza
+                </div>
 
-            <div class="mt-6 flex flex-wrap justify-end gap-2">
-                <button
-                    type="button"
-                    @click="publishConfirmOpen = false"
-                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                    Cancelar
-                </button>
+                <div class="overflow-x-auto">
+                    <table class="min-w-[1120px] w-full table-fixed border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700">
+                                <th class="w-[140px] border-b border-slate-200 px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider">Mediciones</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Izquierdo</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Centro</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Derecho</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Max</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Min</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">% Suficiencia</th>
+                                <th class="border-b border-l border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Mediciones</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Izquierdo</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Centro</th>
+                                <th class="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Derecho</th>
+                            </tr>
+                        </thead>
 
-                <button
-                    type="button"
-                    @click="publishDraft()"
-                    :disabled="loading"
-                    class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
-                >
-                    Confirmar publicación
-                </button>
+                        <template x-for="line in (draft?.lines || [])" :key="'draft-cover-' + line.cover_number">
+                            <tbody>
+                                <tr class="bg-white">
+                                    <td class="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">
+                                        CUBIERTA SUPERIOR <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.top_left" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.top_center" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.top_right" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="maxValue([line.top_left, line.top_center, line.top_right]) || '—'"></td>
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="minValue([line.top_left, line.top_center, line.top_right]) || '—'"></td>
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="calculateSufficiency(minValue([line.top_left, line.top_center, line.top_right]), 'top') ?? '—'"></td>
+
+                                    <td class="border-b border-l border-slate-200 px-4 py-3 font-semibold text-slate-800">
+                                        DUREZA <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.hardness_left" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.hardness_center" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.hardness_right" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+                                </tr>
+
+                                <tr class="bg-slate-50/60">
+                                    <td class="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">
+                                        CUBIERTA INFERIOR <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.bottom_left" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.bottom_center" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-3 py-2">
+                                        <input type="number" step="0.01" x-model="line.bottom_right" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
+                                    </td>
+
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="maxValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"></td>
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="minValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"></td>
+                                    <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="calculateSufficiency(minValue([line.bottom_left, line.bottom_center, line.bottom_right]), 'bottom') ?? '—'"></td>
+
+                                    <td colspan="4" class="border-b border-l border-slate-200 bg-white px-4 py-3">
+                                        <div class="flex justify-end">
+                                            <button
+                                                type="button"
+                                                x-show="(draft?.lines || []).length > 1"
+                                                @click="removeCover(line.cover_number)"
+                                                :disabled="loading"
+                                                class="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:pointer-events-none disabled:opacity-70"
+                                            >
+                                                Eliminar cubierta
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+</div>
         {{-- Modal histórico --}}
     <div
         x-cloak
@@ -1817,7 +2809,7 @@
             x-show="historyModalOpen"
             x-transition
             class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
-            @click.outside="closeHistoryModal()"
+            @click.outside="if (!historyEditModalOpen) closeHistoryModal()"
         >
             <div class="border-b border-slate-200 px-6 py-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1829,13 +2821,33 @@
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        @click="closeHistoryModal()"
-                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                    >
-                        Cerrar
-                    </button>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            x-show="selectedHistoryReport"
+                            @click="openHistoryEditModal()"
+                            class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                        >
+                            Editar
+                        </button>
+
+                        <button
+                            type="button"
+                            x-show="selectedHistoryReport"
+                            @click="deleteThicknessHistoricalReport()"
+                            class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                            Eliminar
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="closeHistoryModal()"
+                            class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -2029,6 +3041,272 @@
             </div>
         </div>
     </div>
+
+    {{-- Modal editar histórico - Medición de espesores y dureza --}}
+<div
+    x-cloak
+    x-show="historyEditModalOpen"
+    x-transition.opacity
+    class="fixed top-0 left-0 z-[10000] flex h-screen w-screen items-center justify-center bg-slate-900/60 px-4 py-6"
+    @keydown.escape.window="closeHistoryEditModal()"
+>
+    <div
+        x-show="historyEditModalOpen"
+        x-transition
+        class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        @click.outside="closeHistoryEditModal()"
+        @click.stop
+    >
+        <div class="border-b border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h3 class="text-xl font-semibold text-slate-900">
+                        Editar reporte - Medición de espesores y dureza
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Modifica el reporte oficial seleccionado del activo
+                        <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Fecha
+                        </label>
+
+                        <input
+                            type="date"
+                            x-model="historyEditForm.report_date"
+                            class="w-[145px] bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                        >
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="addHistoryEditCover()"
+                        :disabled="loading"
+                        class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Agregar cubierta
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="updateThicknessHistoricalReport()"
+                        :disabled="loading"
+                        class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-70"
+                    >
+                        Guardar cambios
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="closeHistoryEditModal()"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-5">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="bg-[#4f79bd] px-4 py-3 text-center text-sm font-bold uppercase tracking-wider text-white">
+                    Medición de espesores y dureza
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-[1120px] w-full table-fixed border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700">
+                                <th class="w-[140px] border-b border-slate-200 px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider">
+                                    Mediciones
+                                </th>
+                                <th class="w-[90px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Izquierdo
+                                </th>
+                                <th class="w-[90px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Centro
+                                </th>
+                                <th class="w-[90px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Derecho
+                                </th>
+                                <th class="w-[70px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Max
+                                </th>
+                                <th class="w-[70px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Min
+                                </th>
+                                <th class="w-[90px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    % Suf.
+                                </th>
+                                <th class="w-[120px] border-b border-l border-slate-200 px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider">
+                                    Mediciones
+                                </th>
+                                <th class="w-[80px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Izquierdo
+                                </th>
+                                <th class="w-[80px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Centro
+                                </th>
+                                <th class="w-[80px] border-b border-slate-200 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
+                                    Derecho
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <template x-for="line in (historyEditForm?.lines || [])" :key="'history-edit-cover-' + line.cover_number">
+                            <tbody>
+                                <tr class="bg-white">
+                                    <td class="border-b border-slate-200 px-2 py-2 font-semibold text-slate-800">
+                                        CUBIERTA SUPERIOR <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.top_left"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.top_center"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.top_right"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="maxValue([line.top_left, line.top_center, line.top_right]) || '—'"
+                                    ></td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="minValue([line.top_left, line.top_center, line.top_right]) || '—'"
+                                    ></td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="calculateSufficiency(minValue([line.top_left, line.top_center, line.top_right]), 'top') ?? '—'"
+                                    ></td>
+
+                                    <td class="border-b border-l border-slate-200 px-2 py-2 font-semibold text-slate-800">
+                                        DUREZA <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.hardness_left"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.hardness_center"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.hardness_right"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+                                </tr>
+
+                                <tr class="bg-slate-50/60">
+                                    <td class="border-b border-slate-200 px-2 py-2 font-semibold text-slate-800">
+                                        CUBIERTA INFERIOR <span x-text="line.cover_number"></span>
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.bottom_left"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.bottom_center"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td class="border-b border-slate-200 bg-slate-100 px-2 py-1.5">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            x-model="line.bottom_right"
+                                            class="w-full min-w-0 bg-transparent text-center text-xs font-semibold text-slate-900 outline-none"
+                                        >
+                                    </td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="maxValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"
+                                    ></td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="minValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"
+                                    ></td>
+
+                                    <td
+                                        class="border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700"
+                                        x-text="calculateSufficiency(minValue([line.bottom_left, line.bottom_center, line.bottom_right]), 'bottom') ?? '—'"
+                                    ></td>
+
+                                    <td colspan="4" class="border-b border-l border-slate-200 bg-white px-2 py-2">
+                                        <div class="flex justify-end">
+                                            <button
+                                                type="button"
+                                                x-show="(historyEditForm?.lines || []).length > 1"
+                                                @click="removeHistoryEditCover(line.cover_number)"
+                                                :disabled="loading"
+                                                class="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:pointer-events-none disabled:opacity-70"
+                                            >
+                                                Eliminar cubierta
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 function showCrudToast(message, type = 'success') {
     const toastId = 'crudInlineToast';
@@ -2041,7 +3319,7 @@ function showCrudToast(message, type = 'success') {
     }
 
     toast.className =
-        'fixed bottom-6 right-6 z-[100] rounded-2xl px-4 py-3 text-sm font-semibold shadow-xl transition ' +
+        'fixed bottom-6 right-6 z-[20000] max-w-[420px] rounded-2xl px-4 py-3 text-sm font-semibold shadow-2xl transition ' +
         (type === 'success'
             ? 'border border-green-200 bg-green-100 text-green-700'
             : 'border border-red-200 bg-red-100 text-red-700');
@@ -2070,6 +3348,16 @@ function measurementThicknessModule(config) {
         historyModalOpen: false,
         historyLoading: false,
 
+        historyEditModalOpen: false,
+        historyEditErrors: [],
+        historyEditForm: {
+            id: null,
+            report_date: '',
+            lines: [],
+        },
+
+
+
         publishConfirmOpen: false,
         publishForm: {
             report_date: config.today,
@@ -2096,6 +3384,16 @@ function measurementThicknessModule(config) {
         selectedBandStateHistoryReport: null,
         bandStateHistoryModalOpen: false,
         bandStateHistoryLoading: false,
+        bandStateEditModalOpen: false,
+        bandStateEditErrors: [],
+        bandStateEditForm: {
+            id: null,
+            report_date: '',
+            description: '',
+            width: '',
+            top_cover: '',
+            bottom_cover: '',
+        },
 
         bandStatePublishConfirmOpen: false,
         bandStatePublishForm: {
@@ -2118,6 +3416,10 @@ function measurementThicknessModule(config) {
         bandHistoricalTree: Array.isArray(config.initialBandEventHistoricalTree) ? config.initialBandEventHistoricalTree : [],
         selectedBandHistory: null,
         bandHistoryModalOpen: false,
+
+        bandEditModalOpen: false,
+        bandEditErrors: [],
+        bandEditForm: null,
 
         bandDraft: {
             id: null,
@@ -2357,6 +3659,11 @@ function measurementThicknessModule(config) {
         openDraftModal() {
             this.ensureDraftStructure();
             this.errors = [];
+
+            if (!this.publishForm.report_date) {
+                this.publishForm.report_date = config.today;
+            }
+
             this.draftModalOpen = true;
             this.refreshLucide();
         },
@@ -2437,6 +3744,7 @@ function measurementThicknessModule(config) {
 
                 if (!response.ok || data.success === false) {
                     this.errors = this.normalizeErrors(data, 'No fue posible guardar el borrador.');
+                    this.showCrudToast(this.errors[0] || 'No fue posible guardar el borrador.', 'error');
                     return false;
                 }
 
@@ -2563,11 +3871,49 @@ function measurementThicknessModule(config) {
         },
 
         async publishDraft() {
+            this.ensureDraftStructure();
             this.loading = true;
             this.errors = [];
 
             try {
-                const response = await fetch(config.routes.publish, {
+                const saveResponse = await fetch(config.routes.update, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lines: this.draft.lines,
+                    }),
+                });
+
+                const saveData = await this.parseJsonResponse(saveResponse);
+
+                if (!saveResponse.ok || saveData.success === false) {
+                    this.errors = this.normalizeErrors(saveData, 'No fue posible guardar el borrador antes de publicar.');
+
+                    this.showCrudToast(
+                        'Revisa los datos del borrador antes de publicar.',
+                        'error'
+                    );
+
+                    return false;
+                }
+
+                this.draft = {
+                    ...this.emptyThicknessDraft(),
+                    ...(saveData.draft || {}),
+                    lines: Array.isArray(saveData.draft?.lines) && saveData.draft.lines.length
+                        ? saveData.draft.lines.map((line, index) => ({
+                            ...this.emptyThicknessLine(index + 1),
+                            ...(line || {}),
+                            cover_number: line?.cover_number ?? (index + 1),
+                        }))
+                        : [this.emptyThicknessLine(1)],
+                };
+
+                const publishResponse = await fetch(config.routes.publish, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2575,30 +3921,40 @@ function measurementThicknessModule(config) {
                         'Accept': 'application/json',
                     },
                     body: JSON.stringify({
-                        report_date: this.publishForm.report_date,
+                        report_date: this.publishForm.report_date || config.today,
                     }),
                 });
 
-                const data = await this.parseJsonResponse(response);
+                const publishData = await this.parseJsonResponse(publishResponse);
 
-                if (!response.ok || data.success === false) {
-                    this.errors = this.normalizeErrors(data, 'No fue posible publicar el reporte.');
+                if (!publishResponse.ok || publishData.success === false) {
+                    this.errors = this.normalizeErrors(publishData, 'No fue posible publicar el reporte.');
+
+                    this.showCrudToast(
+                        'Faltan datos obligatorios para publicar el reporte.',
+                        'error'
+                    );
+
                     return false;
                 }
 
-                this.latestReport = data.report ?? null;
-                this.historicalReports = Array.isArray(data.historical_reports)
-                    ? data.historical_reports
+                this.latestReport = publishData.report ?? null;
+                this.historicalReports = Array.isArray(publishData.historical_reports)
+                    ? publishData.historical_reports
                     : this.historicalReports;
 
                 this.draft = this.emptyThicknessDraft();
                 this.publishConfirmOpen = false;
                 this.draftModalOpen = false;
+                this.publishForm.report_date = config.today;
 
                 this.showCrudToast('Reporte publicado correctamente.');
+                this.refreshLucide();
+
                 return true;
             } catch (error) {
                 this.errors = ['Ocurrió un error de red al publicar el reporte.'];
+                this.showCrudToast(this.errors[0], 'error');
                 return false;
             } finally {
                 this.loading = false;
@@ -2608,9 +3964,23 @@ function measurementThicknessModule(config) {
         openHistoryModal() {
             this.historyModalOpen = true;
 
-            if (!this.selectedHistoryReport && this.historicalReports.length > 0) {
-                this.selectHistoricalReport(this.historicalReports[0].id);
+            const reports = Array.isArray(this.historicalReports)
+                ? [...this.historicalReports].sort((a, b) => {
+                    const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                    if (dateCompare !== 0) {
+                        return dateCompare;
+                    }
+
+                    return Number(b.id || 0) - Number(a.id || 0);
+                })
+                : [];
+
+            if (reports.length > 0) {
+                this.selectHistoricalReport(reports[0].id);
             }
+
+            this.refreshLucide();
         },
 
         closeHistoryModal() {
@@ -2641,6 +4011,185 @@ function measurementThicknessModule(config) {
                 this.selectedHistoryReport = null;
             } finally {
                 this.historyLoading = false;
+            }
+        },
+
+        openHistoryEditModal() {
+            if (!this.selectedHistoryReport) {
+                return;
+            }
+
+            this.historyEditErrors = [];
+
+            this.historyEditForm = {
+                id: this.selectedHistoryReport.id,
+                report_date: this.selectedHistoryReport.report_date || config.today,
+                lines: Array.isArray(this.selectedHistoryReport.lines)
+                    ? this.selectedHistoryReport.lines.map((line, index) => ({
+                        ...this.emptyThicknessLine(index + 1),
+                        ...(line || {}),
+                        cover_number: line?.cover_number ?? (index + 1),
+                    }))
+                    : [this.emptyThicknessLine(1)],
+            };
+
+            this.historyEditModalOpen = true;
+            this.refreshLucide();
+        },
+
+        closeHistoryEditModal() {
+            this.historyEditModalOpen = false;
+            this.historyEditErrors = [];
+        },
+
+        addHistoryEditCover() {
+            const lines = Array.isArray(this.historyEditForm.lines)
+                ? this.historyEditForm.lines
+                : [];
+
+            this.historyEditForm.lines = [
+                ...lines,
+                this.emptyThicknessLine(lines.length + 1),
+            ];
+        },
+
+        removeHistoryEditCover(coverNumber) {
+            const lines = Array.isArray(this.historyEditForm.lines)
+                ? this.historyEditForm.lines
+                : [];
+
+            if (lines.length <= 1) {
+                this.showCrudToast('El reporte debe conservar al menos una cubierta.', 'error');
+                return;
+            }
+
+            this.historyEditForm.lines = lines
+                .filter(line => Number(line.cover_number) !== Number(coverNumber))
+                .map((line, index) => ({
+                    ...line,
+                    cover_number: index + 1,
+                }));
+        },
+
+        async updateThicknessHistoricalReport() {
+            if (!this.historyEditForm?.id) {
+                return false;
+            }
+
+            this.loading = true;
+            this.historyEditErrors = [];
+
+            const url = config.routes.historyUpdateTemplate.replace('__REPORT__', this.historyEditForm.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        report_date: this.historyEditForm.report_date,
+                        lines: this.historyEditForm.lines,
+                    }),
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.historyEditErrors = this.normalizeErrors(data, 'No fue posible actualizar el reporte.');
+                    this.showCrudToast('Revisa los datos antes de guardar cambios.', 'error');
+                    return false;
+                }
+
+                this.latestReport = data.latest_report ?? this.latestReport;
+                this.historicalReports = Array.isArray(data.reports)
+                    ? data.reports
+                    : this.historicalReports;
+
+                this.selectedHistoryReport = data.report ?? this.selectedHistoryReport;
+                this.historyEditModalOpen = false;
+
+                this.showCrudToast(data.message || 'Reporte actualizado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.historyEditErrors = ['Ocurrió un error de red al actualizar el reporte.'];
+                this.showCrudToast(this.historyEditErrors[0], 'error');
+                return false;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteThicknessHistoricalReport() {
+            if (!this.selectedHistoryReport?.id) {
+                return false;
+            }
+
+            const confirmed = window.confirm('¿Eliminar este reporte oficial? Esta acción no se puede deshacer.');
+
+            if (!confirmed) {
+                return false;
+            }
+
+            this.loading = true;
+            this.historyEditErrors = [];
+            this.errors = [];
+
+            const deletedId = this.selectedHistoryReport.id;
+            const url = config.routes.historyDeleteTemplate.replace('__REPORT__', deletedId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.errors = this.normalizeErrors(data, 'No fue posible eliminar el reporte.');
+                    this.showCrudToast(this.errors[0] || 'No fue posible eliminar el reporte.', 'error');
+                    return false;
+                }
+
+                this.latestReport = data.latest_report ?? null;
+                this.historicalReports = Array.isArray(data.reports)
+                    ? data.reports
+                    : this.historicalReports.filter(report => String(report.id) !== String(deletedId));
+
+                this.selectedHistoryReport = null;
+
+                if (this.historicalReports.length > 0) {
+                    const reports = [...this.historicalReports].sort((a, b) => {
+                        const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                        if (dateCompare !== 0) {
+                            return dateCompare;
+                        }
+
+                        return Number(b.id || 0) - Number(a.id || 0);
+                    });
+
+                    await this.selectHistoricalReport(reports[0].id);
+                }
+
+                this.showCrudToast(data.message || 'Reporte eliminado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.errors = ['Ocurrió un error de red al eliminar el reporte.'];
+                this.showCrudToast(this.errors[0], 'error');
+                return false;
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -2821,11 +4370,39 @@ function measurementThicknessModule(config) {
         },
 
         async publishBandStateDraft() {
+            this.ensureBandStateDraftStructure();
             this.loading = true;
             this.bandStateErrors = [];
 
             try {
-                const response = await fetch(config.routes.bandStatePublish, {
+                const saveResponse = await fetch(config.routes.bandStateUpdate, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        description: this.bandStateDraft.description,
+                        width: this.bandStateDraft.width,
+                        top_cover: this.bandStateDraft.top_cover,
+                        bottom_cover: this.bandStateDraft.bottom_cover,
+                    }),
+                });
+
+                const saveData = await this.parseJsonResponse(saveResponse);
+
+                if (!saveResponse.ok || saveData.success === false) {
+                    this.bandStateErrors = this.normalizeErrors(saveData, 'No fue posible guardar el borrador antes de publicar.');
+                    return false;
+                }
+
+                this.bandStateDraft = {
+                    ...this.emptyBandStateDraft(),
+                    ...(saveData.draft || {}),
+                };
+
+                const publishResponse = await fetch(config.routes.bandStatePublish, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2833,27 +4410,30 @@ function measurementThicknessModule(config) {
                         'Accept': 'application/json',
                     },
                     body: JSON.stringify({
-                        report_date: this.bandStatePublishForm.report_date,
+                        report_date: this.bandStatePublishForm.report_date || config.today,
                     }),
                 });
 
-                const data = await this.parseJsonResponse(response);
+                const publishData = await this.parseJsonResponse(publishResponse);
 
-                if (!response.ok || data.success === false) {
-                    this.bandStateErrors = this.normalizeErrors(data, 'No fue posible publicar el informe de estado.');
+                if (!publishResponse.ok || publishData.success === false) {
+                    this.bandStateErrors = this.normalizeErrors(publishData, 'No fue posible publicar el informe de estado.');
                     return false;
                 }
 
-                this.latestBandStateReport = data.report ?? null;
-                this.bandStateHistoricalReports = Array.isArray(data.historical_reports)
-                    ? data.historical_reports
-                    : this.bandStateHistoricalReports;
+                this.latestBandStateReport = publishData.latest_report ?? publishData.report ?? null;
+
+                await this.refreshBandStateHistoricalReports(
+                    publishData.report?.id ?? this.latestBandStateReport?.id ?? null
+                );
 
                 this.bandStateDraft = this.emptyBandStateDraft();
                 this.bandStatePublishConfirmOpen = false;
                 this.bandStateDraftModalOpen = false;
 
                 this.showCrudToast('Informe de estado publicado correctamente.');
+                this.refreshLucide();
+
                 return true;
             } catch (error) {
                 this.bandStateErrors = ['Ocurrió un error de red al publicar el informe de estado.'];
@@ -2863,12 +4443,65 @@ function measurementThicknessModule(config) {
             }
         },
 
+        async refreshBandStateHistoricalReports(preferredReportId = null) {
+            try {
+                const response = await fetch(config.routes.bandStateHistoryIndex, {
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    return false;
+                }
+
+                this.bandStateHistoricalReports = Array.isArray(data.reports)
+                    ? data.reports
+                    : [];
+
+                const reports = [...this.bandStateHistoricalReports].sort((a, b) => {
+                    const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                    if (dateCompare !== 0) {
+                        return dateCompare;
+                    }
+
+                    return Number(b.id || 0) - Number(a.id || 0);
+                });
+
+                const selectedId = preferredReportId || reports[0]?.id || null;
+
+                if (selectedId) {
+                    await this.selectBandStateHistoricalReport(selectedId);
+                }
+
+                return true;
+            } catch (error) {
+                return false;
+            }
+        },
         openBandStateHistoryModal() {
             this.bandStateHistoryModalOpen = true;
 
-            if (!this.selectedBandStateHistoryReport && this.bandStateHistoricalReports.length > 0) {
-                this.selectBandStateHistoricalReport(this.bandStateHistoricalReports[0].id);
+            const reports = Array.isArray(this.bandStateHistoricalReports)
+                ? [...this.bandStateHistoricalReports].sort((a, b) => {
+                    const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                    if (dateCompare !== 0) {
+                        return dateCompare;
+                    }
+
+                    return Number(b.id || 0) - Number(a.id || 0);
+                })
+                : [];
+
+            if (reports.length > 0) {
+                this.selectBandStateHistoricalReport(reports[0].id);
             }
+
+            this.refreshLucide();
         },
 
         closeBandStateHistoryModal() {
@@ -2901,11 +4534,177 @@ function measurementThicknessModule(config) {
                 this.bandStateHistoryLoading = false;
             }
         },
-                // ======================
+
+        openBandStateEditModal() {
+            if (!this.selectedBandStateHistoryReport) {
+                return;
+            }
+
+            this.bandStateEditErrors = [];
+
+            this.bandStateEditForm = {
+                id: this.selectedBandStateHistoryReport.id,
+                report_date: this.selectedBandStateHistoryReport.report_date || config.today,
+                description: this.selectedBandStateHistoryReport.description || '',
+                width: this.selectedBandStateHistoryReport.width || '',
+                top_cover: this.selectedBandStateHistoryReport.top_cover || '',
+                bottom_cover: this.selectedBandStateHistoryReport.bottom_cover || '',
+            };
+
+            this.bandStateEditModalOpen = true;
+            this.refreshLucide();
+        },
+
+        closeBandStateEditModal() {
+            this.bandStateEditModalOpen = false;
+            this.bandStateEditErrors = [];
+        },
+
+        async updateBandStateHistoricalReport() {
+            if (!this.bandStateEditForm?.id) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandStateEditErrors = [];
+
+            const url = config.routes.bandStateHistoryUpdateTemplate.replace('__REPORT__', this.bandStateEditForm.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        report_date: this.bandStateEditForm.report_date,
+                        description: this.bandStateEditForm.description,
+                        width: this.bandStateEditForm.width,
+                        top_cover: this.bandStateEditForm.top_cover,
+                        bottom_cover: this.bandStateEditForm.bottom_cover,
+                    }),
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandStateEditErrors = this.normalizeErrors(data, 'No fue posible actualizar el reporte.');
+                    return false;
+                }
+
+                this.latestBandStateReport = data.latest_report ?? this.latestBandStateReport;
+                this.bandStateHistoricalReports = Array.isArray(data.reports)
+                    ? data.reports
+                    : this.bandStateHistoricalReports;
+
+                this.selectedBandStateHistoryReport = data.report ?? this.selectedBandStateHistoryReport;
+
+                this.bandStateEditModalOpen = false;
+
+                this.showCrudToast(data.message || 'Reporte actualizado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.bandStateEditErrors = ['Ocurrió un error de red al actualizar el reporte.'];
+                return false;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteBandStateHistoricalReport() {
+            if (!this.selectedBandStateHistoryReport?.id) {
+                return false;
+            }
+
+            const confirmed = window.confirm('¿Eliminar este reporte oficial? Esta acción no se puede deshacer.');
+
+            if (!confirmed) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandStateEditErrors = [];
+            this.bandStateErrors = [];
+
+            const deletedId = this.selectedBandStateHistoryReport.id;
+            const url = config.routes.bandStateHistoryDeleteTemplate.replace('__REPORT__', deletedId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandStateErrors = this.normalizeErrors(data, 'No fue posible eliminar el reporte.');
+                    return false;
+                }
+
+                this.latestBandStateReport = data.latest_report ?? null;
+                this.bandStateHistoricalReports = Array.isArray(data.reports)
+                    ? data.reports
+                    : this.bandStateHistoricalReports.filter(report => String(report.id) !== String(deletedId));
+
+                this.selectedBandStateHistoryReport = null;
+
+                if (this.bandStateHistoricalReports.length > 0) {
+                    const reports = [...this.bandStateHistoricalReports].sort((a, b) => {
+                        const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                        if (dateCompare !== 0) {
+                            return dateCompare;
+                        }
+
+                        return Number(b.id || 0) - Number(a.id || 0);
+                    });
+
+                    await this.selectBandStateHistoricalReport(reports[0].id);
+                }
+
+                this.showCrudToast(data.message || 'Reporte eliminado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.bandStateErrors = ['Ocurrió un error de red al eliminar el reporte.'];
+                return false;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+
+        // ======================
         // BAND EVENTS HELPERS
         // ======================
         bandWizardTotalSteps() {
-            return 5;
+            return 3;
+        },
+
+        compactBandSteps() {
+            return [
+                {
+                    id: 1,
+                    title: this.bandType === 'band' ? 'Inicio' : 'Banda asociada',
+                },
+                {
+                    id: 2,
+                    title: 'Captura técnica',
+                },
+                {
+                    id: 3,
+                    title: 'Cierre y publicación',
+                },
+            ];
         },
 
         bandWizardTitle() {
@@ -2922,6 +4721,25 @@ function measurementThicknessModule(config) {
                 vulcanization: 'Vulcanizado',
                 section_change: 'Cambio de tramo',
             }[type] || 'Evento';
+        },
+
+        latestBandChangeReport() {
+            const officialBands = this.safeArray(this.bandHistoricalTree)
+                .filter(item => item && item.type === 'band' && item.report_date);
+
+            if (!officialBands.length) {
+                return null;
+            }
+
+            return [...officialBands].sort((a, b) => {
+                const dateCompare = String(b.report_date || '').localeCompare(String(a.report_date || ''));
+
+                if (dateCompare !== 0) {
+                    return dateCompare;
+                }
+
+                return Number(b.id || 0) - Number(a.id || 0);
+            })[0];
         },
 
         bandOptionLabel(band) {
@@ -2999,6 +4817,159 @@ function measurementThicknessModule(config) {
 
         selectBandHistory(band) {
             this.selectedBandHistory = band ?? null;
+        },
+
+        openBandEditModal(event) {
+            if (!event || !event.id) {
+                return;
+            }
+
+            this.bandEditErrors = [];
+
+            this.bandEditForm = {
+                ...this.emptyBandDraft(event.type || 'band'),
+                ...event,
+                parent_id: event.type === 'band'
+                    ? null
+                    : (event.parent_id || this.selectedBandHistory?.id || this.bandEventActiveBand?.id || null),
+                type: event.type || 'band',
+                report_date: event.report_date || config.today,
+                same_reference: !!event.same_reference,
+            };
+
+            this.bandEditModalOpen = true;
+            this.refreshLucide();
+        },
+
+        closeBandEditModal() {
+            this.bandEditModalOpen = false;
+            this.bandEditErrors = [];
+            this.bandEditForm = null;
+        },
+
+        async updateBandHistoricalEvent() {
+            if (!this.bandEditForm?.id) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandEditErrors = [];
+
+            const url = config.routes.bandReportUpdateTemplate.replace('__EVENT__', this.bandEditForm.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...this.bandEditForm,
+                        type: this.bandEditForm.type,
+                        report_date: this.bandEditForm.report_date || config.today,
+                    }),
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandEditErrors = this.normalizeErrors(data, 'No fue posible actualizar el evento.');
+                    this.showCrudToast(
+                        this.bandEditErrors[0] || 'No fue posible actualizar el evento.',
+                        'error'
+                    );
+                    return false;
+                }
+
+                if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
+                    this.refreshBandCollections(data);
+                }
+
+                if (data.report?.type === 'band') {
+                    const found = this.bandHistoricalTree.find(item => String(item.id) === String(data.report.id));
+                    this.selectedBandHistory = found || this.selectedBandHistory;
+                } else if (data.report?.parent_id) {
+                    const parent = this.bandHistoricalTree.find(item => String(item.id) === String(data.report.parent_id));
+                    this.selectedBandHistory = parent || this.selectedBandHistory;
+                }
+
+                this.bandEditModalOpen = false;
+                this.bandEditForm = null;
+
+                this.showCrudToast(data.message || 'Evento actualizado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.bandEditErrors = ['Ocurrió un error de red al actualizar el evento.'];
+                this.showCrudToast(this.bandEditErrors[0], 'error');
+                return false;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteBandHistoricalEvent(event) {
+            if (!event?.id) {
+                return false;
+            }
+
+            const label = this.bandEventTypeLabel(event.type || 'band');
+            const confirmed = window.confirm(`¿Eliminar este evento oficial (${label})? Esta acción no se puede deshacer.`);
+
+            if (!confirmed) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandEditErrors = [];
+            this.bandErrors = [];
+
+            const deletedId = event.id;
+            const deletedParentId = event.parent_id || null;
+            const deletedType = event.type || 'band';
+            const url = config.routes.bandReportDeleteTemplate.replace('__EVENT__', deletedId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    const errors = this.normalizeErrors(data, 'No fue posible eliminar el evento.');
+                    this.showCrudToast(errors[0] || 'No fue posible eliminar el evento.', 'error');
+                    return false;
+                }
+
+                if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
+                    this.refreshBandCollections(data);
+                }
+
+                if (deletedType === 'band') {
+                    this.selectedBandHistory = this.bandHistoricalTree[0] ?? null;
+                } else if (deletedParentId) {
+                    const parent = this.bandHistoricalTree.find(item => String(item.id) === String(deletedParentId));
+                    this.selectedBandHistory = parent || (this.bandHistoricalTree[0] ?? null);
+                }
+
+                this.showCrudToast(data.message || 'Evento eliminado correctamente.');
+                this.refreshLucide();
+
+                return true;
+            } catch (error) {
+                this.showCrudToast('Ocurrió un error de red al eliminar el evento.', 'error');
+                return false;
+            } finally {
+                this.loading = false;
+            }
         },
 
         syncBandLatestStateAfterPublish(report = null) {
@@ -3473,21 +5444,19 @@ function measurementThicknessModule(config) {
 
         bandStepTitle(step) {
             return {
-                1: 'Tipo de registro',
-                2: 'Contexto',
-                3: 'Captura técnica',
-                4: 'Cierre',
-                5: 'Revisión',
+                1: this.bandType === 'band' ? 'Inicio' : 'Banda asociada',
+                2: 'Captura técnica',
+                3: 'Cierre y publicación',
             }[step] || 'Paso';
         },
 
         bandStepDescription(step) {
             return {
-                1: 'Define qué vas a crear',
-                2: 'Asocia la banda o confirma el padre',
-                3: 'Completa las tablas del evento',
-                4: 'Agrega observación, evidencia y fecha',
-                5: 'Verifica la información antes de publicar',
+                1: this.bandType === 'band'
+                    ? 'Nuevo cambio de banda'
+                    : 'Selecciona la banda oficial asociada',
+                2: 'Completa las tablas técnicas',
+                3: 'Agrega observación, evidencia y fecha',
             }[step] || '';
         },
 
@@ -4283,15 +6252,7 @@ function measurementThicknessModule(config) {
             // Band Events
             this.syncBandDraftDefaults();
             this.touchBandDraftDateIfMissing();
-
-            // Históricos
-            if (!this.selectedHistoryReport && this.historicalReports.length > 0) {
-                const firstThickness = this.historicalReports[0];
-                if (firstThickness?.id) {
-                    this.selectedHistoryReport = firstThickness;
-                }
-            }
-
+            
             if (!this.selectedBandStateHistoryReport && this.bandStateHistoricalReports.length > 0) {
                 const firstBandState = this.bandStateHistoricalReports[0];
                 if (firstBandState?.id) {

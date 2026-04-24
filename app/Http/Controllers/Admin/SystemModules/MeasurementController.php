@@ -746,6 +746,152 @@ class MeasurementController extends Controller
         ]);
     }
 
+    public function updateThicknessReport(Request $request, int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+            403,
+            'No tienes permisos para editar reportes oficiales.'
+        );
+
+        $validated = $request->validate([
+            'report_date' => ['required', 'date'],
+            'lines' => ['required', 'array', 'min:1'],
+
+            'lines.*.cover_number' => ['nullable', 'integer', 'min:1'],
+
+            'lines.*.top_left' => ['required', 'numeric', 'min:0'],
+            'lines.*.top_center' => ['required', 'numeric', 'min:0'],
+            'lines.*.top_right' => ['required', 'numeric', 'min:0'],
+
+            'lines.*.bottom_left' => ['required', 'numeric', 'min:0'],
+            'lines.*.bottom_center' => ['required', 'numeric', 'min:0'],
+            'lines.*.bottom_right' => ['required', 'numeric', 'min:0'],
+
+            'lines.*.hardness_left' => ['required', 'numeric', 'min:0'],
+            'lines.*.hardness_center' => ['required', 'numeric', 'min:0'],
+            'lines.*.hardness_right' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $reportModel = MeasurementThicknessReport::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('id', $report)
+            ->firstOrFail();
+
+        DB::transaction(function () use ($reportModel, $validated) {
+            $reportModel->update([
+                'report_date' => $validated['report_date'],
+            ]);
+
+            MeasurementThicknessReportLine::query()
+                ->where('report_id', $reportModel->id)
+                ->delete();
+
+            foreach (array_values($validated['lines']) as $index => $line) {
+                MeasurementThicknessReportLine::query()->create([
+                    'report_id' => $reportModel->id,
+                    'cover_number' => $index + 1,
+
+                    'top_left' => $line['top_left'],
+                    'top_center' => $line['top_center'],
+                    'top_right' => $line['top_right'],
+
+                    'bottom_left' => $line['bottom_left'],
+                    'bottom_center' => $line['bottom_center'],
+                    'bottom_right' => $line['bottom_right'],
+
+                    'hardness_left' => $line['hardness_left'],
+                    'hardness_center' => $line['hardness_center'],
+                    'hardness_right' => $line['hardness_right'],
+                ]);
+            }
+        });
+
+        $reportModel->load([
+            'lines' => fn ($query) => $query->orderBy('cover_number'),
+            'creator:id,name',
+        ]);
+
+        $latestReport = MeasurementThicknessReport::query()
+            ->with([
+                'lines' => fn ($query) => $query->orderBy('cover_number'),
+                'creator:id,name',
+            ])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte actualizado correctamente.',
+            'report' => $this->serializeThicknessReport($reportModel),
+            'latest_report' => $this->serializeThicknessReport($latestReport),
+            'reports' => $this->thicknessReportList($measurementElement->id),
+        ]);
+    }
+
+    public function deleteThicknessReport(int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
+
+        abort_unless(
+            in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+            403,
+            'No tienes permisos para eliminar reportes oficiales.'
+        );
+
+        $reportModel = MeasurementThicknessReport::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('id', $report)
+            ->firstOrFail();
+
+        DB::transaction(function () use ($reportModel) {
+            MeasurementThicknessReportLine::query()
+                ->where('report_id', $reportModel->id)
+                ->delete();
+
+            $reportModel->delete();
+        });
+
+        $latestReport = MeasurementThicknessReport::query()
+            ->with([
+                'lines' => fn ($query) => $query->orderBy('cover_number'),
+                'creator:id,name',
+            ])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte eliminado correctamente.',
+            'latest_report' => $this->serializeThicknessReport($latestReport),
+            'reports' => $this->thicknessReportList($measurementElement->id),
+        ]);
+    }
+
+    private function thicknessReportList(int $elementId): array
+    {
+        return MeasurementThicknessReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $elementId)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (MeasurementThicknessReport $report) => $this->serializeThicknessReportSummary($report))
+            ->values()
+            ->all();
+    }
+
     protected function serializeThicknessReport(?MeasurementThicknessReport $report): ?array
     {
         if (!$report) {
@@ -973,6 +1119,111 @@ class MeasurementController extends Controller
             'report' => $this->serializeBandStateReport($reportModel),
         ]);
     }
+
+public function updateBandStateReport(Request $request, int $element, int $report): JsonResponse
+{
+    $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+    $user = auth()->user();
+
+    abort_unless(
+        in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+        403,
+        'No tienes permisos para editar reportes oficiales.'
+    );
+
+    $validated = $request->validate([
+        'report_date' => ['required', 'date'],
+        'description' => ['required', 'string', 'max:255'],
+        'width' => ['required', 'numeric', 'min:0'],
+        'top_cover' => ['required', 'numeric', 'min:0'],
+        'bottom_cover' => ['required', 'numeric', 'min:0'],
+    ]);
+
+    $bandStateReport = BandStateReport::query()
+        ->where('element_id', $measurementElement->id)
+        ->where('id', $report)
+        ->firstOrFail();
+
+    $bandStateReport->update([
+        'report_date' => $validated['report_date'],
+        'description' => $validated['description'],
+        'width' => $validated['width'],
+        'top_cover' => $validated['top_cover'],
+        'bottom_cover' => $validated['bottom_cover'],
+    ]);
+
+    $bandStateReport->load(['creator:id,name']);
+
+    $latestReport = BandStateReport::query()
+        ->with(['creator:id,name'])
+        ->where('element_id', $measurementElement->id)
+        ->orderByDesc('report_date')
+        ->orderByDesc('published_at')
+        ->orderByDesc('id')
+        ->first();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Reporte actualizado correctamente.',
+        'report' => $this->serializeBandStateReport($bandStateReport),
+        'latest_report' => $this->serializeBandStateReport($latestReport),
+        'reports' => $this->bandStateReportList($measurementElement->id),
+    ]);
+}
+
+public function deleteBandStateReport(int $element, int $report): JsonResponse
+{
+    $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+    $user = auth()->user();
+
+    abort_unless(
+        in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+        403,
+        'No tienes permisos para eliminar reportes oficiales.'
+    );
+
+    $bandStateReport = BandStateReport::query()
+        ->where('element_id', $measurementElement->id)
+        ->where('id', $report)
+        ->firstOrFail();
+
+    $bandStateReport->delete();
+
+    $latestReport = BandStateReport::query()
+        ->with(['creator:id,name'])
+        ->where('element_id', $measurementElement->id)
+        ->orderByDesc('report_date')
+        ->orderByDesc('published_at')
+        ->orderByDesc('id')
+        ->first();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Reporte eliminado correctamente.',
+        'latest_report' => $this->serializeBandStateReport($latestReport),
+        'reports' => $this->bandStateReportList($measurementElement->id),
+    ]);
+}
+
+private function bandStateReportList(int $elementId): array
+{
+    return BandStateReport::query()
+        ->with(['creator:id,name'])
+        ->where('element_id', $elementId)
+        ->orderByDesc('report_date')
+        ->orderByDesc('published_at')
+        ->orderByDesc('id')
+        ->get()
+        ->map(fn ($report) => [
+            'id' => $report->id,
+            'report_date' => optional($report->report_date)?->format('Y-m-d'),
+            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+            'published_by' => $report->creator?->name,
+        ])
+        ->values()
+        ->all();
+}
+
     protected function resolveLatestThicknessMaxHardnessForElement(int $elementId): ?string
     {
         $latestThicknessReport = MeasurementThicknessReport::query()
@@ -1065,15 +1316,41 @@ class MeasurementController extends Controller
             'element_id' => $event->element_id,
             'parent_id' => $event->parent_id,
             'type' => $event->type,
+
+            // REFERENCIA BANDA
             'brand' => $event->brand,
+            'total_thickness' => $event->total_thickness,
+            'top_cover_thickness' => $event->top_cover_thickness,
+            'bottom_cover_thickness' => $event->bottom_cover_thickness,
+            'plies' => $event->plies,
             'width' => $event->width,
             'length' => $event->length,
             'roll_count' => $event->roll_count,
+
+            // VULCANIZADO
             'temperature' => $event->temperature,
             'pressure' => $event->pressure,
             'time' => $event->time,
+            'cooling_time' => $event->cooling_time,
+
+            // ENTREGA EQUIPO
+            'motor_current' => $event->motor_current,
+            'alignment' => $event->alignment,
+            'material_accumulation' => $event->material_accumulation,
+            'guard' => $event->guard,
+            'idler_condition' => $event->idler_condition,
+
+            // CAMBIO DE TRAMO
+            'section_brand' => $event->section_brand,
+            'section_thickness' => $event->section_thickness,
+            'section_plies' => $event->section_plies,
             'section_length' => $event->section_length,
             'section_width' => $event->section_width,
+
+            // LÓGICA
+            'same_reference' => (bool) $event->same_reference,
+
+            // COMUNES
             'observation' => $event->observation,
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
