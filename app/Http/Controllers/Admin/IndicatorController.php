@@ -523,17 +523,18 @@ class IndicatorController extends Controller
         return Element::query()
             ->with([
                 'group:id,client_id,name',
-                'elementType:id,name',
+                'elementType:id,name,has_semaphore',
             ])
             ->where('status', true)
             ->whereIn('group_id', $groupIds)
             ->get(['id', 'group_id', 'element_type_id', 'status'])
             ->map(function (Element $element) {
                 return [
-                    'client_id' => (int) ($element->group?->client_id ?? 0),
-                    'group_id' => (int) $element->group_id,
-                    'element_type_id' => (int) $element->element_type_id,
-                    'element_type_name' => $element->elementType?->name ?: 'Sin tipo',
+                    'client_id' => $element->group?->client_id,
+                    'group_id' => $element->group_id,
+                    'element_type_id' => $element->element_type_id,
+                    'element_type_name' => $element->elementType?->name,
+                    'has_semaphore' => (bool) $element->elementType?->has_semaphore,
                 ];
             })
             ->filter(fn ($item) => $item['client_id'] && $item['group_id'] && $item['element_type_id'])
@@ -794,6 +795,10 @@ private function conditionDisplayLabel($condition): string
 
     $code = trim((string) ($condition->code ?? ''));
     $name = trim((string) ($condition->name ?? ''));
+
+    if ($code !== '' && $name !== '') {
+        return "{$code} - {$name}";
+    }
 
     if ($code !== '') {
         return $code;
