@@ -29,99 +29,257 @@ class MeasurementController extends Controller
     public function levelOne(): View
     {
         $user = auth()->user();
-        abort_unless($user, 403);
-        abort_unless($user->canViewSystemModule('mediciones'), 403);
+        abort_if(!$user, 403);
+
+        if (!$user->canViewSystemModule('mediciones')) {
+            abort(403);
+        }
 
         $module = SystemModule::query()
             ->where('key', 'mediciones')
             ->where('status', true)
             ->firstOrFail();
 
-        $roleKey = $user->role->key ?? null;
-        $isPowerAdmin = in_array($roleKey, ['superadmin', 'admin_global'], true);
+        $roleKey = $user->role?->key;
 
-        $userClientIds = collect();
-
-        if (!$isPowerAdmin && method_exists($user, 'clients')) {
-            $userClientIds = $user->clients()->pluck('clients.id');
-        }
-
-        $configsQuery = ClientElementTypeModule::query()
-            ->with([
-                'client:id,name',
-                'elementType:id,client_id,name',
-            ])
-            ->where('system_module_id', $module->id)
-            ->where('status', true)
-            ->where('module_enabled', true);
-
-        if (!$isPowerAdmin) {
-            if ($userClientIds->isEmpty()) {
-                $configsQuery->whereRaw('1 = 0');
-            } else {
-                $configsQuery->whereIn('client_id', $userClientIds);
-            }
-        }
-
-        $configs = $configsQuery
-            ->orderBy('client_id')
-            ->orderBy('element_type_id')
-            ->get();
-
-        $sections = $configs->map(function (ClientElementTypeModule $config) {
-            $elements = Element::query()
+        if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            $configs = ClientElementTypeModule::query()
                 ->with([
-                    'area:id,client_id,name',
+                    'client:id,name',
+                    'elementType:id,client_id,name',
                 ])
-                ->where('element_type_id', $config->element_type_id)
+                ->where('system_module_id', $module->id)
                 ->where('status', true)
-                ->whereHas('area', function ($query) use ($config) {
-                    $query->where('client_id', $config->client_id)
-                        ->where('status', true);
-                })
-                ->orderBy('name')
-                ->get(['id', 'area_id', 'element_type_id', 'name', 'status']);
+                ->where('module_enabled', true)
+                ->orderBy('client_id')
+                ->orderBy('element_type_id')
+                ->get();
+        } else {
+            $clientIds = $user->clients()->pluck('clients.id');
 
-            $areas = $elements
-                ->filter(fn ($element) => $element->area)
-                ->groupBy(fn ($element) => $element->area->id)
-                ->map(function (Collection $group) {
-                    $area = $group->first()->area;
+            $configs = ClientElementTypeModule::query()
+                ->with([
+                    'client:id,name',
+                    'elementType:id,client_id,name',
+                ])
+                ->where('system_module_id', $module->id)
+                ->where('status', true)
+                ->where('module_enabled', true)
+                ->whereIn('client_id', $clientIds)
+                ->orderBy('client_id')
+                ->orderBy('element_type_id')
+                ->get();
+        }
 
-                    return [
-                        'id' => $area->id,
-                        'name' => $area->name,
-                        'elements_count' => $group->count(),
-                        'elements' => $group
-                            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
-                            ->values()
-                            ->map(function ($element) {
-                                return [
-                                    'id' => $element->id,
-                                    'name' => $element->name,
-                                    'url' => route('admin.system-modules.measurements.show', $element->id),
-                                ];
-                            })
-                            ->values(),
-                    ];
-                })
-                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
-                ->values();
+        $sections = $configs
+            ->map(function (ClientElementTypeModule $config) {
+                $elements = Element::query()
+                    ->with([
+                        'area:id,client_id,name',
+                    ])
+                    ->where('element_type_id', $config->element_type_id)
+                    ->where('status', true)
+                    ->whereHas('area', function ($query) use ($config) {
+                        $query->where('client_id', $config->client_id)
+                            ->where('status', true);
+                    })
+                    ->orderBy('name')
+                    ->get(['id', 'area_id', 'element_type_id', 'name', 'status']);
 
-            return [
-                'client_id' => $config->client_id,
-                'client_name' => $config->client?->name ?? '—',
-                'element_type_id' => $config->element_type_id,
-                'element_type_name' => $config->elementType?->name ?? '—',
-                'creation_enabled' => $config->creation_enabled,
-                'elements_count' => $elements->count(),
-                'areas_count' => $areas->count(),
-                'areas' => $areas,
-            ];
-        })->values();
+                $latestBandStateDescriptions = BandStateReport::query()
+                    ->select('id', 'element_id', 'description', 'report_date', 'published_at')
+                    ->whereIn('element_id', $elements->pluck('id'))
+                    ->orderByDesc('report_date')
+                    ->orderByDesc('published_at')
+                    ->orderByDesc('id')
+                    ->get()
+                    ->unique('element_id')
+                    ->mapWithKeys(fn (BandStateReport $report) => [
+                        $report->element_id => $report->description,
+                    ]);
+
+                $areas = $elements
+                    ->filter(fn ($element) => $element->area)
+                    ->groupBy(fn ($element) => $element->area->id)
+                    ->map(function ($areaElements) use ($latestBandStateDescriptions) {
+                        $area = $areaElements->first()->area;
+
+                        return [
+                            'id' => $area->id,
+                            'name' => $area->name,
+                            'count' => $areaElements->count(),
+                            'elements' => $areaElements
+                                ->map(function ($element) use ($latestBandStateDescriptions) {
+                                    return [
+                                        'id' => $element->id,
+                                        'name' => $element->name,
+                                        'url' => route('admin.system-modules.measurements.show', $element->id),
+                                        'band_measurement_index' => $latestBandStateDescriptions->get($element->id),
+                                    ];
+                                })
+                                ->values(),
+                        ];
+                    })
+                    ->sortBy('name')
+                    ->values();
+
+
+                return [
+                    'client_id' => $config->client_id,
+                    'client_name' => $config->client?->name,
+                    'element_type_id' => $config->element_type_id,
+                    'element_type_name' => $config->elementType?->name,
+                    'creation_enabled' => (bool) $config->creation_enabled,
+                    'areas_count' => $areas->count(),
+                    'elements_count' => $elements->count(),
+                    'areas' => $areas,
+                ];
+            })
+            ->sortBy([
+                ['client_name', 'asc'],
+                ['element_type_name', 'asc'],
+            ])
+            ->values();
 
         return view('admin.system-modules.measurements.level-one', [
             'sections' => $sections,
+        ]);
+    }
+
+    public function areaSummary(Request $request, int $area): JsonResponse
+    {
+        $user = auth()->user();
+        abort_unless($user, 403);
+        abort_unless($user->canViewSystemModule('mediciones'), 403);
+
+        $elementTypeId = (int) $request->query('element_type_id');
+
+        abort_unless($elementTypeId > 0, 422, 'Tipo de activo requerido.');
+
+        $module = SystemModule::query()
+            ->where('key', 'mediciones')
+            ->where('status', true)
+            ->firstOrFail();
+
+        $elements = Element::query()
+            ->with([
+                'area:id,client_id,name,status',
+                'area.client:id,name,status',
+                'elementType:id,client_id,name,status',
+            ])
+            ->where('area_id', $area)
+            ->where('element_type_id', $elementTypeId)
+            ->where('status', true)
+            ->whereHas('area', fn ($query) => $query->where('status', true))
+            ->orderBy('name')
+            ->get(['id', 'area_id', 'element_type_id', 'name', 'status']);
+
+        if ($elements->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'area' => null,
+                'items' => [],
+            ]);
+        }
+
+        $firstElement = $elements->first();
+
+        $enabledConfigExists = ClientElementTypeModule::query()
+            ->where('client_id', $firstElement->area->client_id)
+            ->where('element_type_id', $elementTypeId)
+            ->where('system_module_id', $module->id)
+            ->where('status', true)
+            ->where('module_enabled', true)
+            ->exists();
+
+        abort_unless($enabledConfigExists, 403);
+
+        $roleKey = $user->role?->key;
+
+        if (!in_array($roleKey, ['superadmin', 'admin_global'], true)) {
+            $allowedClientIds = $user->clients()->pluck('clients.id')->map(fn ($id) => (int) $id);
+
+            abort_unless(
+                $allowedClientIds->contains((int) $firstElement->area->client_id),
+                403
+            );
+        }
+
+        $elementIds = $elements->pluck('id');
+
+        $latestBandStateReports = BandStateReport::query()
+            ->whereIn('element_id', $elementIds)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('element_id')
+            ->keyBy('element_id');
+
+        $latestThicknessReports = MeasurementThicknessReport::query()
+            ->with(['lines' => fn ($query) => $query->orderBy('cover_number')])
+            ->whereIn('element_id', $elementIds)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('element_id')
+            ->keyBy('element_id');
+
+        $items = $elements->map(function (Element $element) use ($latestBandStateReports, $latestThicknessReports) {
+            $bandState = $latestBandStateReports->get($element->id);
+            $thickness = $latestThicknessReports->get($element->id);
+
+            $topSpecification = $bandState?->top_cover;
+            $bottomSpecification = $bandState?->bottom_cover;
+            $hardnessSpecification = $bandState?->calculated_hardness
+                ?? $this->maximumFromReportLines($thickness, [
+                    'hardness_left',
+                    'hardness_center',
+                    'hardness_right',
+                ]);
+
+            $topMeasurement = $this->minimumFromReportLines($thickness, [
+                'top_left',
+                'top_center',
+                'top_right',
+            ]);
+
+            $bottomMeasurement = $this->minimumFromReportLines($thickness, [
+                'bottom_left',
+                'bottom_center',
+                'bottom_right',
+            ]);
+
+            return [
+                'id' => $element->id,
+                'name' => $element->name,
+                'url' => route('admin.system-modules.measurements.show', $element->id),
+
+                'band_state_report_date' => optional($bandState?->report_date)?->format('Y-m-d'),
+                'thickness_report_date' => optional($thickness?->report_date)?->format('Y-m-d'),
+
+                'top_specification' => $this->formatDecimalForJson($topSpecification),
+                'bottom_specification' => $this->formatDecimalForJson($bottomSpecification),
+                'hardness_specification' => $this->formatDecimalForJson($hardnessSpecification),
+
+                'top_measurement' => $this->formatDecimalForJson($topMeasurement),
+                'bottom_measurement' => $this->formatDecimalForJson($bottomMeasurement),
+
+                'top_percentage' => $this->percentageForJson($topMeasurement, $topSpecification),
+                'bottom_percentage' => $this->percentageForJson($bottomMeasurement, $bottomSpecification),
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'area' => [
+                'id' => $firstElement->area->id,
+                'name' => $firstElement->area->name,
+                'client_name' => $firstElement->area->client?->name,
+                'element_type_name' => $firstElement->elementType?->name,
+            ],
+            'items' => $items,
         ]);
     }
 
@@ -214,11 +372,14 @@ class MeasurementController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $creationEnabled = $this->canCreateMeasurementRecords($measurementElement);
+
         return view('admin.system-modules.measurements.show', [
             'element' => $measurementElement,
             'client' => $measurementElement->area->client,
             'area' => $measurementElement->area,
             'elementType' => $measurementElement->elementType,
+            'creationEnabled' => $creationEnabled,
 
             'thicknessDraft' => $draft,
             'thicknessDraftData' => $this->serializeThicknessDraft($draft),
@@ -256,6 +417,7 @@ class MeasurementController extends Controller
     public function createThicknessDraft(int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $draft = MeasurementThicknessDraft::query()->firstOrCreate(
@@ -286,6 +448,7 @@ class MeasurementController extends Controller
     public function updateThicknessDraft(Request $request, int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -351,6 +514,7 @@ class MeasurementController extends Controller
     public function addThicknessDraftCover(int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $draft = MeasurementThicknessDraft::query()->firstOrCreate(
@@ -387,6 +551,7 @@ class MeasurementController extends Controller
     public function removeLastThicknessDraftCover(int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $draft = MeasurementThicknessDraft::query()
@@ -604,6 +769,7 @@ class MeasurementController extends Controller
     public function publishThicknessDraft(Request $request, int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -939,6 +1105,7 @@ class MeasurementController extends Controller
     public function createBandStateDraft(int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $draft = BandStateDraft::query()->firstOrCreate(
@@ -965,6 +1132,7 @@ class MeasurementController extends Controller
     public function updateBandStateDraft(Request $request, int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -1006,6 +1174,7 @@ class MeasurementController extends Controller
     public function publishBandStateDraft(Request $request, int $element): JsonResponse
     {
         $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -1120,109 +1289,109 @@ class MeasurementController extends Controller
         ]);
     }
 
-public function updateBandStateReport(Request $request, int $element, int $report): JsonResponse
-{
-    $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
-    $user = auth()->user();
+    public function updateBandStateReport(Request $request, int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
 
-    abort_unless(
-        in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
-        403,
-        'No tienes permisos para editar reportes oficiales.'
-    );
+        abort_unless(
+            in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+            403,
+            'No tienes permisos para editar reportes oficiales.'
+        );
 
-    $validated = $request->validate([
-        'report_date' => ['required', 'date'],
-        'description' => ['required', 'string', 'max:255'],
-        'width' => ['required', 'numeric', 'min:0'],
-        'top_cover' => ['required', 'numeric', 'min:0'],
-        'bottom_cover' => ['required', 'numeric', 'min:0'],
-    ]);
+        $validated = $request->validate([
+            'report_date' => ['required', 'date'],
+            'description' => ['required', 'string', 'max:255'],
+            'width' => ['required', 'numeric', 'min:0'],
+            'top_cover' => ['required', 'numeric', 'min:0'],
+            'bottom_cover' => ['required', 'numeric', 'min:0'],
+        ]);
 
-    $bandStateReport = BandStateReport::query()
-        ->where('element_id', $measurementElement->id)
-        ->where('id', $report)
-        ->firstOrFail();
+        $bandStateReport = BandStateReport::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('id', $report)
+            ->firstOrFail();
 
-    $bandStateReport->update([
-        'report_date' => $validated['report_date'],
-        'description' => $validated['description'],
-        'width' => $validated['width'],
-        'top_cover' => $validated['top_cover'],
-        'bottom_cover' => $validated['bottom_cover'],
-    ]);
+        $bandStateReport->update([
+            'report_date' => $validated['report_date'],
+            'description' => $validated['description'],
+            'width' => $validated['width'],
+            'top_cover' => $validated['top_cover'],
+            'bottom_cover' => $validated['bottom_cover'],
+        ]);
 
-    $bandStateReport->load(['creator:id,name']);
+        $bandStateReport->load(['creator:id,name']);
 
-    $latestReport = BandStateReport::query()
-        ->with(['creator:id,name'])
-        ->where('element_id', $measurementElement->id)
-        ->orderByDesc('report_date')
-        ->orderByDesc('published_at')
-        ->orderByDesc('id')
-        ->first();
+        $latestReport = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Reporte actualizado correctamente.',
-        'report' => $this->serializeBandStateReport($bandStateReport),
-        'latest_report' => $this->serializeBandStateReport($latestReport),
-        'reports' => $this->bandStateReportList($measurementElement->id),
-    ]);
-}
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte actualizado correctamente.',
+            'report' => $this->serializeBandStateReport($bandStateReport),
+            'latest_report' => $this->serializeBandStateReport($latestReport),
+            'reports' => $this->bandStateReportList($measurementElement->id),
+        ]);
+    }
 
-public function deleteBandStateReport(int $element, int $report): JsonResponse
-{
-    $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
-    $user = auth()->user();
+    public function deleteBandStateReport(int $element, int $report): JsonResponse
+    {
+        $measurementElement = $this->resolveAuthorizedMeasurementElement($element);
+        $user = auth()->user();
 
-    abort_unless(
-        in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
-        403,
-        'No tienes permisos para eliminar reportes oficiales.'
-    );
+        abort_unless(
+            in_array($user?->role?->key, ['superadmin', 'admin_global'], true),
+            403,
+            'No tienes permisos para eliminar reportes oficiales.'
+        );
 
-    $bandStateReport = BandStateReport::query()
-        ->where('element_id', $measurementElement->id)
-        ->where('id', $report)
-        ->firstOrFail();
+        $bandStateReport = BandStateReport::query()
+            ->where('element_id', $measurementElement->id)
+            ->where('id', $report)
+            ->firstOrFail();
 
-    $bandStateReport->delete();
+        $bandStateReport->delete();
 
-    $latestReport = BandStateReport::query()
-        ->with(['creator:id,name'])
-        ->where('element_id', $measurementElement->id)
-        ->orderByDesc('report_date')
-        ->orderByDesc('published_at')
-        ->orderByDesc('id')
-        ->first();
+        $latestReport = BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $measurementElement->id)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->first();
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Reporte eliminado correctamente.',
-        'latest_report' => $this->serializeBandStateReport($latestReport),
-        'reports' => $this->bandStateReportList($measurementElement->id),
-    ]);
-}
+        return response()->json([
+            'success' => true,
+            'message' => 'Reporte eliminado correctamente.',
+            'latest_report' => $this->serializeBandStateReport($latestReport),
+            'reports' => $this->bandStateReportList($measurementElement->id),
+        ]);
+    }
 
-private function bandStateReportList(int $elementId): array
-{
-    return BandStateReport::query()
-        ->with(['creator:id,name'])
-        ->where('element_id', $elementId)
-        ->orderByDesc('report_date')
-        ->orderByDesc('published_at')
-        ->orderByDesc('id')
-        ->get()
-        ->map(fn ($report) => [
-            'id' => $report->id,
-            'report_date' => optional($report->report_date)?->format('Y-m-d'),
-            'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
-            'published_by' => $report->creator?->name,
-        ])
-        ->values()
-        ->all();
-}
+    private function bandStateReportList(int $elementId): array
+    {
+        return BandStateReport::query()
+            ->with(['creator:id,name'])
+            ->where('element_id', $elementId)
+            ->orderByDesc('report_date')
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($report) => [
+                'id' => $report->id,
+                'report_date' => optional($report->report_date)?->format('Y-m-d'),
+                'published_at' => optional($report->published_at)?->format('Y-m-d H:i:s'),
+                'published_by' => $report->creator?->name,
+            ])
+            ->values()
+            ->all();
+    }
 
     protected function resolveLatestThicknessMaxHardnessForElement(int $elementId): ?string
     {
@@ -1372,5 +1541,125 @@ private function bandStateReportList(int $elementId): array
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
             'observation' => $event->observation,
         ];
+    }
+
+    private function canCreateMeasurementRecords(Element $element): bool
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'canCreateSystemModule') && !$user->canCreateSystemModule('mediciones')) {
+            return false;
+        }
+
+        $config = $this->measurementModuleConfigForElement($element);
+
+        return (bool) ($config?->creation_enabled);
+    }
+
+    private function ensureMeasurementCreationEnabled(Element $element): void
+    {
+        abort_unless(
+            $this->canCreateMeasurementRecords($element),
+            403,
+            'La creación de registros está deshabilitada para este cliente y tipo de activo.'
+        );
+    }
+
+    private function measurementModuleConfigForElement(Element $element): ?ClientElementTypeModule
+    {
+        $element->loadMissing([
+            'area:id,client_id,name,status',
+            'elementType:id,client_id,name,status',
+        ]);
+
+        $module = SystemModule::query()
+            ->where('key', 'mediciones')
+            ->where('status', true)
+            ->first();
+
+        if (!$module || !$element->area) {
+            return null;
+        }
+
+        return ClientElementTypeModule::query()
+            ->where('client_id', $element->area->client_id)
+            ->where('element_type_id', $element->element_type_id)
+            ->where('system_module_id', $module->id)
+            ->where('status', true)
+            ->where('module_enabled', true)
+            ->first();
+    }
+
+    private function minimumFromReportLines(?MeasurementThicknessReport $report, array $fields): ?float
+    {
+        if (!$report) {
+            return null;
+        }
+
+        $values = collect($report->lines ?? [])
+            ->flatMap(function (MeasurementThicknessReportLine $line) use ($fields) {
+                return collect($fields)
+                    ->map(fn (string $field) => $line->{$field})
+                    ->filter(fn ($value) => $value !== null && $value !== '');
+            })
+            ->map(fn ($value) => (float) $value)
+            ->values();
+
+        if ($values->isEmpty()) {
+            return null;
+        }
+
+        return (float) $values->min();
+    }
+
+    private function percentageForJson(null|int|float|string $measurement, null|int|float|string $specification): ?float
+    {
+        if ($measurement === null || $measurement === '' || $specification === null || $specification === '') {
+            return null;
+        }
+
+        $measurement = (float) $measurement;
+        $specification = (float) $specification;
+
+        if ($specification <= 0) {
+            return null;
+        }
+
+        return round(($measurement / $specification) * 100, 2);
+    }
+
+    private function formatDecimalForJson(null|int|float|string $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return round((float) $value, 2);
+    }
+
+    private function maximumFromReportLines(?MeasurementThicknessReport $report, array $fields): ?float
+    {
+        if (!$report) {
+            return null;
+        }
+
+        $values = collect($report->lines ?? [])
+            ->flatMap(function (MeasurementThicknessReportLine $line) use ($fields) {
+                return collect($fields)
+                    ->map(fn (string $field) => $line->{$field} ?? null)
+                    ->filter(fn ($value) => $value !== null && $value !== '');
+            })
+            ->map(fn ($value) => (float) $value)
+            ->values();
+
+        if ($values->isEmpty()) {
+            return null;
+        }
+
+        return (float) $values->max();
     }
 }

@@ -68,7 +68,7 @@
 
                 <a href="{{ route('admin.system-modules.measurements.level-one') }}" class="{{ $itemClass($levelOneActive || $showActive) }}">
                     <i data-lucide="folders" class="{{ $iconClass($levelOneActive || $showActive) }}"></i>
-                    <span>Nivel 1</span>
+                    <span>Mediciones</span>
                 </a>
             </nav>
 

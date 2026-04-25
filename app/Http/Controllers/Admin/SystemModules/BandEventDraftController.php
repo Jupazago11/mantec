@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BandEvent;
 use App\Models\BandEventDraft;
+use App\Models\ClientElementTypeModule;
+use App\Models\Element;
+use App\Models\SystemModule;
 
 class BandEventDraftController extends Controller
 {
@@ -14,6 +17,9 @@ class BandEventDraftController extends Controller
     // =========================
     public function create(Request $request, $elementId)
     {
+        $measurementElement = Element::query()->findOrFail($elementId);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
+
         $type = $request->validate([
             'type' => 'required|in:band,vulcanization,section_change'
         ])['type'];
@@ -39,6 +45,9 @@ class BandEventDraftController extends Controller
     // =========================
     public function update(Request $request, $elementId)
     {
+        $measurementElement = Element::query()->findOrFail($elementId);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
+
         $type = $request->input('type');
 
         $draft = BandEventDraft::where('element_id', $elementId)
@@ -63,6 +72,9 @@ class BandEventDraftController extends Controller
     // =========================
     public function publish(Request $request, $elementId)
     {
+        $measurementElement = Element::query()->findOrFail($elementId);
+        $this->ensureMeasurementCreationEnabled($measurementElement);
+
         $type = $request->input('type');
 
         $draft = BandEventDraft::where('element_id', $elementId)
@@ -414,5 +426,56 @@ class BandEventDraftController extends Controller
         if (!empty($errors)) {
             throw \Illuminate\Validation\ValidationException::withMessages($errors);
         }
+    }
+
+    private function canCreateMeasurementRecords(Element $element): bool
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'canCreateSystemModule') && !$user->canCreateSystemModule('mediciones')) {
+            return false;
+        }
+
+        $config = $this->measurementModuleConfigForElement($element);
+
+        return (bool) ($config?->creation_enabled);
+    }
+
+    private function ensureMeasurementCreationEnabled(Element $element): void
+    {
+        abort_unless(
+            $this->canCreateMeasurementRecords($element),
+            403,
+            'La creación de registros está deshabilitada para este cliente y tipo de activo.'
+        );
+    }
+
+    private function measurementModuleConfigForElement(Element $element): ?ClientElementTypeModule
+    {
+        $element->loadMissing([
+            'area:id,client_id,name,status',
+            'elementType:id,client_id,name,status',
+        ]);
+
+        $module = SystemModule::query()
+            ->where('key', 'mediciones')
+            ->where('status', true)
+            ->first();
+
+        if (!$module || !$element->area) {
+            return null;
+        }
+
+        return ClientElementTypeModule::query()
+            ->where('client_id', $element->area->client_id)
+            ->where('element_type_id', $element->element_type_id)
+            ->where('system_module_id', $module->id)
+            ->where('status', true)
+            ->where('module_enabled', true)
+            ->first();
     }
 }

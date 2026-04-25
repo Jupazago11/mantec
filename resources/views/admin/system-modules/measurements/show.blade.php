@@ -23,6 +23,7 @@
     <div
         x-data="measurementThicknessModule({
             elementId: @js($element->id),
+            creationEnabled: @js((bool) ($creationEnabled ?? false)),
             initialBandEventLatestReport: @js($bandEventLatestReportData ?? null),
             initialBandEventActiveBand: @js($bandEventActiveBandData ?? null),
             initialBandEventBands: @js($bandEventBandsData ?? []),
@@ -93,6 +94,18 @@
         })"
         class="space-y-8"
     >
+        <div
+            x-show="!canCreateRecords()"
+            x-cloak
+            class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800"
+        >
+            <div class="font-semibold">
+                Modo consulta activo
+            </div>
+            <p class="mt-1">
+                Puedes consultar reportes e históricos, pero no crear nuevos borradores ni publicar reportes.
+            </p>
+        </div>
         <div class="grid gap-8 xl:grid-cols-2">
 
             {{-- Superior izquierda --}}
@@ -218,6 +231,7 @@
                         <div class="flex shrink-0 flex-col gap-2 pt-1">
                             <button
                                 type="button"
+                                x-show="canCreateRecords()"
                                 @click="openBandStateDraftModal()"
                                 :title="hasBandStateDraft() ? 'Continuar borrador' : 'Crear borrador'"
                                 class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -259,6 +273,7 @@
                     <div class="mt-4 flex justify-center gap-2">
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openBandWizard('band')"
                             title="Nuevo cambio de banda"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -365,6 +380,7 @@
                     <div class="flex shrink-0 flex-col gap-2 pt-1">
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openBandWizard('band')"
                             title="Nuevo cambio de banda"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -383,6 +399,7 @@
 
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openBandWizard('vulcanization')"
                             title="Registrar vulcanizado"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
@@ -392,6 +409,7 @@
 
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openBandWizard('section_change')"
                             title="Registrar cambio de tramo"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
@@ -413,7 +431,6 @@
         >
             <div
                 x-show="bandHistoryModalOpen"
-                x-transition
                 class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
                 @click.outside="if (!bandEditModalOpen) closeBandHistoryModal()"
             >
@@ -1526,6 +1543,7 @@
                     <div class="mt-4 flex justify-center gap-2">
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openDraftModal()"
                             :title="hasDraft() ? 'Continuar borrador' : 'Crear borrador'"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -1603,10 +1621,10 @@
                                                     <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="minValue([line.top_left, line.top_center, line.top_right]) || '—'"></td>
                                                     <td
                                                         class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
-                                                        x-text="calculateSufficiency(
-                                                            minValue([line.top_left, line.top_center, line.top_right]),
-                                                            'top'
-                                                        ) ?? '—'"
+                                                            x-text="calculateSufficiency(
+                                                                minValue([line.top_left, line.top_center, line.top_right]),
+                                                                'top'
+                                                            ) ?? '—'"
                                                     ></td>
                                                 </tr>
 
@@ -1680,6 +1698,7 @@
                     <div class="flex shrink-0 flex-col gap-2 pt-1">
                         <button
                             type="button"
+                            x-show="canCreateRecords()"
                             @click="openDraftModal()"
                             :title="hasDraft() ? 'Continuar borrador' : 'Crear borrador'"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -1878,7 +1897,6 @@
     >
         <div
             x-show="bandStateHistoryModalOpen"
-            x-transition
             class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             @click.outside="if (!bandStateEditModalOpen) closeBandStateHistoryModal()"
         >
@@ -1887,7 +1905,6 @@
                     <div>
                         <h3 class="text-xl font-semibold text-slate-900">Histórico - Informe de estado de banda</h3>
                         <p class="mt-1 text-sm text-slate-500">
-                            Consulta los reportes oficiales publicados del activo
                             <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
                         </p>
                     </div>
@@ -1963,7 +1980,7 @@
 
                     <div class="max-h-[78vh] overflow-y-auto p-4">
                         <div
-                            x-show="bandStateHistoryLoading"
+                            x-show="historyLoading && !selectedHistoryReport"
                             x-cloak
                             class="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600"
                         >
@@ -1981,7 +1998,7 @@
                         </div>
 
                         <div
-                            x-show="!bandStateHistoryLoading && selectedBandStateHistoryReport"
+                            x-show="selectedBandStateHistoryReport"
                             x-cloak
                             class="overflow-hidden rounded-2xl border border-slate-200 bg-white"
                         >
@@ -2807,7 +2824,6 @@
     >
         <div
             x-show="historyModalOpen"
-            x-transition
             class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             @click.outside="if (!historyEditModalOpen) closeHistoryModal()"
         >
@@ -2816,12 +2832,31 @@
                     <div>
                         <h3 class="text-xl font-semibold text-slate-900">Histórico de reportes oficiales</h3>
                         <p class="mt-1 text-sm text-slate-500">
-                            Consulta los reportes oficiales publicados del activo
                             <span class="font-semibold text-slate-700">{{ $element->name }}</span>.
                         </p>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            @click="historySidebarOpen = !historySidebarOpen; refreshLucide()"
+                            :title="historySidebarOpen ? 'Ocultar listado' : 'Mostrar listado'"
+                            class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                        >
+                            <i
+                                data-lucide="eye-off"
+                                x-show="historySidebarOpen"
+                                x-cloak
+                                class="h-5 w-5"
+                            ></i>
+
+                            <i
+                                data-lucide="eye"
+                                x-show="!historySidebarOpen"
+                                x-cloak
+                                class="h-5 w-5"
+                            ></i>
+                        </button>
                         <button
                             type="button"
                             x-show="selectedHistoryReport"
@@ -2852,8 +2887,11 @@
             </div>
 
             <div class="flex-1 overflow-hidden">
-                <div class="grid h-full xl:grid-cols-[280px_minmax(0,1fr)]">
-                    <div class="border-b border-slate-200 xl:border-b-0 xl:border-r xl:border-slate-200">
+                <div class="flex h-full min-w-0 overflow-hidden">
+                    <div
+                        class="min-h-0 shrink-0 overflow-hidden border-r border-slate-200 transition-[width,opacity] duration-300 ease-out"
+                        :class="historySidebarOpen ? 'w-[280px] opacity-100' : 'w-0 opacity-0'"
+                    >
                         <div class="max-h-[78vh] overflow-y-auto p-3">
                             <div
                                 x-show="historicalReports.length === 0"
@@ -2890,9 +2928,9 @@
                         </div>
                     </div>
 
-                    <div class="max-h-[78vh] overflow-y-auto p-6">
+                    <div class="min-w-0 flex-1 max-h-[78vh] overflow-y-auto p-6 transition-all duration-300 ease-out">
                         <div
-                            x-show="historyLoading"
+                            x-show="bandStateHistoryLoading && !selectedBandStateHistoryReport"
                             x-cloak
                             class="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600"
                         >
@@ -2913,7 +2951,7 @@
                         </div>
 
                         <div
-                            x-show="!historyLoading && selectedHistoryReport"
+                            x-show="selectedHistoryReport"
                             x-cloak
                             class="flex items-start gap-3"
                         >
@@ -2963,28 +3001,78 @@
                                                             <td class="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">
                                                                 CUBIERTA SUPERIOR <span x-text="line.cover_number"></span>
                                                             </td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.top_left)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.top_center)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.top_right)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="maxValue([line.top_left, line.top_center, line.top_right]) || '—'"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="minValue([line.top_left, line.top_center, line.top_right]) || '—'"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700">
-                                                                —
-                                                            </td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.top_left)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.top_center)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.top_right)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="maxValue([line.top_left, line.top_center, line.top_right]) || '—'"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="minValue([line.top_left, line.top_center, line.top_right]) || '—'"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="calculateSufficiency(
+                                                                    minValue([line.top_left, line.top_center, line.top_right]),
+                                                                    'top'
+                                                                ) ?? '—'"
+                                                            ></td>
                                                         </tr>
 
                                                         <tr class="bg-slate-50/60 hover:bg-slate-100/70 transition">
                                                             <td class="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">
                                                                 CUBIERTA INFERIOR <span x-text="line.cover_number"></span>
                                                             </td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.bottom_left)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.bottom_center)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="displayValue(line.bottom_right)"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="maxValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700" x-text="minValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"></td>
-                                                            <td class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700">
-                                                                —
-                                                            </td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.bottom_left)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.bottom_center)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="displayValue(line.bottom_right)"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="maxValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="minValue([line.bottom_left, line.bottom_center, line.bottom_right]) || '—'"
+                                                            ></td>
+
+                                                            <td
+                                                                class="border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-700"
+                                                                x-text="calculateSufficiency(
+                                                                    minValue([line.bottom_left, line.bottom_center, line.bottom_right]),
+                                                                    'bottom'
+                                                                ) ?? '—'"
+                                                            ></td>
                                                         </tr>
                                                     </tbody>
                                                 </template>
@@ -3336,6 +3424,7 @@ function showCrudToast(message, type = 'success') {
 function measurementThicknessModule(config) {
     return {
         loading: false,
+        creationEnabled: !!config.creationEnabled,
 
         // ======================
         // THICKNESS
@@ -3347,6 +3436,7 @@ function measurementThicknessModule(config) {
         selectedHistoryReport: null,
         historyModalOpen: false,
         historyLoading: false,
+        historySidebarOpen: true,
 
         historyEditModalOpen: false,
         historyEditErrors: [],
@@ -3591,6 +3681,16 @@ function measurementThicknessModule(config) {
                 hour: '2-digit',
                 minute: '2-digit',
             });
+        },
+        canCreateRecords() {
+            return !!this.creationEnabled;
+        },
+
+        notifyCreationDisabled() {
+            this.showCrudToast(
+                'La creación de registros está deshabilitada para este cliente y tipo de activo.',
+                'error'
+            );
         },
 
         showCrudToast(message, type = 'success') {
@@ -3963,6 +4063,7 @@ function measurementThicknessModule(config) {
 
         openHistoryModal() {
             this.historyModalOpen = true;
+            this.historySidebarOpen = true;
 
             const reports = Array.isArray(this.historicalReports)
                 ? [...this.historicalReports].sort((a, b) => {
@@ -3990,8 +4091,17 @@ function measurementThicknessModule(config) {
         async selectHistoricalReport(reportId) {
             if (!reportId) return;
 
+            if (
+                this.selectedHistoryReport &&
+                String(this.selectedHistoryReport.id) === String(reportId)
+            ) {
+                return;
+            }
+
             const url = config.routes.historyShowTemplate.replace('__REPORT__', reportId);
-            this.historyLoading = true;
+            const hadPreviousSelection = !!this.selectedHistoryReport;
+
+            this.historyLoading = !hadPreviousSelection;
 
             try {
                 const response = await fetch(url, {
@@ -4006,9 +4116,13 @@ function measurementThicknessModule(config) {
                     return;
                 }
 
-                this.selectedHistoryReport = data.report ?? null;
+                if (data.report) {
+                    this.selectedHistoryReport = data.report;
+                }
             } catch (error) {
-                this.selectedHistoryReport = null;
+                if (!hadPreviousSelection) {
+                    this.selectedHistoryReport = null;
+                }
             } finally {
                 this.historyLoading = false;
             }
@@ -4484,6 +4598,8 @@ function measurementThicknessModule(config) {
         },
         openBandStateHistoryModal() {
             this.bandStateHistoryModalOpen = true;
+            this.selectedBandStateHistoryReport = null;
+            this.bandStateHistoryLoading = false;
 
             const reports = Array.isArray(this.bandStateHistoricalReports)
                 ? [...this.bandStateHistoricalReports].sort((a, b) => {
@@ -4498,7 +4614,9 @@ function measurementThicknessModule(config) {
                 : [];
 
             if (reports.length > 0) {
-                this.selectBandStateHistoricalReport(reports[0].id);
+                this.$nextTick(() => {
+                    this.selectBandStateHistoricalReport(reports[0].id);
+                });
             }
 
             this.refreshLucide();
@@ -4512,6 +4630,7 @@ function measurementThicknessModule(config) {
             if (!reportId) return;
 
             const url = config.routes.bandStateHistoryShowTemplate.replace('__REPORT__', reportId);
+
             this.bandStateHistoryLoading = true;
 
             try {
@@ -4523,13 +4642,23 @@ function measurementThicknessModule(config) {
 
                 const data = await this.parseJsonResponse(response);
 
-                if (!response.ok || data.success === false) {
-                    return;
+                if (!response.ok || data.success === false || !data.report) {
+                    this.selectedBandStateHistoryReport = null;
+                    this.showCrudToast(
+                        data.message || 'No fue posible cargar el detalle del histórico.',
+                        'error'
+                    );
+                    return false;
                 }
 
-                this.selectedBandStateHistoryReport = data.report ?? null;
+                this.selectedBandStateHistoryReport = data.report;
+                this.refreshLucide();
+
+                return true;
             } catch (error) {
                 this.selectedBandStateHistoryReport = null;
+                this.showCrudToast('Ocurrió un error de red al cargar el histórico.', 'error');
+                return false;
             } finally {
                 this.bandStateHistoryLoading = false;
             }
@@ -4816,7 +4945,19 @@ function measurementThicknessModule(config) {
         },
 
         selectBandHistory(band) {
-            this.selectedBandHistory = band ?? null;
+            if (!band) {
+                this.selectedBandHistory = null;
+                return;
+            }
+
+            if (
+                this.selectedBandHistory &&
+                String(this.selectedBandHistory.id) === String(band.id)
+            ) {
+                return;
+            }
+
+            this.selectedBandHistory = band;
         },
 
         openBandEditModal(event) {

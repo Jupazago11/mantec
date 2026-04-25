@@ -516,26 +516,27 @@ class AdminConditionController extends Controller
         return $query;
     }
 
-    public function toggleStatusAjax(Condition $condition, Request $request): JsonResponse
+    public function toggleStatusAjax(\App\Models\Condition $condition): \Illuminate\Http\JsonResponse
     {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+        $user = auth()->user();
 
         abort_unless(
-            in_array((int) $condition->client_id, $allowedClientIds, true),
+            in_array($user?->role?->key, ['superadmin', 'admin_global', 'admin', 'admin_cliente'], true),
             403,
-            'No autorizado para modificar esta condición.'
+            'No tienes permisos para cambiar el estado de condiciones.'
         );
 
-        $condition->status = !$condition->status;
-        $condition->save();
+        $condition->update([
+            'status' => !$condition->status,
+        ]);
 
         return response()->json([
             'success' => true,
-            'status' => (bool) $condition->status,
-            'label' => $condition->status ? 'Activo' : 'Inactivo',
             'message' => $condition->status
                 ? 'Condición activada correctamente.'
-                : 'Condición inactivada correctamente.',
+                : 'Condición desactivada correctamente.',
+            'status' => (bool) $condition->status,
+            'label' => $condition->status ? 'Activo' : 'Inactivo',
         ]);
     }
 
@@ -543,4 +544,6 @@ class AdminConditionController extends Controller
     {
         return $request->expectsJson() || $request->ajax();
     }
+
+
 }

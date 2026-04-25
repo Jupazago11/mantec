@@ -129,7 +129,13 @@ Route::middleware('auth')->group(function () {
         Route::patch('/managed-conditions/{condition}/toggle-status', [AdminConditionController::class, 'toggleStatus'])->name('managed-conditions.toggle-status');
         Route::get('/managed-conditions/{condition}/components', [AdminConditionController::class, 'getComponents'])->name('managed-conditions.components');
         Route::post('/managed-conditions/{condition}/components', [AdminConditionController::class, 'syncComponents'])->name('managed-conditions.components.sync');
-
+        Route::patch(
+            '/managed-conditions/{condition}/toggle-status-ajax',
+            [\App\Http\Controllers\Admin\AdminConditionController::class, 'toggleStatusAjax']
+        )
+            ->whereNumber('condition')
+            ->name('managed-conditions.toggle-status-ajax');
+        
         // Componentes
         Route::get('/managed-components', [AdminComponentController::class, 'index'])->name('managed-components.index');
         Route::post('/managed-components', [AdminComponentController::class, 'store'])->name('managed-components.store');
@@ -199,6 +205,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/system-modules/measurements/{element}', [MeasurementController::class, 'show'])
         ->name('system-modules.measurements.show');
+
+    Route::get('/system-modules/measurements/level-one/areas/{area}/summary', [MeasurementController::class, 'areaSummary'])
+        ->whereNumber('area')
+        ->name('system-modules.measurements.level-one.area-summary');
     
 
 
@@ -328,14 +338,20 @@ Route::middleware('auth')->group(function () {
             ->name('admin.system-modules.measurements.band-state-reports.show');
 
         Route::put(
-            '/ajax/system-modules/measurements/{element}/band-state-reports/{report}',
+            '/system-modules/measurements/{element}/band-state-reports/{report}',
             [MeasurementController::class, 'updateBandStateReport']
-        )->name('admin.system-modules.measurements.band-state-reports.update');
+        )
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.band-state-reports.update');
 
         Route::delete(
-            '/ajax/system-modules/measurements/{element}/band-state-reports/{report}',
+            '/system-modules/measurements/{element}/band-state-reports/{report}',
             [MeasurementController::class, 'deleteBandStateReport']
-        )->name('admin.system-modules.measurements.band-state-reports.delete');
+        )
+            ->whereNumber('element')
+            ->whereNumber('report')
+            ->name('admin.system-modules.measurements.band-state-reports.delete');
 
 
 
