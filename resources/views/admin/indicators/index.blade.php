@@ -524,7 +524,7 @@
             const summary = data.summary || {};
             const charts = data.charts || {};
             const tables = data.tables || {};
-            const chartMode = charts.mode || 'criticality';
+            const chartMode = charts.mode || 'severity';
 
             setText('metric_total_elements', summary.total_elements ?? 0);
             setText('metric_inspected_elements', summary.inspected_elements ?? 0);
