@@ -7,9 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use App\Models\SystemModule;
-use App\Models\RoleModulePermission;
-use App\Models\ClientElementTypeModule;
 
 class User extends Authenticatable
 {
@@ -91,76 +88,121 @@ class User extends Authenticatable
             ->exists();
     }
 
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'group_user')
+            ->withTimestamps();
+    }
+
     public function isRole(string $roleKey): bool
     {
         return $this->role?->key === $roleKey;
     }
 
+    public function isPowerAdmin(): bool
+    {
+        return in_array($this->role?->key, ['superadmin', 'admin_global'], true);
+    }
+
     public function canManageSystemModule(string $moduleKey): bool
     {
+        if ($this->isPowerAdmin()) {
+            return true;
+        }
+
         if (!$this->role_id) {
             return false;
         }
 
         return RoleModulePermission::query()
             ->where('role_id', $this->role_id)
-            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
             ->where('can_manage', true)
+            ->whereHas('module', function ($query) use ($moduleKey) {
+                $query
+                    ->where('key', $moduleKey)
+                    ->where('status', true);
+            })
             ->exists();
     }
 
     public function canViewSystemModule(string $moduleKey): bool
     {
+        if ($this->isPowerAdmin()) {
+            return true;
+        }
+
         if (!$this->role_id) {
             return false;
         }
 
         return RoleModulePermission::query()
             ->where('role_id', $this->role_id)
-            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
             ->where('can_view', true)
+            ->whereHas('module', function ($query) use ($moduleKey) {
+                $query
+                    ->where('key', $moduleKey)
+                    ->where('status', true);
+            })
             ->exists();
     }
 
     public function canCreateInSystemModule(string $moduleKey): bool
     {
+        if ($this->isPowerAdmin()) {
+            return true;
+        }
+
         if (!$this->role_id) {
             return false;
         }
 
         return RoleModulePermission::query()
             ->where('role_id', $this->role_id)
-            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
             ->where('can_create', true)
+            ->whereHas('module', function ($query) use ($moduleKey) {
+                $query
+                    ->where('key', $moduleKey)
+                    ->where('status', true);
+            })
             ->exists();
     }
 
     public function hasEnabledModuleForClientAndElementType(string $moduleKey, int $clientId, int $elementTypeId): bool
     {
+        if ($this->isPowerAdmin()) {
+            return true;
+        }
+
         return ClientElementTypeModule::query()
             ->where('client_id', $clientId)
             ->where('element_type_id', $elementTypeId)
             ->where('status', true)
             ->where('module_enabled', true)
-            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->whereHas('module', function ($query) use ($moduleKey) {
+                $query
+                    ->where('key', $moduleKey)
+                    ->where('status', true);
+            })
             ->exists();
     }
 
     public function hasCreationEnabledForClientAndElementType(string $moduleKey, int $clientId, int $elementTypeId): bool
     {
+        if ($this->isPowerAdmin()) {
+            return true;
+        }
+
         return ClientElementTypeModule::query()
             ->where('client_id', $clientId)
             ->where('element_type_id', $elementTypeId)
             ->where('status', true)
             ->where('module_enabled', true)
             ->where('creation_enabled', true)
-            ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
+            ->whereHas('module', function ($query) use ($moduleKey) {
+                $query
+                    ->where('key', $moduleKey)
+                    ->where('status', true);
+            })
             ->exists();
-    }
-
-    public function groups()
-    {
-        return $this->belongsToMany(\App\Models\Group::class, 'group_user')
-            ->withTimestamps();
     }
 }

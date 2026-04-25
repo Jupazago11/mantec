@@ -55,22 +55,28 @@
 
     $hasMeasurementsEnabledConfig = false;
 
-    if ($user && $canViewMeasurementsByRole) {
+$hasMeasurementsEnabledConfig = false;
+
+if ($user && $canViewMeasurementsByRole) {
+    if ($isPowerAdmin) {
+        $hasMeasurementsEnabledConfig = true;
+    } else {
         $measurementsQuery = \App\Models\ClientElementTypeModule::query()
             ->whereHas('module', fn ($query) => $query->where('key', 'mediciones')->where('status', true))
             ->where('status', true)
             ->where('module_enabled', true);
 
-        if (!$isPowerAdmin) {
-            if ($userClientIds->isEmpty()) {
-                $measurementsQuery->whereRaw('1 = 0');
-            } else {
-                $measurementsQuery->whereIn('client_id', $userClientIds);
-            }
+        if ($userClientIds->isEmpty()) {
+            $measurementsQuery->whereRaw('1 = 0');
+        } else {
+            $measurementsQuery->whereIn('client_id', $userClientIds);
         }
 
         $hasMeasurementsEnabledConfig = $measurementsQuery->exists();
     }
+}
+
+$showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledConfig;
 
     $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledConfig;
 @endphp

@@ -632,6 +632,9 @@ class MeasurementController extends Controller
         $clientId = $measurementElement->area->client_id;
         $elementTypeId = $measurementElement->element_type_id;
 
+        $roleKey = $user->role->key ?? null;
+        $isPowerAdmin = in_array($roleKey, ['superadmin', 'admin_global'], true);
+
         $enabledConfigExists = ClientElementTypeModule::query()
             ->where('client_id', $clientId)
             ->where('element_type_id', $elementTypeId)
@@ -640,10 +643,7 @@ class MeasurementController extends Controller
             ->where('module_enabled', true)
             ->exists();
 
-        abort_unless($enabledConfigExists, 403);
-
-        $roleKey = $user->role->key ?? null;
-        $isPowerAdmin = in_array($roleKey, ['superadmin', 'admin_global'], true);
+        abort_unless($isPowerAdmin || $enabledConfigExists, 403);
 
         if (!$isPowerAdmin) {
             $userClientIds = method_exists($user, 'clients')
@@ -1551,7 +1551,11 @@ class MeasurementController extends Controller
             return false;
         }
 
-        if (method_exists($user, 'canCreateSystemModule') && !$user->canCreateSystemModule('mediciones')) {
+        if (in_array($user->role?->key, ['superadmin', 'admin_global'], true)) {
+            return true;
+        }
+
+        if (!$user->canCreateInSystemModule('mediciones')) {
             return false;
         }
 
