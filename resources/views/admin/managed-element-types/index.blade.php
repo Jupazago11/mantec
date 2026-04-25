@@ -116,6 +116,28 @@
                                 placeholder="Ej. Banda transportadora"
                             >
                         </div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <label class="flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    name="has_semaphore"
+                                    value="1"
+                                    @checked(old('has_semaphore'))
+                                    class="mt-1 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                >
+
+                                <span>
+                                    <span class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                        <i data-lucide="calendar-days" class="h-4 w-4 text-[#d94d33]"></i>
+                                        ¿Tiene semáforo semanal?
+                                    </span>
+
+                                    <span class="mt-1 block text-xs leading-5 text-slate-500">
+                                        Activa esta opción si este tipo de activo debe aparecer en el semáforo de indicadores por semana.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
 
                         @foreach(($activeFilters['client_ids'] ?? []) as $value)
                             <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
@@ -191,7 +213,9 @@
                                             </button>
                                         </div>
                                     </th>
-
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        Semáforo
+                                    </th>
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <div class="flex items-center gap-2">
                                             <span>Estado</span>
@@ -228,30 +252,48 @@
                                         <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
                                             {{ $elementType->name }}
                                         </td>
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
+                                            <button
+                                                type="button"
+                                                data-semaphore-toggle
+                                                data-url="{{ route('admin.managed-element-types.toggle-semaphore', $elementType) }}"
+                                                data-enabled="{{ $elementType->has_semaphore ? '1' : '0' }}"
+                                                onclick="toggleElementTypeSemaphore(this)"
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $elementType->has_semaphore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200' }}"
+                                                title="Clic para activar o desactivar semáforo semanal"
+                                            >
+                                                <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
+                                                <span>{{ $elementType->has_semaphore ? 'Sí' : 'No' }}</span>
+                                            </button>
+                                        </td>
 
                                         <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            @if($elementType->status)
-                                                <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                                                    Activo
-                                                </span>
-                                            @else
-                                                <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                    Inactivo
-                                                </span>
-                                            @endif
+                                            <button
+                                                type="button"
+                                                data-status-toggle
+                                                data-url="{{ route('admin.managed-element-types.toggle-status', $elementType) }}"
+                                                data-enabled="{{ $elementType->status ? '1' : '0' }}"
+                                                onclick="toggleElementTypeStatus(this)"
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $elementType->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
+                                                title="Clic para activar o inactivar"
+                                            >
+                                                <i data-lucide="{{ $elementType->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
+                                                <span>{{ $elementType->status ? 'Activo' : 'Inactivo' }}</span>
+                                            </button>
                                         </td>
 
                                         <td class="whitespace-nowrap px-5 py-3 text-right">
                                             <div class="flex justify-end gap-2">
                                                 <button
                                                     type="button"
-                                                    onclick="openEditElementTypeModal(
-                                                        '{{ $elementType->id }}',
-                                                        '{{ $elementType->client_id }}',
-                                                        @js($elementType->name),
-                                                        '{{ $elementType->status ? 1 : 0 }}',
-                                                        '{{ route('admin.managed-element-types.update', $elementType) }}'
-                                                    )"
+                                                    data-edit-element-type
+                                                    data-id="{{ $elementType->id }}"
+                                                    data-client-id="{{ $elementType->client_id }}"
+                                                    data-name="{{ $elementType->name }}"
+                                                    data-has-semaphore="{{ $elementType->has_semaphore ? '1' : '0' }}"
+                                                    data-status="{{ $elementType->status ? '1' : '0' }}"
+                                                    data-action="{{ route('admin.managed-element-types.update', $elementType) }}"
+                                                    onclick="openEditElementTypeModalFromButton(this)"
                                                     class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                                                 >
                                                     Editar
@@ -284,39 +326,13 @@
                                                             Eliminar
                                                         </button>
                                                     </form>
-                                                @else
-                                                    <form
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-element-types.toggle-status', $elementType) }}"
-                                                    >
-                                                        @csrf
-                                                        @method('PATCH')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $elementTypes->currentPage() }}">
-
-                                                        <button
-                                                            type="submit"
-                                                            class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $elementType->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
-                                                        >
-                                                            {{ $elementType->status ? 'Inactivar' : 'Activar' }}
-                                                        </button>
-                                                    </form>
                                                 @endif
                                             </div>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $showClientColumn ? 4 : 3 }}" class="px-5 py-10 text-center text-sm text-slate-500">
+                                        <td colspan="{{ $showClientColumn ? 5 : 4 }}" class="px-5 py-10 text-center text-sm text-slate-500">
                                             No hay tipos de activos registrados todavía.
                                         </td>
                                     </tr>
@@ -385,6 +401,28 @@
                         id="edit_element_type_name"
                         class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                     >
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <label class="flex items-start gap-3">
+                        <input
+                            type="checkbox"
+                            name="has_semaphore"
+                            id="edit_element_type_has_semaphore"
+                            value="1"
+                            class="mt-1 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                        >
+
+                        <span>
+                            <span class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                <i data-lucide="calendar-days" class="h-4 w-4 text-[#d94d33]"></i>
+                                ¿Tiene semáforo semanal?
+                            </span>
+
+                            <span class="mt-1 block text-xs leading-5 text-slate-500">
+                                Activa esta opción si este tipo de activo debe aparecer en el semáforo de indicadores por semana.
+                            </span>
+                        </span>
+                    </label>
                 </div>
 
                 <div>
@@ -456,7 +494,8 @@
             </button>
         </div>
     </div>
-    <script>
+    <div id="elementTypeToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
+<script>
     const filterOptions = {
         @if($showClientColumn)
         client_ids: {
@@ -479,6 +518,218 @@
             options: @json($filterOptions['statuses']),
         },
     };
+
+    async function toggleElementTypeSemaphore(button) {
+        const url = button.dataset.url;
+
+        if (!url || button.disabled) {
+            return;
+        }
+
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.success === false) {
+                showElementTypeToast(data.message || 'No fue posible cambiar el estado del semáforo.', 'error');
+                button.innerHTML = originalHtml;
+                return;
+            }
+
+            renderSemaphoreButton(button, Boolean(data.has_semaphore));
+            showElementTypeToast(data.message || 'Estado del semáforo actualizado.', 'success');
+        } catch (error) {
+            button.innerHTML = originalHtml;
+            showElementTypeToast('Ocurrió un error de red al actualizar el semáforo.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
+
+    function renderSemaphoreButton(button, enabled) {
+        button.dataset.enabled = enabled ? '1' : '0';
+
+        button.classList.remove(
+            'bg-emerald-100',
+            'text-emerald-700',
+            'hover:bg-emerald-200',
+            'bg-slate-100',
+            'text-slate-500',
+            'hover:bg-slate-200'
+        );
+
+        if (enabled) {
+            button.classList.add('bg-emerald-100', 'text-emerald-700', 'hover:bg-emerald-200');
+        } else {
+            button.classList.add('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
+        }
+
+        button.innerHTML = `
+            <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
+            <span>${enabled ? 'Sí' : 'No'}</span>
+        `;
+
+        const row = button.closest('tr');
+        const editButton = row?.querySelector('[data-edit-element-type]');
+
+        if (editButton) {
+            editButton.dataset.hasSemaphore = enabled ? '1' : '0';
+        }
+    }
+
+    function showElementTypeToast(message, type = 'success') {
+        const container = document.getElementById('elementTypeToastContainer');
+
+        if (!container) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    async function toggleElementTypeStatus(button) {
+        const url = button.dataset.url;
+
+        if (!url || button.disabled) {
+            return;
+        }
+
+        const originalHtml = button.innerHTML;
+
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.success === false) {
+                button.innerHTML = originalHtml;
+                showElementTypeToast(data.message || 'No fue posible cambiar el estado.', 'error');
+                return;
+            }
+
+            renderElementTypeStatusButton(button, Boolean(data.status));
+            showElementTypeToast(data.message || 'Estado actualizado correctamente.', 'success');
+        } catch (error) {
+            button.innerHTML = originalHtml;
+            showElementTypeToast('Ocurrió un error de red al actualizar el estado.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
+
+    function renderElementTypeStatusButton(button, enabled) {
+        button.dataset.enabled = enabled ? '1' : '0';
+
+        button.classList.remove(
+            'bg-green-100',
+            'text-green-700',
+            'hover:bg-green-200',
+            'bg-red-100',
+            'text-red-700',
+            'hover:bg-red-200'
+        );
+
+        if (enabled) {
+            button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+        } else {
+            button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+        }
+
+        button.innerHTML = `
+            <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+            <span>${enabled ? 'Activo' : 'Inactivo'}</span>
+        `;
+
+        const row = button.closest('tr');
+        const editButton = row?.querySelector('[data-edit-element-type]');
+
+        if (editButton) {
+            editButton.dataset.status = enabled ? '1' : '0';
+        }
+    }
+
+    function showElementTypeToast(message, type = 'success') {
+        const container = document.getElementById('elementTypeToastContainer');
+
+        if (!container) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    function openEditElementTypeModalFromButton(button) {
+        openEditElementTypeModal(
+            button.dataset.id,
+            button.dataset.clientId,
+            button.dataset.name,
+            button.dataset.hasSemaphore,
+            button.dataset.status,
+            button.dataset.action
+        );
+    }
 
     const activeFilters = @json($activeFilters);
     let currentPopoverKey = null;
@@ -654,10 +905,11 @@
         document.getElementById('edit_selected_client_id').value = clientId;
     }
 
-    function openEditElementTypeModal(id, clientId, name, status, actionUrl) {
+    function openEditElementTypeModal(id, clientId, name, hasSemaphore, status, actionUrl) {
         document.getElementById('editElementTypeForm').action = actionUrl;
         document.getElementById('edit_selected_client_id').value = clientId ?? '';
         document.getElementById('edit_element_type_name').value = name ?? '';
+        document.getElementById('edit_element_type_has_semaphore').checked = String(hasSemaphore) === '1';
         document.getElementById('edit_element_type_status').value = status ?? '1';
 
         document.querySelectorAll('.edit-client-single-checkbox').forEach(cb => {

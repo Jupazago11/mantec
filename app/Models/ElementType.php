@@ -12,16 +12,19 @@ class ElementType extends Model
     protected $fillable = [
         'client_id',
         'name',
+        'description',
+        'has_semaphore',
         'status',
     ];
 
     protected function casts(): array
     {
         return [
+            'has_semaphore' => 'boolean',
             'status' => 'boolean',
         ];
     }
-
+    
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);

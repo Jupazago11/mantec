@@ -130,6 +130,7 @@ class AdminElementTypeController extends Controller
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
             'name' => ['required', 'string', 'max:255'],
+            'has_semaphore' => ['nullable', 'boolean'],
         ]);
 
         $exists = ElementType::query()
@@ -148,6 +149,7 @@ class AdminElementTypeController extends Controller
         ElementType::create([
             'client_id' => $validated['client_id'],
             'name' => trim($validated['name']),
+            'has_semaphore' => $request->boolean('has_semaphore'),
             'status' => true,
         ]);
 
@@ -168,6 +170,7 @@ class AdminElementTypeController extends Controller
         $validated = $request->validate([
             'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
             'name' => ['required', 'string', 'max:255'],
+            'has_semaphore' => ['nullable', 'boolean'],
             'status' => ['required', 'boolean'],
         ]);
 
@@ -188,6 +191,7 @@ class AdminElementTypeController extends Controller
         $elementType->update([
             'client_id' => $validated['client_id'],
             'name' => trim($validated['name']),
+            'has_semaphore' => $request->boolean('has_semaphore'),
             'status' => (bool) $validated['status'],
         ]);
 
@@ -219,29 +223,31 @@ class AdminElementTypeController extends Controller
             ->with('success', 'Tipo de activo eliminado correctamente.');
     }
 
-    public function toggleStatus(Request $request, ElementType $elementType): RedirectResponse
+    public function toggleStatus(Request $request, ElementType $elementType)
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
 
-        $elementType->loadCount(['components', 'elements']);
-
-        $hasDependencies = (($elementType->components_count ?? 0) + ($elementType->elements_count ?? 0)) > 0;
-
-        if (!$hasDependencies) {
-            return redirect()
-                ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este tipo de activo no tiene dependencias. Puedes eliminarlo si lo deseas.');
-        }
-
         $elementType->update([
             'status' => !$elementType->status,
         ]);
 
+        $message = $elementType->status
+            ? 'Tipo de activo activado correctamente.'
+            : 'Tipo de activo inactivado correctamente.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'status' => (bool) $elementType->status,
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado del tipo de activo actualizado correctamente.');
+            ->with('success', $message);
     }
 
     private function getScopedClients()
@@ -289,5 +295,24 @@ class AdminElementTypeController extends Controller
         }
 
         return $query;
+    }
+
+    public function toggleSemaphore(Request $request, ElementType $elementType)
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
+
+        $elementType->update([
+            'has_semaphore' => !$elementType->has_semaphore,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $elementType->has_semaphore
+                ? 'Semáforo semanal activado para este tipo de activo.'
+                : 'Semáforo semanal desactivado para este tipo de activo.',
+            'has_semaphore' => (bool) $elementType->has_semaphore,
+        ]);
     }
 }

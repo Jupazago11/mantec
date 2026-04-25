@@ -2,12 +2,12 @@
 
 @section('title', 'Indicadores')
 @section('header_title', 'Indicadores')
-
 @section('content')
     <div
         class="space-y-8"
         data-indicators-module
         data-route="{{ $dataRoute }}"
+        data-semaphore-route="{{ $semaphoreDataRoute }}"
     >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -20,11 +20,34 @@
                 </p>
             </div>
 
-            <div class="inline-flex w-fit items-center rounded-full bg-[#d94d33]/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#d94d33]">
-                Reportes preventivos
+            <div class="flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    id="indicator_show_dashboard"
+                    onclick="showIndicatorDashboard()"
+                    class="inline-flex items-center gap-2 rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                >
+                    <i data-lucide="bar-chart-3" class="h-4 w-4"></i>
+                    Indicadores
+                </button>
+
+                <button
+                    type="button"
+                    id="indicator_show_semaphore"
+                    onclick="showIndicatorSemaphore()"
+                    class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                    <i data-lucide="traffic-cone" class="h-4 w-4"></i>
+                    Semáforo
+                </button>
+
+                <div class="inline-flex w-fit items-center rounded-full bg-[#d94d33]/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#d94d33]">
+                    Reportes preventivos
+                </div>
             </div>
         </div>
 
+        {{-- FILTROS PRINCIPALES --}}
         <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="grid gap-4 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.2fr)_minmax(230px,1fr)_170px_170px_auto] xl:grid-cols-3">
                 <div>
@@ -127,10 +150,71 @@
             </div>
         </div>
 
+        {{-- FILTROS DEL SEMÁFORO --}}
+        <div id="semaphore_filters" class="hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px_160px_auto] lg:items-end">
+                <div>
+                    <div class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-700">
+                        <i data-lucide="traffic-cone" class="h-3.5 w-3.5"></i>
+                        Semáforo semanal
+                    </div>
+
+                    <h3 class="mt-3 text-lg font-semibold text-slate-900">
+                        Consulta semanal por área y activo
+                    </h3>
+
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                        Selecciona un tipo de activo con semáforo habilitado. La tabla se organiza por área y resume cambio de banda, estado de banda, seguridad, descarga y limpiador.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Año
+                    </label>
+
+                    <input
+                        id="semaphore_year"
+                        type="number"
+                        min="2020"
+                        max="2100"
+                        value="{{ now()->isoWeekYear() }}"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Semana
+                    </label>
+
+                    <input
+                        id="semaphore_week"
+                        type="number"
+                        min="1"
+                        max="53"
+                        value="{{ now()->isoWeek() }}"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                    >
+                </div>
+
+                <button
+                    type="button"
+                    onclick="loadSemaphore()"
+                    class="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-[#d94d33] px-5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                >
+                    <i data-lucide="search" class="h-4 w-4"></i>
+                    Consultar
+                </button>
+            </div>
+        </div>
+
+        {{-- LOADING INDICADORES --}}
         <div id="indicator_loading" class="hidden rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-600 shadow-sm">
             Cargando indicadores...
         </div>
 
+        {{-- EMPTY INDICADORES --}}
         <div id="indicator_empty" class="hidden rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
             <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500">
                 <i data-lucide="search-x" class="h-8 w-8"></i>
@@ -145,6 +229,7 @@
             </p>
         </div>
 
+        {{-- CONTENIDO INDICADORES --}}
         <div id="indicator_content" class="space-y-8">
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -345,6 +430,41 @@
             </div>
         </div>
 
+        {{-- CONTENIDO SEMÁFORO --}}
+        <div id="semaphore_content" class="hidden space-y-6">
+            <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900">
+                            Semáforo por área
+                        </h3>
+
+                        <p id="semaphore_meta" class="mt-1 text-sm text-slate-500">
+                            Selecciona filtros y consulta una semana.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                        <span class="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">OK</span>
+                        <span class="rounded-full bg-red-100 px-3 py-1 text-red-700">Alta</span>
+                        <span class="rounded-full bg-amber-100 px-3 py-1 text-amber-700">Media</span>
+                        <span class="rounded-full bg-blue-100 px-3 py-1 text-blue-700">Baja</span>
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-slate-500">N/A</span>
+                    </div>
+                </div>
+
+                <div id="semaphore_loading" class="hidden px-5 py-4 text-sm font-semibold text-slate-600">
+                    Cargando semáforo...
+                </div>
+
+                <div id="semaphore_empty" class="hidden px-5 py-10 text-center text-sm text-slate-500">
+                    No hay datos para el semáforo seleccionado.
+                </div>
+
+                <div id="semaphore_table_container" class="overflow-x-auto"></div>
+            </div>
+        </div>
+
         <div id="indicatorToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
     </div>
 
@@ -354,6 +474,7 @@
         const indicatorState = {
             conditionChart: null,
             weeklyChart: null,
+            mode: 'dashboard',
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -365,18 +486,46 @@
             clientSelect?.addEventListener('change', () => {
                 filterGroupsByClient();
                 filterElementTypes();
-                loadIndicators();
+
+                if (indicatorState.mode === 'semaphore') {
+                    loadSemaphore();
+                } else {
+                    loadIndicators();
+                }
             });
 
             groupSelect?.addEventListener('change', () => {
                 filterElementTypes();
-                loadIndicators();
+
+                if (indicatorState.mode === 'semaphore') {
+                    loadSemaphore();
+                } else {
+                    loadIndicators();
+                }
             });
 
-            elementTypeSelect?.addEventListener('change', loadIndicators);
+            elementTypeSelect?.addEventListener('change', () => {
+                if (indicatorState.mode === 'semaphore') {
+                    loadSemaphore();
+                } else {
+                    loadIndicators();
+                }
+            });
             document.getElementById('indicator_date_from')?.addEventListener('change', loadIndicators);
             document.getElementById('indicator_date_to')?.addEventListener('change', loadIndicators);
             applyButton?.addEventListener('click', loadIndicators);
+
+            document.getElementById('semaphore_year')?.addEventListener('change', () => {
+                if (indicatorState.mode === 'semaphore') {
+                    loadSemaphore();
+                }
+            });
+
+            document.getElementById('semaphore_week')?.addEventListener('change', () => {
+                if (indicatorState.mode === 'semaphore') {
+                    loadSemaphore();
+                }
+            });
 
             filterGroupsByClient();
             filterElementTypes();
@@ -473,6 +622,212 @@
                 ? 'Con un tipo de activo seleccionado, las condiciones se muestran por código/nombre específico.'
                 : 'Si seleccionas todos los tipos, las condiciones se resumen por criticidad para evitar ambigüedades.';
         }
+
+        function showIndicatorDashboard() {
+    indicatorState.mode = 'dashboard';
+
+    document.getElementById('indicator_content')?.classList.remove('hidden');
+    document.getElementById('semaphore_content')?.classList.add('hidden');
+    document.getElementById('semaphore_filters')?.classList.add('hidden');
+
+    const dashboardButton = document.getElementById('indicator_show_dashboard');
+    const semaphoreButton = document.getElementById('indicator_show_semaphore');
+
+    dashboardButton?.classList.remove('border', 'border-slate-300', 'bg-white', 'text-slate-700', 'hover:bg-slate-100');
+    dashboardButton?.classList.add('bg-[#d94d33]', 'text-white', 'hover:bg-[#b83f29]');
+
+    semaphoreButton?.classList.remove('bg-[#d94d33]', 'text-white', 'hover:bg-[#b83f29]');
+    semaphoreButton?.classList.add('border', 'border-slate-300', 'bg-white', 'text-slate-700', 'hover:bg-slate-100');
+}
+
+function showIndicatorSemaphore() {
+    indicatorState.mode = 'semaphore';
+
+    document.getElementById('indicator_content')?.classList.add('hidden');
+    document.getElementById('indicator_empty')?.classList.add('hidden');
+    document.getElementById('semaphore_content')?.classList.remove('hidden');
+    document.getElementById('semaphore_filters')?.classList.remove('hidden');
+
+    const dashboardButton = document.getElementById('indicator_show_dashboard');
+    const semaphoreButton = document.getElementById('indicator_show_semaphore');
+
+    semaphoreButton?.classList.remove('border', 'border-slate-300', 'bg-white', 'text-slate-700', 'hover:bg-slate-100');
+    semaphoreButton?.classList.add('bg-[#d94d33]', 'text-white', 'hover:bg-[#b83f29]');
+
+    dashboardButton?.classList.remove('bg-[#d94d33]', 'text-white', 'hover:bg-[#b83f29]');
+    dashboardButton?.classList.add('border', 'border-slate-300', 'bg-white', 'text-slate-700', 'hover:bg-slate-100');
+
+    loadSemaphore();
+}
+
+async function loadSemaphore() {
+    const module = document.querySelector('[data-indicators-module]');
+    const route = module?.dataset.semaphoreRoute;
+
+    if (!route) {
+        showIndicatorToast('No se encontró la ruta del semáforo.', 'error');
+        return;
+    }
+
+    const elementTypeId = document.getElementById('indicator_element_type_id')?.value || '';
+
+    if (!elementTypeId) {
+        renderSemaphoreEmpty('Selecciona un tipo de activo con semáforo habilitado.');
+        return;
+    }
+
+    const params = new URLSearchParams({
+        client_id: document.getElementById('indicator_client_id')?.value || '',
+        group_id: document.getElementById('indicator_group_id')?.value || '',
+        element_type_id: elementTypeId,
+        year: document.getElementById('semaphore_year')?.value || '',
+        week: document.getElementById('semaphore_week')?.value || '',
+    });
+
+    setSemaphoreLoading(true);
+
+    try {
+        const response = await fetch(`${route}?${params.toString()}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            renderSemaphoreEmpty(data.message || 'No fue posible cargar el semáforo.');
+            showIndicatorToast(data.message || 'No fue posible cargar el semáforo.', 'error');
+            return;
+        }
+
+        renderSemaphore(data);
+    } catch (error) {
+        renderSemaphoreEmpty('Ocurrió un error de red al cargar el semáforo.');
+        showIndicatorToast('Ocurrió un error de red al cargar el semáforo.', 'error');
+    } finally {
+        setSemaphoreLoading(false);
+    }
+}
+
+function setSemaphoreLoading(isLoading) {
+    document.getElementById('semaphore_loading')?.classList.toggle('hidden', !isLoading);
+}
+
+function renderSemaphoreEmpty(message) {
+    const empty = document.getElementById('semaphore_empty');
+    const container = document.getElementById('semaphore_table_container');
+
+    if (empty) {
+        empty.textContent = message || 'No hay datos para el semáforo seleccionado.';
+        empty.classList.remove('hidden');
+    }
+
+    if (container) {
+        container.innerHTML = '';
+    }
+
+    setText('semaphore_meta', 'Sin datos para mostrar.');
+}
+
+function renderSemaphore(data) {
+    const areas = data.areas || [];
+    const meta = data.meta || {};
+    const empty = document.getElementById('semaphore_empty');
+    const container = document.getElementById('semaphore_table_container');
+
+    setText(
+        'semaphore_meta',
+        `Semana ${meta.week || '—'} / ${meta.year || '—'} · ${meta.elements_count || 0} activos · ${meta.details_count || 0} registros preventivos`
+    );
+
+    if (!container) {
+        return;
+    }
+
+    if (!areas.length) {
+        renderSemaphoreEmpty('No hay activos para el filtro seleccionado.');
+        return;
+    }
+
+    empty?.classList.add('hidden');
+
+    container.innerHTML = `
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Área / Activo</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Cambio de banda</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Estado banda</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Condición seguridad</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Descarga</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Limpiador</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+                ${areas.map(renderSemaphoreArea).join('')}
+            </tbody>
+        </table>
+    `;
+
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
+function renderSemaphoreArea(area) {
+    const rows = area.rows || [];
+
+    return `
+        <tr class="bg-slate-100">
+            <td colspan="6" class="px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-700">
+                ${escapeHtml(area.name || 'Sin área')} · ${area.elements_count || rows.length} activos
+            </td>
+        </tr>
+        ${rows.map(renderSemaphoreRow).join('')}
+    `;
+}
+
+function renderSemaphoreRow(row) {
+    return `
+        <tr class="hover:bg-slate-50">
+            <td class="min-w-[260px] px-4 py-3">
+                <div class="text-sm font-semibold text-slate-900">${escapeHtml(row.element_name || 'Sin activo')}</div>
+                ${row.element_code ? `<div class="mt-0.5 text-xs text-slate-500">${escapeHtml(row.element_code)}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-center">${renderSemaphoreBadge(row.change_belt)}</td>
+            <td class="px-4 py-3 text-center">${renderSemaphoreBadge(row.belt_status)}</td>
+            <td class="px-4 py-3 text-center">${renderSemaphoreBadge(row.safety_condition)}</td>
+            <td class="px-4 py-3 text-center">${renderSemaphoreBadge(row.discharge)}</td>
+            <td class="px-4 py-3 text-center">${renderSemaphoreBadge(row.cleaner)}</td>
+        </tr>
+    `;
+}
+
+function renderSemaphoreBadge(cell) {
+    const value = cell || {};
+    const label = value.label || 'N/A';
+    const title = value.detail || '';
+
+    const classes = {
+        ok: 'bg-emerald-100 text-emerald-700',
+        high: 'bg-red-100 text-red-700',
+        medium: 'bg-amber-100 text-amber-700',
+        low: 'bg-blue-100 text-blue-700',
+        warning: 'bg-orange-100 text-orange-700',
+        neutral: 'bg-slate-100 text-slate-500',
+    };
+
+    return `
+        <span
+            title="${escapeHtml(title)}"
+            class="inline-flex min-w-[72px] items-center justify-center rounded-full px-3 py-1 text-xs font-bold ${classes[value.level] || classes.neutral}"
+        >
+            ${escapeHtml(label)}
+        </span>
+    `;
+}
 
         async function loadIndicators() {
             const module = document.querySelector('[data-indicators-module]');

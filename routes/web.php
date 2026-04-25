@@ -65,6 +65,7 @@ Route::middleware('auth')->group(function () {
     */
     Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/admin/indicadores', [IndicatorController::class, 'index'])->name('admin.indicators.index');
+    Route::get('/admin/indicadores/semaforo/data', [IndicatorController::class, 'semaphoreData'])->name('admin.indicators.semaphore.data');
     Route::get('/admin/indicadores/data', [IndicatorController::class, 'data'])->name('admin.indicators.data');
 
     /*
@@ -116,6 +117,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/managed-element-types/{elementType}', [AdminElementTypeController::class, 'update'])->name('managed-element-types.update');
         Route::delete('/managed-element-types/{elementType}', [AdminElementTypeController::class, 'destroy'])->name('managed-element-types.destroy');
         Route::patch('/managed-element-types/{elementType}/toggle-status', [AdminElementTypeController::class, 'toggleStatus'])->name('managed-element-types.toggle-status');
+        Route::patch('/managed-element-types/{elementType}/toggle-semaphore', [AdminElementTypeController::class, 'toggleSemaphore'])->name('managed-element-types.toggle-semaphore');
+
 
         // Diagnósticos
         Route::get('/managed-diagnostics', [AdminDiagnosticController::class, 'index'])->name('managed-diagnostics.index');
