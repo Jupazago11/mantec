@@ -703,6 +703,16 @@
                                                                 <div class="flex gap-2">
                                                                     <button
                                                                         type="button"
+                                                                        x-show="child.type === 'section_change'"
+                                                                        @click.stop="openBandChildViewModal(child)"
+                                                                        title="Ver detalle"
+                                                                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                                                                    >
+                                                                        <i data-lucide="eye" class="h-4 w-4"></i>
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
                                                                         @click.stop="openBandEditModal(child)"
                                                                         class="rounded-lg bg-[#d94d33] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b83f29]"
                                                                     >
@@ -735,10 +745,17 @@
 
                                                     <template x-if="child.type === 'vulcanization'">
                                                         <tr class="bg-white">
-                                                            <th class="border border-slate-200 px-3 py-2 font-bold text-slate-900">Tiempo</th>
-                                                            <td colspan="3"
-                                                                class="border border-slate-200 bg-yellow-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                            <th class="border border-slate-200 px-3 py-2 font-bold text-slate-900">
+                                                                Tiempo vulcanizado
+                                                            </th>
+                                                            <td class="border border-slate-200 bg-yellow-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                                 x-text="displayValue(child.time)"></td>
+
+                                                            <th class="border border-slate-200 px-3 py-2 font-bold text-slate-900">
+                                                                Tiempo enfriamiento
+                                                            </th>
+                                                            <td class="border border-slate-200 bg-yellow-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                                x-text="displayValue(child.cooling_time)"></td>
                                                         </tr>
                                                     </template>
 
@@ -772,6 +789,300 @@
                 </div>
             </div>
         </div>
+
+        
+{{-- Modal ver detalle - Evento hijo cambio de tramo --}}
+<div
+    x-cloak
+    x-show="bandChildViewModalOpen"
+    x-transition.opacity
+    class="fixed top-0 left-0 z-[10001] flex h-screen w-screen items-center justify-center bg-slate-900/60 px-4 py-6"
+    @keydown.escape.window="closeBandChildViewModal()"
+>
+    <div
+        x-show="bandChildViewModalOpen"
+        x-transition
+        class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        @click.outside="closeBandChildViewModal()"
+        @click.stop
+    >
+        <div class="border-b border-slate-200 bg-white px-6 py-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
+                            Cambio de tramo
+                        </span>
+
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                            Vista informativa
+                        </span>
+
+                        <span
+                            class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                            :class="selectedBandChildView?.same_reference ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
+                        >
+                            <span x-text="selectedBandChildView?.same_reference ? 'Referencia igual a la instalada' : 'Referencia diferente'"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Fecha
+                        </label>
+
+                        <span
+                            class="text-sm font-semibold text-slate-800"
+                            x-text="selectedBandChildView?.report_date ? formatDate(selectedBandChildView.report_date) : '—'"
+                        ></span>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="closeBandChildViewModal()"
+                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-5">
+            <template x-if="selectedBandChildView">
+                <div class="space-y-5">
+                    <div class="grid gap-5 xl:grid-cols-3">
+                        {{-- Vulcanizado --}}
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                            Vulcanizado
+                                        </th>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Temperatura
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.temperature)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Presión
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.pressure)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Tiempo vulcanizado
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.time)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Tiempo enfriamiento
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.cooling_time)"
+                                        ></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Entrega de equipo --}}
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                            Entrega de equipo
+                                        </th>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Corriente motor
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.motor_current)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Alineación
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="selectedBandChildView?.alignment || '—'"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Mat acumul
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="selectedBandChildView?.material_accumulation || '—'"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Guardilña
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="selectedBandChildView?.guard || '—'"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Rodillería
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="selectedBandChildView?.idler_condition || '—'"
+                                        ></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Cambio de tramo --}}
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <table class="w-full border-collapse text-sm">
+                                <tbody>
+                                    <tr class="bg-[#4f79bd] text-white">
+                                        <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                            Cambio de tramo
+                                        </th>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Marca
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="selectedBandChildView?.section_brand || '—'"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Espesor
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.section_thickness)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Lonas
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.section_plies)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Longitud
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.section_length)"
+                                        ></td>
+                                    </tr>
+
+                                    <tr>
+                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                            Ancho
+                                        </th>
+                                        <td
+                                            class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                            x-text="displayValue(selectedBandChildView?.section_width)"
+                                        ></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {{-- Banda padre asociada --}}
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <table class="w-full border-collapse text-sm">
+                            <tbody>
+                                <tr class="bg-[#4f79bd] text-white">
+                                    <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                        Banda padre asociada
+                                    </th>
+                                </tr>
+
+                                <tr class="bg-white">
+                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                        Referencia
+                                    </th>
+                                    <td
+                                        colspan="3"
+                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                        x-text="bandOptionLabel(bandParentById(selectedBandChildView?.parent_id))"
+                                    ></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{-- Observación --}}
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <table class="w-full border-collapse text-sm">
+                            <tbody>
+                                <tr class="bg-[#4f79bd] text-white">
+                                    <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
+                                        Observación
+                                    </th>
+                                </tr>
+
+                                <tr>
+                                    <td
+                                        class="min-h-[90px] whitespace-pre-line border border-slate-300 bg-slate-100 px-4 py-4 text-sm font-semibold text-slate-800"
+                                        x-text="selectedBandChildView?.observation || '—'"
+                                    ></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
 
 
 {{-- Modal editar histórico - Cambio de banda / Vulcanizado / Cambio de tramo --}}
@@ -887,10 +1198,11 @@
 
                                     <select
                                         x-model="bandEditForm.parent_id"
+                                        @change="onSectionParentChanged(bandEditForm)"
                                         class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                     >
                                         <option value="">Seleccionar banda</option>
-                                        <template x-for="band in bandEventBands" :key="'edit-parent-option-' + band.id">
+                                        <template x-for="band in bandEventBands" :key="'band-edit-parent-option-' + band.id">
                                             <option :value="band.id" x-text="bandOptionLabel(band)"></option>
                                         </template>
                                     </select>
@@ -1234,6 +1546,7 @@
                                     <input
                                         type="checkbox"
                                         x-model="bandEditForm.same_reference"
+                                        @change="onSectionSameReferenceChanged(bandEditForm)"
                                         class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
                                     >
                                     ¿La referencia es igual a la instalada?
@@ -1404,7 +1717,9 @@
                                                     <input
                                                         type="text"
                                                         x-model="bandEditForm.section_brand"
-                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                        :readonly="sectionReferenceLocked(bandEditForm)"
+                                                        :class="sectionReferenceLocked(bandEditForm) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                        class="w-full bg-transparent text-center font-semibold outline-none"
                                                     >
                                                 </td>
                                             </tr>
@@ -1418,7 +1733,9 @@
                                                         type="number"
                                                         step="0.01"
                                                         x-model="bandEditForm.section_thickness"
-                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                        :readonly="sectionReferenceLocked(bandEditForm)"
+                                                        :class="sectionReferenceLocked(bandEditForm) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                        class="w-full bg-transparent text-center font-semibold outline-none"
                                                     >
                                                 </td>
                                             </tr>
@@ -1432,7 +1749,9 @@
                                                         type="number"
                                                         min="1"
                                                         x-model="bandEditForm.section_plies"
-                                                        class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                        :readonly="sectionReferenceLocked(bandEditForm)"
+                                                        :class="sectionReferenceLocked(bandEditForm) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                        class="w-full bg-transparent text-center font-semibold outline-none"
                                                     >
                                                 </td>
                                             </tr>
@@ -2452,13 +2771,21 @@
                                 </table>
                             </div>
                         </template>
-                                                <template x-if="bandType === 'section_change'">
+                        <template x-if="bandType === 'section_change'">
                             <div class="space-y-5">
-                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div
+                                    class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                    x-effect="
+                                        if (bandDraft?.type === 'section_change' && bandDraft.same_reference) {
+                                            syncSectionReferenceFromParent(bandDraft);
+                                        }
+                                    "
+                                >
                                     <label class="flex items-center gap-3 text-sm font-semibold text-slate-800">
                                         <input
                                             type="checkbox"
                                             x-model="bandDraft.same_reference"
+                                            @change="onSectionSameReferenceChanged(bandDraft)"
                                             class="h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
                                         >
                                         ¿La referencia es igual a la instalada?
@@ -2501,9 +2828,52 @@
                                                 <tr class="bg-[#4f79bd] text-white">
                                                     <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Cambio de tramo</th>
                                                 </tr>
-                                                <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Marca</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.section_brand" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Espesor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_thickness" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Lonas</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" min="1" x-model="bandDraft.section_plies" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr>
+                                                    <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                        Marca
+                                                    </th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                        <input
+                                                            type="text"
+                                                            x-model="bandDraft.section_brand"
+                                                            :readonly="sectionReferenceLocked(bandDraft)"
+                                                            :class="sectionReferenceLocked(bandDraft) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                            class="w-full bg-transparent text-center font-semibold outline-none"
+                                                        >
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                        Espesor
+                                                    </th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            x-model="bandDraft.section_thickness"
+                                                            :readonly="sectionReferenceLocked(bandDraft)"
+                                                            :class="sectionReferenceLocked(bandDraft) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                            class="w-full bg-transparent text-center font-semibold outline-none"
+                                                        >
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                        Lonas
+                                                    </th>
+                                                    <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            x-model="bandDraft.section_plies"
+                                                            :readonly="sectionReferenceLocked(bandDraft)"
+                                                            :class="sectionReferenceLocked(bandDraft) ? 'cursor-not-allowed text-slate-500' : 'text-slate-900'"
+                                                            class="w-full bg-transparent text-center font-semibold outline-none"
+                                                        >
+                                                    </td>
+                                                </tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Longitud</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_length" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Ancho</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.section_width" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             </tbody>
@@ -3511,6 +3881,9 @@ function measurementThicknessModule(config) {
         bandEditErrors: [],
         bandEditForm: null,
 
+        bandChildViewModalOpen: false,
+        selectedBandChildView: null,
+
         bandDraft: {
             id: null,
             element_id: config.elementId,
@@ -3969,6 +4342,120 @@ function measurementThicknessModule(config) {
         closePublishConfirm() {
             this.publishConfirmOpen = false;
         },
+
+        openBandChildViewModal(event) {
+            if (!event || !event.id) {
+                return;
+            }
+
+            this.selectedBandChildView = {
+                ...this.emptyBandDraft(event.type || 'section_change'),
+                ...event,
+                parent_id: event.type === 'band'
+                    ? null
+                    : (event.parent_id || this.selectedBandHistory?.id || this.bandEventActiveBand?.id || null),
+                type: event.type || 'section_change',
+                report_date: event.report_date || config.today,
+                same_reference: !!event.same_reference,
+            };
+
+            this.bandChildViewModalOpen = true;
+
+            this.$nextTick(() => {
+                this.refreshLucide();
+            });
+        },
+
+        closeBandChildViewModal() {
+            this.bandChildViewModalOpen = false;
+            this.selectedBandChildView = null;
+        },
+
+        bandParentById(parentId = null) {
+    const id = parentId
+        || this.bandDraft?.parent_id
+        || this.bandEditForm?.parent_id
+        || this.selectedBandHistory?.id
+        || this.bandEventActiveBand?.id
+        || null;
+
+    if (!id) {
+        return null;
+    }
+
+    return this.bandHistoricalTree.find(band => String(band.id) === String(id))
+        || this.bandEventBands.find(band => String(band.id) === String(id))
+        || (this.bandEventActiveBand && String(this.bandEventActiveBand.id) === String(id) ? this.bandEventActiveBand : null)
+        || null;
+    },
+
+    sectionReferenceLocked(form = null) {
+        return !!(
+            form
+            && form.type === 'section_change'
+            && form.same_reference
+        );
+    },
+
+    clearSectionReferenceFields(form = null) {
+        const target = form || null;
+
+        if (!target || target.type !== 'section_change') {
+            return;
+        }
+
+        target.section_brand = '';
+        target.section_thickness = '';
+        target.section_plies = '';
+    },
+
+    syncSectionReferenceFromParent(form = null) {
+        const target = form || null;
+
+        if (!target || target.type !== 'section_change') {
+            return;
+        }
+
+        const parent = this.bandParentById(target.parent_id);
+
+        if (!parent) {
+            target.section_brand = '';
+            target.section_thickness = '';
+            target.section_plies = '';
+            return;
+        }
+
+        target.section_brand = parent.brand || '';
+        target.section_thickness = parent.total_thickness ?? '';
+        target.section_plies = parent.plies ?? '';
+    },
+
+    onSectionSameReferenceChanged(form = null) {
+        const target = form || null;
+
+        if (!target || target.type !== 'section_change') {
+            return;
+        }
+
+        if (target.same_reference) {
+            this.syncSectionReferenceFromParent(target);
+            return;
+        }
+
+        this.clearSectionReferenceFields(target);
+    },
+
+    onSectionParentChanged(form = null) {
+        const target = form || null;
+
+        if (!target || target.type !== 'section_change') {
+            return;
+        }
+
+        if (target.same_reference) {
+            this.syncSectionReferenceFromParent(target);
+        }
+    },
 
         async publishDraft() {
             this.ensureDraftStructure();
@@ -4978,6 +5465,14 @@ function measurementThicknessModule(config) {
                 same_reference: !!event.same_reference,
             };
 
+            if (this.bandEditForm.type === 'section_change') {
+                if (this.bandEditForm.same_reference) {
+                    this.syncSectionReferenceFromParent(this.bandEditForm);
+                } else {
+                    this.clearSectionReferenceFields(this.bandEditForm);
+                }
+            }
+
             this.bandEditModalOpen = true;
             this.refreshLucide();
         },
@@ -4995,6 +5490,18 @@ function measurementThicknessModule(config) {
 
             this.loading = true;
             this.bandEditErrors = [];
+
+            if (this.bandEditForm?.type === 'section_change') {
+                if (this.bandEditForm.same_reference) {
+                    this.syncSectionReferenceFromParent(this.bandEditForm);
+                } else {
+                    this.clearSectionReferenceFields(this.bandEditForm);
+                }
+            }
+
+            if (this.bandEditForm.type === 'section_change' && this.bandEditForm.same_reference) {
+                this.syncSectionReferenceFromParent(this.bandEditForm);
+            }
 
             const url = config.routes.bandReportUpdateTemplate.replace('__EVENT__', this.bandEditForm.id);
 
@@ -5239,7 +5746,8 @@ function measurementThicknessModule(config) {
                 this.refreshLucide();
             }
         },
-                // ======================
+
+        // ======================
         // BAND EVENTS FLOW
         // ======================
         async openBandWizard(type = 'band') {
@@ -5257,10 +5765,32 @@ function measurementThicknessModule(config) {
                 };
             }
 
+            if (typeof this.beforeOpenBandWizard === 'function') {
+                this.beforeOpenBandWizard(type);
+            }
+
             const ok = await this.createBandDraft(type);
 
             if (!ok || !this.bandDraft) {
                 return;
+            }
+
+            this.bandDraft = {
+                ...this.emptyBandDraft(type),
+                ...this.bandDraft,
+                type,
+                parent_id: type === 'band'
+                    ? null
+                    : (this.bandDraft.parent_id || this.bandEventActiveBand?.id || null),
+                same_reference: !!this.bandDraft.same_reference,
+            };
+
+            if (this.bandDraft.type === 'section_change') {
+                if (this.bandDraft.same_reference) {
+                    this.syncSectionReferenceFromParent(this.bandDraft);
+                } else {
+                    this.clearSectionReferenceFields(this.bandDraft);
+                }
             }
 
             this.bandWizardOpen = true;
@@ -5287,149 +5817,9 @@ function measurementThicknessModule(config) {
             }
         },
 
-        async createBandDraft(type = 'band') {
-            this.loading = true;
-            this.resetBandErrors();
 
-            try {
-                const response = await fetch(config.routes.bandCreate, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': this.csrf(),
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        type,
-                    }),
-                });
 
-                const data = await this.parseJsonResponse(response);
-
-                if (!response.ok || data.success === false) {
-                    this.bandErrors = this.normalizeErrors(data, 'No fue posible preparar el borrador del evento.');
-                    return false;
-                }
-
-                this.bandType = type;
-                this.bandDraft = {
-                    ...this.emptyBandDraft(type),
-                    ...(data.draft || {}),
-                    type,
-                    report_date: data.draft?.report_date || config.today,
-                };
-
-                this.ensureBandDraftStructure(type);
-
-                return true;
-            } catch (error) {
-                this.bandErrors = ['Ocurrió un error de red al crear u obtener el borrador del evento.'];
-                return false;
-            } finally {
-                this.loading = false;
-            }
-        },
-                // ======================
-        // BAND EVENTS SAVE / PUBLISH
         // ======================
-        async saveBandDraft() {
-            this.ensureBandDraftStructure(this.bandType);
-            this.loading = true;
-            this.resetBandErrors();
-
-            try {
-                const response = await fetch(config.routes.bandUpdate, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': this.csrf(),
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        ...this.bandDraft,
-                        type: this.bandType,
-                    }),
-                });
-
-                const data = await this.parseJsonResponse(response);
-
-                if (!response.ok || data.success === false) {
-                    this.bandErrors = this.normalizeErrors(data, 'No fue posible guardar el borrador del evento.');
-                    return false;
-                }
-
-                this.bandDraft = {
-                    ...this.emptyBandDraft(this.bandType),
-                    ...(data.draft || {}),
-                    type: this.bandType,
-                    report_date: data.draft?.report_date || this.bandDraft?.report_date || config.today,
-                };
-
-                this.ensureBandDraftStructure(this.bandType);
-
-                if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
-                    this.refreshBandCollections(data);
-                }
-
-                this.showCrudToast(data.message || 'Borrador guardado correctamente.');
-                return true;
-            } catch (error) {
-                this.bandErrors = ['Ocurrió un error de red al guardar el borrador del evento.'];
-                return false;
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async publishBandDraft() {
-            this.ensureBandDraftStructure(this.bandType);
-            this.loading = true;
-            this.resetBandErrors();
-
-            try {
-                const response = await fetch(config.routes.bandPublish, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': this.csrf(),
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        ...this.bandDraft,
-                        type: this.bandType,
-                        report_date: this.bandDraft?.report_date || config.today,
-                    }),
-                });
-
-                const data = await this.parseJsonResponse(response);
-
-                if (!response.ok || data.success === false) {
-                    this.bandErrors = this.normalizeErrors(data, 'No fue posible publicar el reporte del evento.');
-                    return false;
-                }
-
-                if (data.report) {
-                    this.syncBandLatestStateAfterPublish(this.normalizeBandEvent(data.report));
-                }
-
-                if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
-                    this.refreshBandCollections(data);
-                }
-
-                this.bandDraft = this.emptyBandDraft(this.bandType);
-                this.bandWizardOpen = false;
-                this.bandWizardStep = 1;
-
-                this.showCrudToast(data.message || 'Reporte publicado correctamente.');
-                return true;
-            } catch (error) {
-                this.bandErrors = ['Ocurrió un error de red al publicar el reporte del evento.'];
-                return false;
-            } finally {
-                this.loading = false;
-            }
-        },
-                // ======================
         // INIT / NORMALIZATION
         // ======================
         normalizeInitialState() {
@@ -6110,21 +6500,7 @@ function measurementThicknessModule(config) {
             this.syncBandDraftDefaults();
             this.ensureBandHistorySelection();
         },
-                // ======================
-        // BAND EVENTS FLOW REFINED
-        // ======================
-        async openBandWizard(type = 'band') {
-            this.beforeOpenBandWizard(type);
 
-            const ok = await this.createBandDraft(type);
-
-            if (!ok || !this.bandDraft) {
-                return;
-            }
-
-            this.bandWizardOpen = true;
-            this.refreshLucide();
-        },
 
         closeBandWizard() {
             this.bandWizardOpen = false;
@@ -6165,18 +6541,33 @@ function measurementThicknessModule(config) {
 
                 if (!response.ok || data.success === false) {
                     this.bandErrors = this.normalizeErrors(data, 'No fue posible preparar el borrador del evento.');
+                    this.showCrudToast(
+                        this.bandErrors[0] || 'No fue posible preparar el borrador del evento.',
+                        'error'
+                    );
                     return false;
                 }
 
                 this.afterLoadBandDraft(type, data.draft || null);
 
+                if (this.bandDraft?.type === 'section_change') {
+                    if (this.bandDraft.same_reference) {
+                        this.syncSectionReferenceFromParent(this.bandDraft);
+                    } else {
+                        this.clearSectionReferenceFields(this.bandDraft);
+                    }
+                }
+
                 if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
                     this.refreshBandCollections(data);
                 }
 
+                this.refreshLucide();
+
                 return true;
             } catch (error) {
                 this.bandErrors = ['Ocurrió un error de red al crear u obtener el borrador del evento.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
                 return false;
             } finally {
                 this.loading = false;
@@ -6187,6 +6578,14 @@ function measurementThicknessModule(config) {
             this.syncBandDraftDefaults();
             this.loading = true;
             this.resetBandErrors();
+
+            if (this.bandDraft?.type === 'section_change') {
+                if (this.bandDraft.same_reference) {
+                    this.syncSectionReferenceFromParent(this.bandDraft);
+                } else {
+                    this.clearSectionReferenceFields(this.bandDraft);
+                }
+            }
 
             try {
                 const response = await fetch(config.routes.bandUpdate, {
@@ -6206,19 +6605,31 @@ function measurementThicknessModule(config) {
 
                 if (!response.ok || data.success === false) {
                     this.bandErrors = this.normalizeErrors(data, 'No fue posible guardar el borrador del evento.');
+                    this.showCrudToast(this.bandErrors[0] || 'No fue posible guardar el borrador del evento.', 'error');
                     return false;
                 }
 
                 this.afterLoadBandDraft(this.bandType, data.draft || null);
+
+                if (this.bandDraft?.type === 'section_change') {
+                    if (this.bandDraft.same_reference) {
+                        this.syncSectionReferenceFromParent(this.bandDraft);
+                    } else {
+                        this.clearSectionReferenceFields(this.bandDraft);
+                    }
+                }
 
                 if (data.latest_report || data.active_band || data.bands || data.historical_tree) {
                     this.refreshBandCollections(data);
                 }
 
                 this.showCrudToast(data.message || 'Borrador guardado correctamente.');
+                this.refreshLucide();
+
                 return true;
             } catch (error) {
                 this.bandErrors = ['Ocurrió un error de red al guardar el borrador del evento.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
                 return false;
             } finally {
                 this.loading = false;
@@ -6229,6 +6640,14 @@ function measurementThicknessModule(config) {
             this.syncBandDraftDefaults();
             this.loading = true;
             this.resetBandErrors();
+
+            if (this.bandDraft?.type === 'section_change') {
+                if (this.bandDraft.same_reference) {
+                    this.syncSectionReferenceFromParent(this.bandDraft);
+                } else {
+                    this.clearSectionReferenceFields(this.bandDraft);
+                }
+            }
 
             try {
                 const response = await fetch(config.routes.bandPublish, {
@@ -6249,6 +6668,10 @@ function measurementThicknessModule(config) {
 
                 if (!response.ok || data.success === false) {
                     this.bandErrors = this.normalizeErrors(data, 'No fue posible publicar el reporte del evento.');
+                    this.showCrudToast(
+                        this.bandErrors[0] || 'No fue posible publicar el reporte del evento.',
+                        'error'
+                    );
                     return false;
                 }
 
@@ -6265,9 +6688,12 @@ function measurementThicknessModule(config) {
                 this.bandWizardStep = 1;
 
                 this.showCrudToast(data.message || 'Reporte publicado correctamente.');
+                this.refreshLucide();
+
                 return true;
             } catch (error) {
                 this.bandErrors = ['Ocurrió un error de red al publicar el reporte del evento.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
                 return false;
             } finally {
                 this.loading = false;

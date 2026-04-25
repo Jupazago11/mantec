@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminPreventiveReportController;
 use App\Http\Controllers\Admin\AdminReportEvidenceController;
 use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
+use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
 use App\Http\Controllers\Admin\SystemModules\BandEventReportController;
 
@@ -63,6 +64,8 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin/indicadores', [IndicatorController::class, 'index'])->name('admin.indicators.index');
+    Route::get('/admin/indicadores/data', [IndicatorController::class, 'data'])->name('admin.indicators.data');
 
     /*
     |--------------------------------------------------------------------------

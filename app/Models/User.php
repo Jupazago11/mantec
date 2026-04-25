@@ -157,4 +157,10 @@ class User extends Authenticatable
             ->whereHas('module', fn ($query) => $query->where('key', $moduleKey)->where('status', true))
             ->exists();
     }
+
+    public function groups()
+    {
+        return $this->belongsToMany(\App\Models\Group::class, 'group_user')
+            ->withTimestamps();
+    }
 }

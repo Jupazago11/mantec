@@ -55,7 +55,7 @@
         </div>
     @endif
 
-    <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
+    <div class="grid gap-8 xl:grid-cols-[460px_minmax(0,1fr)] 2xl:grid-cols-[520px_minmax(0,1fr)]">
         <div>
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-lg font-semibold text-slate-900">Nuevo usuario</h3>
@@ -175,7 +175,199 @@
                             @endforeach
                         </div>
                     </div>
+<div id="create_group_permissions_wrapper" class="hidden">
+                        <label class="mb-2 block text-sm font-medium text-slate-700">
+                            Agrupaciones, tipos de activo y áreas para indicadores
+                        </label>
 
+                        <div class="space-y-4 rounded-xl border border-slate-300 p-4">
+                            @foreach($clients as $client)
+                                <div class="create-client-groups-block hidden" data-client-id="{{ $client->id }}">
+                                    <div class="mb-3">
+                                        <p class="text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            Primero selecciona la agrupación; luego define los tipos de activo y, cuando aplique, las áreas.
+                                        </p>
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        @forelse(($groupsByClient[$client->id] ?? collect()) as $group)
+                                            @php
+                                                $groupElements = collect($group->elements ?? []);
+                                                $typesForGroup = $groupElements->isNotEmpty()
+                                                    ? $groupElements->pluck('elementType')->filter()->unique('id')->sortBy('name')->values()
+                                                    : ($elementTypesByClient[$client->id] ?? collect());
+                                                $typeCount = $typesForGroup->count();
+                                            @endphp
+
+                                            <div class="rounded-xl border border-slate-200 bg-white p-3" data-create-group-card data-client-id="{{ $client->id }}" data-group-id="{{ $group->id }}">
+                                                <label class="flex items-start gap-3 text-sm text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="group_permissions[{{ $client->id }}][]"
+                                                        value="{{ $group->id }}"
+                                                        class="create-group-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                        data-client-id="{{ $client->id }}"
+                                                        data-group-id="{{ $group->id }}"
+                                                        onchange="toggleGroupDetails('create')"
+                                                        {{ in_array($group->id, old("group_permissions.$client->id", [])) ? 'checked' : '' }}
+                                                    >
+                                                    <span>
+                                                        <span class="block font-semibold text-slate-900">{{ $group->name }}</span>
+                                                        <span class="block text-xs text-slate-500">Agrupación para indicadores</span>
+                                                    </span>
+                                                </label>
+
+                                                <div
+                                                    class="create-group-detail-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                                    data-client-id="{{ $client->id }}"
+                                                    data-group-id="{{ $group->id }}"
+                                                >
+                                                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                                Tipos de activo de la agrupación
+                                                            </p>
+                                                            <p class="mt-1 text-xs text-slate-500">
+                                                                Los tipos seleccionados conservan el mismo permiso técnico del usuario.
+                                                            </p>
+                                                        </div>
+
+                                                        @if($typeCount > 1)
+                                                            <div class="flex flex-wrap gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onclick="toggleAllElementTypesForGroup('create', {{ $client->id }}, {{ $group->id }}, true)"
+                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                >
+                                                                    Seleccionar tipos
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onclick="toggleAllElementTypesForGroup('create', {{ $client->id }}, {{ $group->id }}, false)"
+                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                >
+                                                                    Deseleccionar tipos
+                                                                </button>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+
+                                                    <div class="space-y-3">
+                                                        @forelse($typesForGroup as $elementType)
+                                                            @php
+                                                                $elementsForType = $groupElements->filter(fn ($element) => optional($element->elementType)->id === $elementType->id);
+                                                                $areaCount = ($areasByClient[$client->id] ?? collect())->count();
+                                                            @endphp
+
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                                                                <label class="flex items-center gap-3 text-sm text-slate-700">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        name="element_type_permissions[{{ $client->id }}][]"
+                                                                        value="{{ $elementType->id }}"
+                                                                        class="create-element-type-checkbox create-group-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                        data-client-id="{{ $client->id }}"
+                                                                        data-group-id="{{ $group->id }}"
+                                                                        data-element-type-id="{{ $elementType->id }}"
+                                                                        onchange="toggleAreaPermissionsByElementType('create')"
+                                                                        {{ in_array($elementType->id, old("element_type_permissions.$client->id", [])) ? 'checked' : '' }}
+                                                                    >
+                                                                    <span class="font-semibold text-slate-900">{{ $elementType->name }}</span>
+                                                                </label>
+
+                                                                @if($elementsForType->isNotEmpty())
+                                                                    <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                                                Activos asociados
+                                                                            </p>
+
+                                                                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                                                                                {{ $elementsForType->count() }}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div class="max-h-28 overflow-y-auto pr-1">
+                                                                            <div class="grid grid-cols-2 gap-1.5">
+                                                                                @foreach($elementsForType as $element)
+                                                                                    <span class="truncate rounded-full bg-white px-2 py-1 text-center text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                                                                                        {{ $element->name }}
+                                                                                    </span>
+                                                                                @endforeach
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+
+                                                                <div
+                                                                    class="create-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                                                    data-client-id="{{ $client->id }}"
+                                                                    data-group-id="{{ $group->id }}"
+                                                                    data-element-type-id="{{ $elementType->id }}"
+                                                                >
+                                                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                                            Áreas permitidas
+                                                                        </p>
+
+                                                                        @if($areaCount > 1)
+                                                                            <div class="flex flex-wrap gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onclick="toggleAllAreasForGroupType('create', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, true)"
+                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                                >
+                                                                                    Seleccionar áreas
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onclick="toggleAllAreasForGroupType('create', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, false)"
+                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                                >
+                                                                                    Deseleccionar áreas
+                                                                                </button>
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+
+                                                                    <div class="grid gap-2">
+                                                                        @forelse(($areasByClient[$client->id] ?? collect()) as $area)
+                                                                            <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
+                                                                                    value="{{ $area->id }}"
+                                                                                    class="create-area-checkbox create-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                                    data-client-id="{{ $client->id }}"
+                                                                                    data-group-id="{{ $group->id }}"
+                                                                                    data-element-type-id="{{ $elementType->id }}"
+                                                                                    {{ in_array($area->id, old("area_permissions.$client->id.$elementType->id", [])) ? 'checked' : '' }}
+                                                                                >
+                                                                                <span>{{ $area->name }}</span>
+                                                                            </label>
+                                                                        @empty
+                                                                            <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
+                                                                        @endforelse
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        @empty
+                                                            <p class="text-sm text-slate-500">No hay tipos de activo disponibles para esta agrupación.</p>
+                                                        @endforelse
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <p class="text-sm text-slate-500">No hay agrupaciones activas para este cliente.</p>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    
                     @foreach(($activeFilters['client_ids'] ?? []) as $value)
                         <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                     @endforeach
@@ -363,14 +555,27 @@
         </td>
 
         <td class="whitespace-nowrap px-5 py-3 text-sm">
-            @if($user->status)
-                <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                    Activo
-                </span>
+            @if($canManage)
+                <button
+                    type="button"
+                    onclick="toggleUserStatus(this, this.dataset.url)"
+                    data-url="{{ route('admin.managed-users.toggle-status', $user) }}"
+                    data-status="{{ $user->status ? '1' : '0' }}"
+                    class="inline-flex rounded-full px-3 py-1 text-xs font-semibold transition {{ $user->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
+                    title="Clic para cambiar estado"
+                >
+                    {{ $user->status ? 'Activo' : 'Inactivo' }}
+                </button>
             @else
-                <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                    Inactivo
-                </span>
+                @if($user->status)
+                    <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                        Activo
+                    </span>
+                @else
+                    <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                        Inactivo
+                    </span>
+                @endif
             @endif
         </td>
 
@@ -398,6 +603,10 @@
                                     ->toArray();
                             })
                             ->toArray(),
+                        'group_permissions' => $user->groups
+                            ->groupBy('client_id')
+                            ->map(fn ($groups) => $groups->pluck('id')->values()->toArray())
+                            ->toArray(),
                         'action' => route('admin.managed-users.update', $user),
                         'is_self' => $isSelf,
                         'can_self_edit_profile' => $canSelfEditProfile,
@@ -421,34 +630,6 @@
                     >
                         Editar
                     </button>
-
-                    <form
-                        method="POST"
-                        action="{{ route('admin.managed-users.toggle-status', $user) }}"
-                    >
-                        @csrf
-                        @method('PATCH')
-                                                @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['names'] ?? []) as $value)
-                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['role_keys'] ?? []) as $value)
-                            <input type="hidden" name="redirect_role_keys[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                        @endforeach
-                        <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
-
-                        <button
-                            type="submit"
-                            class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $user->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
-                        >
-                            {{ $user->status ? 'Inactivar' : 'Activar' }}
-                        </button>
-                    </form>
                 @else
                     <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">
                         Solo lectura
@@ -478,6 +659,21 @@
     </div>
 </div>
 
+<div
+    id="crudToast"
+    class="fixed bottom-6 right-6 z-[100000] hidden max-w-md rounded-2xl border px-4 py-3 text-sm shadow-2xl transition"
+    role="status"
+    aria-live="polite"
+>
+    <div class="flex items-start gap-3">
+        <div id="crudToastIcon" class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"></div>
+        <div class="min-w-0">
+            <div id="crudToastTitle" class="font-semibold"></div>
+            <div id="crudToastMessage" class="mt-0.5 whitespace-pre-line text-xs leading-relaxed"></div>
+        </div>
+    </div>
+</div>
+
 <div id="editUserModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
     <div class="flex min-h-full w-full items-start justify-center">
         <div class="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl">
@@ -487,10 +683,16 @@
                 <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditUserModal()">✕</button>
             </div>
 
-            <form id="editUserForm" method="POST" class="flex-1 overflow-y-auto space-y-5 p-6">
+            <form
+                id="editUserForm"
+                method="POST"
+                class="flex min-h-0 flex-1 flex-col"
+                onsubmit="submitEditUserForm(event)"
+            >
                 @csrf
                 @method('PUT')
 
+                <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
                 <div id="edit_readonly_message" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     Para tu propio usuario solo puedes cambiar la contraseña.
                 </div>
@@ -601,7 +803,187 @@
                         @endforeach
                     </div>
                 </div>
+<div id="edit_group_permissions_wrapper" class="hidden">
+                        <label class="mb-2 block text-sm font-medium text-slate-700">
+                            Agrupaciones, tipos de activo y áreas para indicadores
+                        </label>
 
+                        <div class="space-y-4 rounded-xl border border-slate-300 p-4">
+                            @foreach($clients as $client)
+                                <div class="edit-client-groups-block hidden" data-client-id="{{ $client->id }}">
+                                    <div class="mb-3">
+                                        <p class="text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            Primero selecciona la agrupación; luego define los tipos de activo y, cuando aplique, las áreas.
+                                        </p>
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        @forelse(($groupsByClient[$client->id] ?? collect()) as $group)
+                                            @php
+                                                $groupElements = collect($group->elements ?? []);
+                                                $typesForGroup = $groupElements->isNotEmpty()
+                                                    ? $groupElements->pluck('elementType')->filter()->unique('id')->sortBy('name')->values()
+                                                    : ($elementTypesByClient[$client->id] ?? collect());
+                                                $typeCount = $typesForGroup->count();
+                                            @endphp
+
+                                            <div class="rounded-xl border border-slate-200 bg-white p-3" data-edit-group-card data-client-id="{{ $client->id }}" data-group-id="{{ $group->id }}">
+                                                <label class="flex items-start gap-3 text-sm text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="group_permissions[{{ $client->id }}][]"
+                                                        value="{{ $group->id }}"
+                                                        class="edit-group-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                        data-client-id="{{ $client->id }}"
+                                                        data-group-id="{{ $group->id }}"
+                                                        onchange="toggleGroupDetails('edit')"
+                                                    >
+                                                    <span>
+                                                        <span class="block font-semibold text-slate-900">{{ $group->name }}</span>
+                                                        <span class="block text-xs text-slate-500">Agrupación para indicadores</span>
+                                                    </span>
+                                                </label>
+
+                                                <div
+                                                    class="edit-group-detail-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                                    data-client-id="{{ $client->id }}"
+                                                    data-group-id="{{ $group->id }}"
+                                                >
+                                                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                                Tipos de activo de la agrupación
+                                                            </p>
+                                                            <p class="mt-1 text-xs text-slate-500">
+                                                                Los tipos seleccionados conservan el mismo permiso técnico del usuario.
+                                                            </p>
+                                                        </div>
+
+                                                        @if($typeCount > 1)
+                                                            <div class="flex flex-wrap gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onclick="toggleAllElementTypesForGroup('edit', {{ $client->id }}, {{ $group->id }}, true)"
+                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                >
+                                                                    Seleccionar tipos
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onclick="toggleAllElementTypesForGroup('edit', {{ $client->id }}, {{ $group->id }}, false)"
+                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                >
+                                                                    Deseleccionar tipos
+                                                                </button>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+
+                                                    <div class="space-y-3">
+                                                        @forelse($typesForGroup as $elementType)
+                                                            @php
+                                                                $elementsForType = $groupElements->filter(fn ($element) => optional($element->elementType)->id === $elementType->id);
+                                                                $areaCount = ($areasByClient[$client->id] ?? collect())->count();
+                                                            @endphp
+
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                                                                <label class="flex items-center gap-3 text-sm text-slate-700">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        name="element_type_permissions[{{ $client->id }}][]"
+                                                                        value="{{ $elementType->id }}"
+                                                                        class="edit-element-type-checkbox edit-group-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                        data-client-id="{{ $client->id }}"
+                                                                        data-group-id="{{ $group->id }}"
+                                                                        data-element-type-id="{{ $elementType->id }}"
+                                                                        onchange="toggleAreaPermissionsByElementType('edit')"
+                                                                    >
+                                                                    <span class="font-semibold text-slate-900">{{ $elementType->name }}</span>
+                                                                </label>
+
+                                                                @if($elementsForType->isNotEmpty())
+                                                                    <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                                                        <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                                            Activos asociados
+                                                                        </p>
+                                                                        <div class="flex flex-wrap gap-2">
+                                                                            @foreach($elementsForType as $element)
+                                                                                <span class="inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                                                                                    {{ $element->name }}
+                                                                                </span>
+                                                                            @endforeach
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+
+                                                                <div
+                                                                    class="edit-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                                                    data-client-id="{{ $client->id }}"
+                                                                    data-group-id="{{ $group->id }}"
+                                                                    data-element-type-id="{{ $elementType->id }}"
+                                                                >
+                                                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                                            Áreas permitidas
+                                                                        </p>
+
+                                                                        @if($areaCount > 1)
+                                                                            <div class="flex flex-wrap gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onclick="toggleAllAreasForGroupType('edit', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, true)"
+                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                                >
+                                                                                    Seleccionar áreas
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onclick="toggleAllAreasForGroupType('edit', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, false)"
+                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                                                >
+                                                                                    Deseleccionar áreas
+                                                                                </button>
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+
+                                                                    <div class="grid gap-2">
+                                                                        @forelse(($areasByClient[$client->id] ?? collect()) as $area)
+                                                                            <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
+                                                                                    value="{{ $area->id }}"
+                                                                                    class="edit-area-checkbox edit-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                                                    data-client-id="{{ $client->id }}"
+                                                                                    data-group-id="{{ $group->id }}"
+                                                                                    data-element-type-id="{{ $elementType->id }}"
+                                                                                >
+                                                                                <span>{{ $area->name }}</span>
+                                                                            </label>
+                                                                        @empty
+                                                                            <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
+                                                                        @endforelse
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        @empty
+                                                            <p class="text-sm text-slate-500">No hay tipos de activo disponibles para esta agrupación.</p>
+                                                        @endforelse
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <p class="text-sm text-slate-500">No hay agrupaciones activas para este cliente.</p>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    
                 @foreach(($activeFilters['client_ids'] ?? []) as $value)
                     <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
                 @endforeach
@@ -615,7 +997,9 @@
                     <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
                 @endforeach
                 <input type="hidden" name="redirect_page" value="{{ $users->currentPage() }}">
-                                <div class="flex justify-end gap-3 border-t border-slate-200 pt-4 shrink-0">
+                </div>
+
+                <div class="shrink-0 flex justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
                     <button
                         type="button"
                         onclick="closeEditUserModal()"
@@ -704,23 +1088,33 @@
         return option ? option.dataset.roleKey : '';
     }
         function roleUsesSpecialization(roleKey) {
-        return ['inspector', 'admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
+        return ['inspector', 'observador'].includes(roleKey);
     }
 
     function roleUsesAreaPermissions(roleKey) {
         return roleKey === 'admin_cliente';
     }
 
+    function roleUsesGroupPermissions(roleKey) {
+        return ['admin_cliente', 'observador_cliente'].includes(roleKey);
+    }
+
     function toggleSpecializedPermissions(prefix) {
         const wrapper = document.getElementById(`${prefix}_specialized_permissions_wrapper`);
+        const groupWrapper = document.getElementById(`${prefix}_group_permissions_wrapper`);
         const roleKey = getSelectedRoleKey(prefix);
 
         if (wrapper) {
             wrapper.classList.toggle('hidden', !roleUsesSpecialization(roleKey));
         }
 
+        if (groupWrapper) {
+            groupWrapper.classList.toggle('hidden', !roleUsesGroupPermissions(roleKey));
+        }
+
         toggleClientElementTypes(prefix);
         toggleAreaPermissionsByElementType(prefix);
+        toggleGroupPermissions(prefix);
     }
 
     function toggleClientElementTypes(prefix) {
@@ -746,6 +1140,7 @@
         });
 
         toggleAreaPermissionsByElementType(prefix);
+        toggleGroupPermissions(prefix);
     }
 
     function toggleAreaPermissionsByElementType(prefix) {
@@ -754,12 +1149,18 @@
 
         document.querySelectorAll(`.${prefix}-area-permissions-block`).forEach(block => {
             const clientId = parseInt(block.dataset.clientId);
+            const groupId = block.dataset.groupId || '';
             const elementTypeId = parseInt(block.dataset.elementTypeId);
 
-            const elementTypeCheckbox = document.querySelector(
-                `.${prefix}-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`
-            );
+            let selector = `.${prefix}-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`;
 
+            if (groupId !== '') {
+                selector += `[data-group-id="${groupId}"]`;
+            } else {
+                selector += `:not([data-group-id])`;
+            }
+
+            const elementTypeCheckbox = document.querySelector(selector);
             const shouldShow = useAreas && !!elementTypeCheckbox && elementTypeCheckbox.checked;
 
             block.classList.toggle('hidden', !shouldShow);
@@ -770,6 +1171,265 @@
                 });
             }
         });
+    }
+
+    function toggleGroupPermissions(prefix) {
+        const roleKey = getSelectedRoleKey(prefix);
+        const useGroups = roleUsesGroupPermissions(roleKey);
+
+        const selectedClientIds = Array.from(document.querySelectorAll(`.${prefix}-client-checkbox:checked`))
+            .map(cb => parseInt(cb.value));
+
+        document.querySelectorAll(`.${prefix}-client-groups-block`).forEach(block => {
+            const clientId = parseInt(block.dataset.clientId);
+            const visible = useGroups && selectedClientIds.includes(clientId);
+
+            block.classList.toggle('hidden', !visible);
+
+            if (!visible) {
+                block.querySelectorAll(`.${prefix}-group-checkbox, .${prefix}-element-type-checkbox, .${prefix}-area-checkbox`).forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+
+        toggleGroupDetails(prefix);
+    }
+
+    function toggleGroupDetails(prefix) {
+        document.querySelectorAll(`.${prefix}-group-detail-block`).forEach(block => {
+            const clientId = parseInt(block.dataset.clientId);
+            const groupId = String(block.dataset.groupId);
+            const groupCheckbox = document.querySelector(`.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`);
+            const visible = !!groupCheckbox && groupCheckbox.checked && !groupCheckbox.closest(`.${prefix}-client-groups-block`)?.classList.contains('hidden');
+
+            block.classList.toggle('hidden', !visible);
+
+            if (!visible) {
+                block.querySelectorAll(`.${prefix}-element-type-checkbox, .${prefix}-area-checkbox`).forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+
+        toggleAreaPermissionsByElementType(prefix);
+    }
+
+    function toggleAllElementTypesForGroup(prefix, clientId, groupId, checked) {
+        const groupCheckbox = document.querySelector(`.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`);
+
+        if (!groupCheckbox || !groupCheckbox.checked) {
+            return;
+        }
+
+        document.querySelectorAll(`.${prefix}-group-element-type-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`).forEach(cb => {
+            cb.checked = checked;
+        });
+
+        if (!checked) {
+            document.querySelectorAll(`.${prefix}-group-area-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`).forEach(cb => {
+                cb.checked = false;
+            });
+        }
+
+        toggleAreaPermissionsByElementType(prefix);
+    }
+
+    function toggleAllAreasForGroupType(prefix, clientId, groupId, elementTypeId, checked) {
+        const elementTypeCheckbox = document.querySelector(`.${prefix}-group-element-type-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"][data-element-type-id="${elementTypeId}"]`);
+
+        if (!elementTypeCheckbox || !elementTypeCheckbox.checked) {
+            return;
+        }
+
+        document.querySelectorAll(`.${prefix}-group-area-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"][data-element-type-id="${elementTypeId}"]`).forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    function csrfToken() {
+        return document.querySelector('input[name="_token"]')?.value
+            || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            || '';
+    }
+
+    let crudToastTimeout = null;
+
+    function showCrudToast(message, type = 'success', title = null) {
+        const toast = document.getElementById('crudToast');
+        const icon = document.getElementById('crudToastIcon');
+        const titleEl = document.getElementById('crudToastTitle');
+        const messageEl = document.getElementById('crudToastMessage');
+
+        if (!toast || !icon || !titleEl || !messageEl) {
+            alert(Array.isArray(message) ? message.join('\n') : String(message || ''));
+            return;
+        }
+
+        const normalizedMessage = Array.isArray(message)
+            ? message.filter(Boolean).join('\n')
+            : String(message || '');
+
+        const isError = type === 'error';
+        const isWarning = type === 'warning';
+
+        toast.className = 'fixed bottom-6 right-6 z-[100000] max-w-md rounded-2xl border px-4 py-3 text-sm shadow-2xl transition';
+        icon.className = 'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold';
+
+        if (isError) {
+            toast.classList.add('border-red-200', 'bg-red-50', 'text-red-800');
+            icon.classList.add('bg-red-600', 'text-white');
+            icon.textContent = '!';
+            titleEl.textContent = title || 'No fue posible completar la acción';
+        } else if (isWarning) {
+            toast.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-800');
+            icon.classList.add('bg-amber-500', 'text-white');
+            icon.textContent = '!';
+            titleEl.textContent = title || 'Revisa la información';
+        } else {
+            toast.classList.add('border-green-200', 'bg-green-50', 'text-green-800');
+            icon.classList.add('bg-green-600', 'text-white');
+            icon.textContent = '✓';
+            titleEl.textContent = title || 'Acción completada';
+        }
+
+        messageEl.textContent = normalizedMessage;
+        toast.classList.remove('hidden');
+
+        clearTimeout(crudToastTimeout);
+        crudToastTimeout = setTimeout(() => {
+            toast.classList.add('hidden');
+        }, isError ? 6500 : 3200);
+    }
+
+    async function parseAjaxResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            return await response.json();
+        }
+
+        return null;
+    }
+
+    async function submitEditUserForm(event) {
+        event.preventDefault();
+
+        const form = document.getElementById('editUserForm');
+
+        if (!form) {
+            return;
+        }
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton ? submitButton.textContent : '';
+
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Guardando...';
+            submitButton.classList.add('opacity-70', 'cursor-not-allowed');
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            });
+
+            const data = await parseAjaxResponse(response);
+
+            if (response.ok) {
+                showCrudToast(data?.message || 'Usuario actualizado correctamente.', 'success');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 700);
+
+                return;
+            }
+
+            if (response.status === 422 && data?.errors) {
+                const messages = Object.values(data.errors)
+                    .flat()
+                    .filter(Boolean);
+
+                showCrudToast(messages.length ? messages : ['Hay errores en el formulario.'], 'error');
+                return;
+            }
+
+            if (data?.message) {
+                showCrudToast(data.message, 'error');
+                return;
+            }
+
+            showCrudToast('No fue posible actualizar el usuario.', 'error');
+        } catch (error) {
+            showCrudToast('Ocurrió un error de red al actualizar el usuario.', 'error');
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
+                submitButton.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        }
+    }
+
+    async function toggleUserStatus(button, url) {
+        if (!button || !url || button.disabled) {
+            return;
+        }
+
+        const previousStatus = String(button.dataset.status || '0');
+        const formData = new FormData();
+        formData.append('_token', csrfToken());
+        formData.append('_method', 'PATCH');
+
+        button.disabled = true;
+        button.classList.add('opacity-70', 'cursor-not-allowed');
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            const data = await parseAjaxResponse(response);
+
+            if (!response.ok) {
+                showCrudToast(data?.message || 'No fue posible cambiar el estado del usuario.', 'error');
+                return;
+            }
+
+            const nextStatus = previousStatus === '1' ? '0' : '1';
+            button.dataset.status = nextStatus;
+            button.textContent = nextStatus === '1' ? 'Activo' : 'Inactivo';
+
+            button.classList.remove(
+                'bg-green-100', 'text-green-700', 'hover:bg-green-200',
+                'bg-red-100', 'text-red-700', 'hover:bg-red-200'
+            );
+
+            if (nextStatus === '1') {
+                button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                showCrudToast(data?.message || 'Usuario activado correctamente.', 'success');
+            } else {
+                button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+                showCrudToast(data?.message || 'Usuario inactivado correctamente.', 'success');
+            }
+        } catch (error) {
+            showCrudToast('Ocurrió un error de red al cambiar el estado del usuario.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-70', 'cursor-not-allowed');
+        }
     }
 
     function openEditUserModal(user) {
@@ -792,34 +1452,47 @@
             cb.checked = false;
         });
 
+        document.querySelectorAll('.edit-group-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+
         Object.entries(user.permissions || {}).forEach(([clientId, elementTypeIds]) => {
             (elementTypeIds || []).forEach(elementTypeId => {
-                const checkbox = document.querySelector(
+                document.querySelectorAll(
                     `.edit-element-type-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"]`
-                );
-
-                if (checkbox) {
+                ).forEach(checkbox => {
                     checkbox.checked = true;
-                }
+                });
             });
         });
 
         Object.entries(user.area_permissions || {}).forEach(([clientId, byType]) => {
             Object.entries(byType || {}).forEach(([elementTypeId, areaIds]) => {
                 (areaIds || []).forEach(areaId => {
-                    const checkbox = document.querySelector(
+                    document.querySelectorAll(
                         `.edit-area-checkbox[data-client-id="${clientId}"][data-element-type-id="${elementTypeId}"][value="${areaId}"]`
-                    );
-
-                    if (checkbox) {
+                    ).forEach(checkbox => {
                         checkbox.checked = true;
-                    }
+                    });
+                });
+            });
+        });
+
+
+        Object.entries(user.group_permissions || {}).forEach(([clientId, groupIds]) => {
+            (groupIds || []).forEach(groupId => {
+                document.querySelectorAll(
+                    `.edit-group-checkbox[data-client-id="${clientId}"][value="${groupId}"]`
+                ).forEach(checkbox => {
+                    checkbox.checked = true;
                 });
             });
         });
 
         setEditReadOnlyMode(!!user.is_self, !!user.can_self_edit_profile);
         toggleSpecializedPermissions('edit');
+        toggleGroupPermissions('edit');
+        toggleGroupDetails('edit');
 
         const modal = document.getElementById('editUserModal');
         modal.classList.remove('hidden');
@@ -831,6 +1504,7 @@
         const roleWrapper = document.getElementById('edit_role_wrapper');
         const clientsWrapper = document.getElementById('edit_clients_wrapper');
         const specializedWrapper = document.getElementById('edit_specialized_permissions_wrapper');
+        const groupWrapper = document.getElementById('edit_group_permissions_wrapper');
 
         const nameInput = document.getElementById('edit_name');
         const documentInput = document.getElementById('edit_document');
@@ -854,6 +1528,7 @@
         if (roleWrapper) roleWrapper.classList.toggle('hidden', isSelf);
         if (clientsWrapper) clientsWrapper.classList.toggle('hidden', isSelf);
         if (specializedWrapper) specializedWrapper.classList.toggle('hidden', isSelf);
+        if (groupWrapper) groupWrapper.classList.toggle('hidden', isSelf);
 
         if (nameInput) {
             nameInput.readOnly = lockOnlyPasswordMode;
@@ -874,7 +1549,7 @@
             roleSelect.disabled = isSelf;
         }
 
-        document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox, .edit-area-checkbox').forEach(cb => {
+        document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox, .edit-area-checkbox, .edit-group-checkbox').forEach(cb => {
             cb.disabled = isSelf;
         });
     }
@@ -1037,6 +1712,8 @@
         toggleSpecializedPermissions('create');
         toggleClientElementTypes('create');
         toggleAreaPermissionsByElementType('create');
+        toggleGroupPermissions('create');
+        toggleGroupDetails('create');
     });
 
     document.addEventListener('click', function (event) {

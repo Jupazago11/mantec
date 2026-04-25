@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Group;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,13 @@ class AdminManagedUserController extends Controller
             ->get()
             ->groupBy('client_id');
 
+        $groupsByClient = Group::query()
+            ->whereIn('client_id', $clientIds)
+            ->where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'client_id', 'name'])
+            ->groupBy('client_id');
+
         $selectedClientIds = $showClientColumn
             ? collect($request->input('client_ids', []))
                 ->filter()
@@ -129,6 +137,7 @@ class AdminManagedUserController extends Controller
             ->with([
                 'role',
                 'clients',
+                'groups',
                 'allowedElementTypes',
                 'allowedAreas',
             ])
@@ -207,6 +216,8 @@ class AdminManagedUserController extends Controller
             'statuses' => $statusFilterOptions,
         ];
 
+        
+
         $activeFilters = [
             'client_ids' => $selectedClientIds,
             'names' => $selectedNames,
@@ -223,6 +234,7 @@ class AdminManagedUserController extends Controller
             'visibleRoles' => $visibleRoles,
             'elementTypesByClient' => $elementTypesByClient,
             'areasByClient' => $areasByClient,
+            'groupsByClient' => $groupsByClient,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'authUserId' => $authUser->id,
@@ -285,6 +297,9 @@ class AdminManagedUserController extends Controller
             'clients.*' => [Rule::in($allowedClientIds)],
             'element_type_permissions' => ['nullable', 'array'],
             'area_permissions' => ['nullable', 'array'],
+            'group_permissions' => ['nullable', 'array'],
+            'group_permissions.*' => ['nullable', 'array'],
+            'group_permissions.*.*' => ['integer', 'exists:groups,id'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -304,6 +319,12 @@ class AdminManagedUserController extends Controller
                 $clientIds,
                 $validated['element_type_permissions'] ?? [],
                 $validated['area_permissions'] ?? []
+            );
+        }
+        if (in_array($role->key, ['admin_cliente', 'observador_cliente'], true)) {
+            $this->validateGroupPermissions(
+                $clientIds,
+                $validated['group_permissions'] ?? []
             );
         }
 
@@ -332,6 +353,13 @@ class AdminManagedUserController extends Controller
                 $clientIds,
                 $validated['element_type_permissions'] ?? [],
                 $validated['area_permissions'] ?? []
+            );
+
+            $this->syncGroupPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['group_permissions'] ?? []
             );
         });
 
@@ -441,6 +469,11 @@ class AdminManagedUserController extends Controller
             'clients.*' => [Rule::in($allowedClientIds)],
             'element_type_permissions' => ['nullable', 'array'],
             'area_permissions' => ['nullable', 'array'],
+
+            // Agrupaciones para indicadores
+            'group_permissions' => ['nullable', 'array'],
+            'group_permissions.*' => ['nullable', 'array'],
+            'group_permissions.*.*' => ['integer', 'exists:groups,id'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -460,6 +493,13 @@ class AdminManagedUserController extends Controller
                 $clientIds,
                 $validated['element_type_permissions'] ?? [],
                 $validated['area_permissions'] ?? []
+            );
+        }
+
+        if (in_array($role->key, ['admin_cliente', 'observador_cliente'], true)) {
+            $this->validateGroupPermissions(
+                $clientIds,
+                $validated['group_permissions'] ?? []
             );
         }
 
@@ -492,6 +532,13 @@ class AdminManagedUserController extends Controller
                 $clientIds,
                 $validated['element_type_permissions'] ?? [],
                 $validated['area_permissions'] ?? []
+            );
+
+            $this->syncGroupPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['group_permissions'] ?? []
             );
         });
 
@@ -695,6 +742,83 @@ class AdminManagedUserController extends Controller
         if (!empty($rows)) {
             DB::table('user_client_element_type_areas')->insert($rows);
         }
+    }
+
+    private function validateGroupPermissions(array $clientIds, array $groupPermissions): void
+    {
+        $hasAtLeastOne = false;
+
+        foreach ($clientIds as $clientId) {
+            $selectedGroupIds = collect($groupPermissions[$clientId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!empty($selectedGroupIds)) {
+                $hasAtLeastOne = true;
+            }
+
+            if (!empty($selectedGroupIds)) {
+                $validCount = Group::query()
+                    ->where('client_id', $clientId)
+                    ->where('status', true)
+                    ->whereIn('id', $selectedGroupIds)
+                    ->count();
+
+                if ($validCount !== count($selectedGroupIds)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'group_permissions' => 'Una o más agrupaciones seleccionadas no pertenecen al cliente correspondiente.',
+                    ]);
+                }
+            }
+        }
+
+        if (!$hasAtLeastOne) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'group_permissions' => 'Debes asignar al menos una agrupación para este rol.',
+            ]);
+        }
+    }
+
+    private function syncGroupPermissions(
+        User $user,
+        string $roleKey,
+        array $clientIds,
+        array $groupPermissions
+    ): void {
+        $user->groups()->detach();
+
+        if (!in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
+            return;
+        }
+
+        $groupIds = [];
+
+        foreach ($clientIds as $clientId) {
+            $selectedGroupIds = collect($groupPermissions[$clientId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($selectedGroupIds->isEmpty()) {
+                continue;
+            }
+
+            $validGroupIds = Group::query()
+                ->where('client_id', $clientId)
+                ->where('status', true)
+                ->whereIn('id', $selectedGroupIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $groupIds = array_merge($groupIds, $validGroupIds);
+        }
+
+        $user->groups()->sync(array_values(array_unique($groupIds)));
     }
 
     private function canViewUser(User $authUser, User $targetUser): bool

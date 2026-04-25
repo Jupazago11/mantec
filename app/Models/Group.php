@@ -34,4 +34,10 @@ class Group extends Model
     {
         return $this->elements()->exists();
     }
+
+    public function users()
+    {
+        return $this->belongsToMany(\App\Models\User::class, 'group_user')
+            ->withTimestamps();
+    }
 }

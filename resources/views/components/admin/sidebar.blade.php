@@ -9,6 +9,7 @@
     $isRoute = fn (...$patterns) => request()->routeIs(...$patterns);
 
     $dashboardActive = $isRoute('admin.dashboard');
+    $indicatorsActive = $isRoute('admin.indicators.*');
     $clientsActive = $isRoute('admin.clients.*');
     $usersActive = $isRoute('admin.managed-users.*');
     $areasActive = $isRoute('admin.managed-areas.*');
@@ -131,6 +132,10 @@
                         <i data-lucide="layout-dashboard" class="{{ $iconClass($dashboardActive) }}"></i>
                         <span>Dashboard</span>
                     </a>
+                    <a href="{{ route('admin.indicators.index') }}" class="{{ $itemClass($indicatorsActive) }}">
+                        <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
+                        <span>Indicadores</span>
+                    </a>
 
                     {{-- Solo superadmin y admin_global --}}
                     @if($isPowerAdmin)
@@ -248,6 +253,10 @@
                         <i data-lucide="layout-dashboard" class="{{ $iconClass($dashboardActive) }}"></i>
                         <span>Dashboard</span>
                     </a>
+                    <a href="{{ route('admin.indicators.index') }}" class="{{ $itemClass($indicatorsActive) }}">
+                        <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
+                        <span>Indicadores</span>
+                    </a>
 
                     @if($showMeasurementsEntry)
                         <div class="mt-4 space-y-1">
@@ -278,6 +287,11 @@
                     <a href="{{ route('admin.dashboard') }}" class="{{ $itemClass($dashboardActive) }}">
                         <i data-lucide="layout-dashboard" class="{{ $iconClass($dashboardActive) }}"></i>
                         <span>Dashboard</span>
+                    </a>
+
+                    <a href="{{ route('admin.indicators.index') }}" class="{{ $itemClass($indicatorsActive) }}">
+                        <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
+                        <span>Indicadores</span>
                     </a>
                 @endif
             </nav>
