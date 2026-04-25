@@ -21,14 +21,21 @@ class IndicatorController extends Controller
         $user = auth()->user();
         $roleKey = $user->role?->key;
 
-        abort_unless($this->canAccessIndicators($roleKey), 403, 'Rol no autorizado para consultar indicadores.');
+        abort_unless(
+            $this->canAccessIndicators($roleKey),
+            403,
+            'Rol no autorizado para consultar indicadores.'
+        );
 
         $clients = $this->getScopedClients($user);
         $groups = $this->getScopedGroups($user, $clients->pluck('id')->all());
 
+        $elementTypeOptions = $this->buildElementTypeOptions($groups);
+
         return view('admin.indicators.index', [
             'clients' => $clients,
             'groups' => $groups,
+            'elementTypeOptions' => $elementTypeOptions,
             'roleKey' => $roleKey,
             'isReadOnly' => in_array($roleKey, ['observador', 'observador_cliente'], true),
             'defaultDateFrom' => now()->startOfYear()->toDateString(),
@@ -42,11 +49,16 @@ class IndicatorController extends Controller
         $user = auth()->user();
         $roleKey = $user->role?->key;
 
-        abort_unless($this->canAccessIndicators($roleKey), 403, 'Rol no autorizado para consultar indicadores.');
+        abort_unless(
+            $this->canAccessIndicators($roleKey),
+            403,
+            'Rol no autorizado para consultar indicadores.'
+        );
 
         $validated = $request->validate([
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
+            'element_type_id' => ['nullable', 'integer', 'exists:element_types,id'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
         ]);
@@ -88,36 +100,57 @@ class IndicatorController extends Controller
 
         $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $elements = Element::query()
-            ->with(['area:id,name', 'elementType:id,name', 'group:id,name,client_id'])
-            ->where('status', true)
-            ->whereIn('group_id', $groupIds)
-            ->get(['id', 'area_id', 'element_type_id', 'group_id', 'name', 'code', 'status']);
-
-        $elementIds = $elements->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-        $weekPairs = $this->buildWeekPairs($dateFrom, $dateTo);
-
-        $details = ReportDetail::query()
+        $elementsQuery = Element::query()
             ->with([
-                'element:id,name,group_id,element_type_id,area_id',
-                'component:id,name',
-                'diagnostic:id,name',
-                'condition:id,name',
-                'executionStatus:id,name',
+                'area:id,name',
+                'elementType:id,name',
+                'group:id,name,client_id',
             ])
             ->where('status', true)
-            ->whereIn('element_id', $elementIds)
-            ->where(function ($query) use ($weekPairs) {
-                foreach ($weekPairs as $pair) {
-                    $query->orWhere(function ($subQuery) use ($pair) {
-                        $subQuery
-                            ->where('year', $pair['year'])
-                            ->where('week', $pair['week']);
-                    });
-                }
-            })
-            ->get();
+            ->whereIn('group_id', $groupIds);
+
+        if (!empty($validated['element_type_id'])) {
+            $elementsQuery->where('element_type_id', (int) $validated['element_type_id']);
+        }
+
+        $elements = $elementsQuery->get([
+            'id',
+            'area_id',
+            'element_type_id',
+            'group_id',
+            'name',
+            'code',
+            'status',
+        ]);
+
+        $elementIds = $elements->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $weekPairs = $this->buildWeekPairs($dateFrom, $dateTo);
+
+        $details = collect();
+
+        if (!empty($elementIds) && !empty($weekPairs)) {
+            $details = ReportDetail::query()
+                ->with([
+                    'element:id,name,group_id,element_type_id,area_id',
+                    'element.elementType:id,name',
+                    'component:id,name',
+                    'diagnostic:id,name',
+                    'condition:id,code,name,description,criticality',
+                    'executionStatus:id,name',
+                ])
+                ->where('status', true)
+                ->whereIn('element_id', $elementIds)
+                ->where(function ($query) use ($weekPairs) {
+                    foreach ($weekPairs as $pair) {
+                        $query->orWhere(function ($subQuery) use ($pair) {
+                            $subQuery
+                                ->where('year', $pair['year'])
+                                ->where('week', $pair['week']);
+                        });
+                    }
+                })
+                ->get();
+        }
 
         $inspectedElementIds = $details->pluck('element_id')->unique()->values();
 
@@ -131,14 +164,20 @@ class IndicatorController extends Controller
 
         $preventiveReports = $this->countPreventiveReports($details);
 
-        $conditionDistribution = $details
-            ->groupBy(fn ($detail) => $detail->condition?->name ?: 'Sin condición')
-            ->map(fn ($items, $name) => [
-                'label' => $name,
-                'total' => $items->count(),
-            ])
-            ->sortByDesc('total')
+        $uniqueElementTypeIds = $elements
+            ->pluck('element_type_id')
+            ->filter()
+            ->unique()
             ->values();
+
+        $selectedElementTypeId = !empty($validated['element_type_id'])
+            ? (int) $validated['element_type_id']
+            : null;
+
+        $singleTypeMode = $selectedElementTypeId !== null || $uniqueElementTypeIds->count() === 1;
+
+        $criticalityDistribution = $this->buildCriticalityDistribution($details);
+        $conditionDistribution = $this->buildConditionDistribution($details, $singleTypeMode);
 
         $reportsByWeek = $details
             ->groupBy(fn ($detail) => "{$detail->year}-" . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT))
@@ -149,6 +188,8 @@ class IndicatorController extends Controller
             ->sortBy('label')
             ->values();
 
+        $summaryByElementType = $this->buildSummaryByElementType($elements, $details);
+
         $topElements = $details
             ->groupBy('element_id')
             ->map(function ($items) {
@@ -156,8 +197,9 @@ class IndicatorController extends Controller
 
                 return [
                     'name' => $first?->element?->name ?: 'Sin activo',
+                    'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'total' => $items->count(),
-                    'critical' => $this->countCriticalLike($items),
+                    'attention' => $this->countAttentionLike($items),
                 ];
             })
             ->sortByDesc('total')
@@ -172,6 +214,7 @@ class IndicatorController extends Controller
                 return [
                     'name' => $first?->component?->name ?: 'Sin componente',
                     'total' => $items->count(),
+                    'attention' => $this->countAttentionLike($items),
                 ];
             })
             ->sortByDesc('total')
@@ -185,6 +228,28 @@ class IndicatorController extends Controller
 
                 return [
                     'name' => $first?->diagnostic?->name ?: 'Sin diagnóstico',
+                    'total' => $items->count(),
+                    'attention' => $this->countAttentionLike($items),
+                ];
+            })
+            ->sortByDesc('total')
+            ->take(10)
+            ->values();
+
+        $topConditions = $details
+            ->groupBy(function ($detail) {
+                return ($detail->element?->element_type_id ?: 'none') . '-' . ($detail->condition_id ?: 'none');
+            })
+            ->map(function ($items) {
+                $first = $items->first();
+                $condition = $first?->condition;
+
+                return [
+                    'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
+                    'code' => $condition?->code ?: '—',
+                    'name' => $condition?->name ?: 'Sin condición',
+                    'criticality' => $condition?->criticality,
+                    'criticality_label' => $this->criticalityLabel($condition?->criticality),
                     'total' => $items->count(),
                 ];
             })
@@ -218,20 +283,27 @@ class IndicatorController extends Controller
                 'preventive_reports' => $preventiveReports,
                 'evaluated_components' => $details->count(),
                 'diagnostics' => $details->whereNotNull('diagnostic_id')->count(),
+                'attention_findings' => $this->countAttentionLike($details),
                 'pending_execution' => $pendingExecution,
             ],
             'charts' => [
+                'mode' => $singleTypeMode ? 'condition' : 'criticality',
+                'criticality_distribution' => $criticalityDistribution,
                 'condition_distribution' => $conditionDistribution,
                 'reports_by_week' => $reportsByWeek,
             ],
             'tables' => [
+                'summary_by_element_type' => $summaryByElementType,
                 'top_elements' => $topElements,
                 'top_components' => $topComponents,
                 'top_diagnostics' => $topDiagnostics,
+                'top_conditions' => $topConditions,
             ],
             'meta' => [
                 'client_ids' => $clientIds,
                 'group_ids' => $groupIds,
+                'element_type_id' => $selectedElementTypeId,
+                'chart_mode' => $singleTypeMode ? 'condition' : 'criticality',
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
             ],
@@ -290,9 +362,47 @@ class IndicatorController extends Controller
         return $query->get(['id', 'client_id', 'name', 'description', 'status']);
     }
 
+    private function buildElementTypeOptions(Collection $groups): Collection
+    {
+        $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if (empty($groupIds)) {
+            return collect();
+        }
+
+        return Element::query()
+            ->with([
+                'group:id,client_id,name',
+                'elementType:id,name',
+            ])
+            ->where('status', true)
+            ->whereIn('group_id', $groupIds)
+            ->get(['id', 'group_id', 'element_type_id', 'status'])
+            ->map(function (Element $element) {
+                return [
+                    'client_id' => (int) ($element->group?->client_id ?? 0),
+                    'group_id' => (int) $element->group_id,
+                    'element_type_id' => (int) $element->element_type_id,
+                    'element_type_name' => $element->elementType?->name ?: 'Sin tipo',
+                ];
+            })
+            ->filter(fn ($item) => $item['client_id'] && $item['group_id'] && $item['element_type_id'])
+            ->unique(fn ($item) => $item['client_id'] . '-' . $item['group_id'] . '-' . $item['element_type_id'])
+            ->sortBy([
+                ['client_id', 'asc'],
+                ['group_id', 'asc'],
+                ['element_type_name', 'asc'],
+            ])
+            ->values();
+    }
+
     private function buildWeekPairs(Carbon $dateFrom, Carbon $dateTo): array
     {
-        $period = CarbonPeriod::create($dateFrom->copy()->startOfWeek(), '1 week', $dateTo->copy()->endOfWeek());
+        $period = CarbonPeriod::create(
+            $dateFrom->copy()->startOfWeek(),
+            '1 week',
+            $dateTo->copy()->endOfWeek()
+        );
 
         $weeks = [];
 
@@ -323,15 +433,108 @@ class IndicatorController extends Controller
             ->count();
     }
 
-    private function countCriticalLike(Collection $details): int
+    private function countAttentionLike(Collection $details): int
     {
         return $details->filter(function ($detail) {
-            $conditionName = mb_strtolower((string) ($detail->condition?->name ?? ''));
+            $criticality = $detail->condition?->criticality;
 
-            return str_contains($conditionName, 'crít')
-                || str_contains($conditionName, 'crit')
-                || str_contains($conditionName, 'malo')
-                || str_contains($conditionName, 'grave');
+            if ($criticality === null) {
+                return false;
+            }
+
+            return (int) $criticality > 0;
         })->count();
+    }
+
+    private function buildCriticalityDistribution(Collection $details): Collection
+    {
+        return $details
+            ->groupBy(fn ($detail) => $detail->condition?->criticality ?? 'sin_criticidad')
+            ->map(fn ($items, $criticality) => [
+                'label' => $this->criticalityLabel($criticality),
+                'criticality' => is_numeric($criticality) ? (int) $criticality : null,
+                'total' => $items->count(),
+            ])
+            ->sortBy(fn ($row) => $row['criticality'] ?? 999)
+            ->values();
+    }
+
+    private function buildConditionDistribution(Collection $details, bool $singleTypeMode): Collection
+    {
+        return $details
+            ->groupBy(function ($detail) use ($singleTypeMode) {
+                if ($singleTypeMode) {
+                    return $detail->condition_id ?: 'none';
+                }
+
+                return ($detail->element?->element_type_id ?: 'none') . '-' . ($detail->condition_id ?: 'none');
+            })
+            ->map(function ($items) use ($singleTypeMode) {
+                $first = $items->first();
+                $condition = $first?->condition;
+                $typeName = $first?->element?->elementType?->name ?: 'Sin tipo';
+
+                $conditionLabel = trim(($condition?->code ? $condition->code . ' - ' : '') . ($condition?->name ?: 'Sin condición'));
+
+                return [
+                    'label' => $singleTypeMode
+                        ? $conditionLabel
+                        : $typeName . ' / ' . $conditionLabel,
+                    'type' => $typeName,
+                    'code' => $condition?->code ?: '—',
+                    'condition' => $condition?->name ?: 'Sin condición',
+                    'criticality' => $condition?->criticality,
+                    'criticality_label' => $this->criticalityLabel($condition?->criticality),
+                    'total' => $items->count(),
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+    }
+
+    private function buildSummaryByElementType(Collection $elements, Collection $details): Collection
+    {
+        return $elements
+            ->groupBy('element_type_id')
+            ->map(function ($elementsByType, $elementTypeId) use ($details) {
+                $firstElement = $elementsByType->first();
+                $typeName = $firstElement?->elementType?->name ?: 'Sin tipo';
+
+                $elementIds = $elementsByType->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+                $detailsForType = $details->filter(
+                    fn ($detail) => in_array((int) $detail->element_id, $elementIds, true)
+                );
+
+                $inspectedElements = $detailsForType->pluck('element_id')->unique()->count();
+                $totalElements = $elementsByType->count();
+
+                return [
+                    'element_type_id' => (int) $elementTypeId,
+                    'name' => $typeName,
+                    'elements' => $totalElements,
+                    'inspected' => $inspectedElements,
+                    'coverage' => $totalElements > 0 ? round(($inspectedElements / $totalElements) * 100, 1) : 0,
+                    'findings' => $detailsForType->count(),
+                    'attention' => $this->countAttentionLike($detailsForType),
+                ];
+            })
+            ->sortByDesc('findings')
+            ->values();
+    }
+
+    private function criticalityLabel($criticality): string
+    {
+        if ($criticality === null || $criticality === 'sin_criticidad') {
+            return 'Sin criticidad';
+        }
+
+        return match ((int) $criticality) {
+            0 => 'Normal / OK',
+            1 => 'Alta',
+            2 => 'Media',
+            3 => 'Baja',
+            default => 'Criticidad ' . $criticality,
+        };
     }
 }
