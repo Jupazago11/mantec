@@ -548,7 +548,7 @@
             } else {
                 setText('condition_chart_title', 'Distribución por criticidad');
                 setText('condition_chart_description', 'Resumen ejecutivo por criticidad. Evita mezclar condiciones propias de distintos tipos de activo.');
-                renderConditionChart(charts.criticality_distribution || []);
+                renderConditionChart(charts.severity_distribution || []);
             }
 
             renderWeeklyChart(charts.reports_by_week || []);
@@ -704,7 +704,7 @@
                     <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.type)}</td>
                     <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.code)}</td>
                     <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.name)}</td>
-                    <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.criticality_label)}</td>
+                    <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.severity_label)}</td>
                     <td class="px-5 py-3 text-right text-sm text-slate-700">${row.total}</td>
                 </tr>
             `).join('');

@@ -29,7 +29,6 @@ class IndicatorController extends Controller
 
         $clients = $this->getScopedClients($user);
         $groups = $this->getScopedGroups($user, $clients->pluck('id')->all());
-
         $elementTypeOptions = $this->buildElementTypeOptions($groups);
 
         return view('admin.indicators.index', [
@@ -135,7 +134,7 @@ class IndicatorController extends Controller
                     'element.elementType:id,name',
                     'component:id,name',
                     'diagnostic:id,name',
-                    'condition:id,code,name,description,criticality',
+                    'condition:id,code,name,description,severity',
                     'executionStatus:id,name',
                 ])
                 ->where('status', true)
@@ -176,7 +175,7 @@ class IndicatorController extends Controller
 
         $singleTypeMode = $selectedElementTypeId !== null || $uniqueElementTypeIds->count() === 1;
 
-        $criticalityDistribution = $this->buildCriticalityDistribution($details);
+        $severityDistribution = $this->buildSeverityDistribution($details);
         $conditionDistribution = $this->buildConditionDistribution($details, $singleTypeMode);
 
         $reportsByWeek = $details
@@ -248,8 +247,8 @@ class IndicatorController extends Controller
                     'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'code' => $condition?->code ?: '—',
                     'name' => $condition?->name ?: 'Sin condición',
-                    'criticality' => $condition?->criticality,
-                    'criticality_label' => $this->criticalityLabel($condition?->criticality),
+                    'severity' => $condition?->severity,
+                    'severity_label' => $this->severityLabel($condition?->severity),
                     'total' => $items->count(),
                 ];
             })
@@ -287,8 +286,8 @@ class IndicatorController extends Controller
                 'pending_execution' => $pendingExecution,
             ],
             'charts' => [
-                'mode' => $singleTypeMode ? 'condition' : 'criticality',
-                'criticality_distribution' => $criticalityDistribution,
+                'mode' => $singleTypeMode ? 'condition' : 'severity',
+                'severity_distribution' => $severityDistribution,
                 'condition_distribution' => $conditionDistribution,
                 'reports_by_week' => $reportsByWeek,
             ],
@@ -303,7 +302,7 @@ class IndicatorController extends Controller
                 'client_ids' => $clientIds,
                 'group_ids' => $groupIds,
                 'element_type_id' => $selectedElementTypeId,
-                'chart_mode' => $singleTypeMode ? 'condition' : 'criticality',
+                'chart_mode' => $singleTypeMode ? 'condition' : 'severity',
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
             ],
@@ -423,7 +422,7 @@ class IndicatorController extends Controller
     {
         return $details
             ->map(function ($detail) {
-                if ($detail->report_id) {
+                if (!empty($detail->report_id)) {
                     return 'report-' . $detail->report_id;
                 }
 
@@ -436,26 +435,26 @@ class IndicatorController extends Controller
     private function countAttentionLike(Collection $details): int
     {
         return $details->filter(function ($detail) {
-            $criticality = $detail->condition?->criticality;
+            $severity = $detail->condition?->severity;
 
-            if ($criticality === null) {
+            if ($severity === null) {
                 return false;
             }
 
-            return (int) $criticality > 0;
+            return (int) $severity > 0;
         })->count();
     }
 
-    private function buildCriticalityDistribution(Collection $details): Collection
+    private function buildSeverityDistribution(Collection $details): Collection
     {
         return $details
-            ->groupBy(fn ($detail) => $detail->condition?->criticality ?? 'sin_criticidad')
-            ->map(fn ($items, $criticality) => [
-                'label' => $this->criticalityLabel($criticality),
-                'criticality' => is_numeric($criticality) ? (int) $criticality : null,
+            ->groupBy(fn ($detail) => $detail->condition?->severity ?? 'sin_criticidad')
+            ->map(fn ($items, $severity) => [
+                'label' => $this->severityLabel($severity),
+                'severity' => is_numeric($severity) ? (int) $severity : null,
                 'total' => $items->count(),
             ])
-            ->sortBy(fn ($row) => $row['criticality'] ?? 999)
+            ->sortBy(fn ($row) => $row['severity'] ?? 999)
             ->values();
     }
 
@@ -483,8 +482,8 @@ class IndicatorController extends Controller
                     'type' => $typeName,
                     'code' => $condition?->code ?: '—',
                     'condition' => $condition?->name ?: 'Sin condición',
-                    'criticality' => $condition?->criticality,
-                    'criticality_label' => $this->criticalityLabel($condition?->criticality),
+                    'severity' => $condition?->severity,
+                    'severity_label' => $this->severityLabel($condition?->severity),
                     'total' => $items->count(),
                 ];
             })
@@ -523,18 +522,18 @@ class IndicatorController extends Controller
             ->values();
     }
 
-    private function criticalityLabel($criticality): string
+    private function severityLabel($severity): string
     {
-        if ($criticality === null || $criticality === 'sin_criticidad') {
+        if ($severity === null || $severity === 'sin_criticidad') {
             return 'Sin criticidad';
         }
 
-        return match ((int) $criticality) {
+        return match ((int) $severity) {
             0 => 'Normal / OK',
             1 => 'Alta',
             2 => 'Media',
             3 => 'Baja',
-            default => 'Criticidad ' . $criticality,
+            default => 'Criticidad ' . $severity,
         };
     }
 }
