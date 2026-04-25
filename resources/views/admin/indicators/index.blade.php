@@ -370,7 +370,7 @@
         {{-- MODAL SEMÁFORO --}}
         <div
             id="semaphore_modal"
-            class="fixed inset-0 z-[9998] hidden items-center justify-center bg-slate-900/60 px-4 py-4"
+            class="fixed left-0 top-0 z-[99999] hidden h-[100dvh] w-[100vw] items-center justify-center bg-slate-950/65 p-4"
         >
             <div class="relative flex h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
                 <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
