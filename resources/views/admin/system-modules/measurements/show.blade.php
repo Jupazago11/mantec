@@ -156,7 +156,7 @@
                                 <tbody>
                                     <tr class="bg-[#4f79bd] text-white">
                                         <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
-                                            Informe de estado de bandas
+                                            Datos Técnicos
                                             <span
                                                 class="ml-2 font-semibold normal-case"
                                                 x-text="latestBandStateReport?.report_date ? ' - ' + formatDate(latestBandStateReport.report_date) : ''"
@@ -210,18 +210,6 @@
                                         <td
                                             class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(latestBandStateReport?.bottom_cover)"
-                                        ></td>
-                                    </tr>
-
-                                    <tr class="bg-white">
-                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                            DUREZA
-                                        </th>
-                                        <td
-                                            colspan="3"
-                                            class="border border-slate-300 px-3 py-2 text-center font-semibold"
-                                            :class="latestBandStateReport?.calculated_hardness ? 'text-slate-900' : 'text-slate-500'"
-                                            x-text="latestBandStateReport?.calculated_hardness ? displayValue(latestBandStateReport.calculated_hardness) : '—'"
                                         ></td>
                                     </tr>
                                 </tbody>
@@ -2111,7 +2099,7 @@
                         <tbody>
                             <tr class="bg-[#4f79bd] text-white">
                                 <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
-                                    Informe de estado de bandas
+                                    Datos Técnicos
                                 </th>
                             </tr>
 
@@ -2176,15 +2164,6 @@
                                         x-model="bandStateDraft.bottom_cover"
                                         class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
                                     >
-                                </td>
-                            </tr>
-
-                            <tr class="bg-white">
-                                <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                    DUREZA
-                                </th>
-                                <td colspan="3" class="border border-slate-300 px-3 py-2 text-center font-semibold text-slate-500">
-                                    —
                                 </td>
                             </tr>
                             <tr class="bg-white">
@@ -2325,7 +2304,7 @@
                                 <tbody>
                                     <tr class="bg-[#4f79bd] text-white">
                                         <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
-                                            Informe de estado de bandas
+                                            Datos Técnicos
                                             <span
                                                 class="ml-2 font-semibold normal-case"
                                                 x-text="selectedBandStateHistoryReport?.report_date ? ' - ' + formatDate(selectedBandStateHistoryReport.report_date) : ''"
@@ -2379,18 +2358,6 @@
                                         <td
                                             class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                             x-text="displayValue(selectedBandStateHistoryReport?.bottom_cover)"
-                                        ></td>
-                                    </tr>
-
-                                    <tr class="bg-white">
-                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                            DUREZA
-                                        </th>
-                                        <td
-                                            colspan="3"
-                                            class="border border-slate-300 px-3 py-2 text-center font-semibold"
-                                            :class="selectedBandStateHistoryReport?.calculated_hardness ? 'text-slate-900' : 'text-slate-500'"
-                                            x-text="selectedBandStateHistoryReport?.calculated_hardness ? displayValue(selectedBandStateHistoryReport.calculated_hardness) : '—'"
                                         ></td>
                                     </tr>
                                 </tbody>
@@ -2457,7 +2424,7 @@
                     <tbody>
                         <tr class="bg-[#4f79bd] text-white">
                             <th colspan="4" class="border border-slate-300 px-3 py-2 text-center text-sm font-bold uppercase">
-                                Informe de estado de bandas
+                                Datos Técnicos
                             </th>
                         </tr>
 

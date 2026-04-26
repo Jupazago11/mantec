@@ -26,12 +26,6 @@
     @endphp
 
     <div class="space-y-8">
-        <div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de condiciones</h2>
-            <p class="mt-2 text-slate-600">
-                Crea y administra condiciones por cliente y tipo de activo.
-            </p>
-        </div>
 
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -417,11 +411,12 @@
                                             <button
                                                 type="button"
                                                 onclick="toggleConditionStatus({{ $condition->id }})"
-                                                class="inline-flex rounded-full px-3 py-1 text-xs font-semibold transition {{ $condition->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $condition->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
                                                 id="condition-status-badge-{{ $condition->id }}"
                                                 title="Cambiar estado"
                                             >
-                                                {{ $condition->status ? 'Activo' : 'Inactivo' }}
+                                                <i data-lucide="{{ $condition->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
+                                                <span>{{ $condition->status ? 'Activo' : 'Inactivo' }}</span>
                                             </button>
                                         </td>
 
@@ -524,31 +519,48 @@
         </div>
     </div>
 
-<div id="editConditionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
-    <div id="editConditionModalContent" class="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl scale-95 opacity-0 transition duration-200 ease-out">
-        
-        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+<div
+    id="editConditionModal"
+    class="fixed left-0 top-0 z-[9999] hidden h-[100dvh] w-[100vw] items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
+
+>
+    <div
+        id="editConditionModalContent"
+        class="flex w-full max-w-2xl scale-95 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white opacity-0 shadow-2xl transition duration-200 ease-out"
+        style="max-height: calc(100dvh - 2rem);"
+    >
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 sm:text-lg">
+                    Editar condición
+                </h3>
+                <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Actualiza los datos de la condición seleccionada.
+                </p>
+            </div>
 
             <button
                 type="button"
-                class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                 onclick="closeEditConditionModal()"
+                title="Cerrar"
             >
                 ✕
             </button>
         </div>
 
-        <form id="editConditionForm" method="POST">
-            <div id="editConditionAjaxErrors" class="hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+        <form id="editConditionForm" method="POST" class="flex min-h-0 flex-1 flex-col">
             @csrf
             @method('PUT')
 
-            <div class="px-6 py-5">
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+                <div id="editConditionAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     @if($showClientColumn)
                         <div class="md:col-span-2">
-                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Cliente</label>
-                            <div class="max-h-44 space-y-2 overflow-y-auto rounded-2xl border border-slate-300 bg-white p-4">
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                            <div class="max-h-28 space-y-2 overflow-y-auto rounded-xl border border-slate-300 bg-white p-3 sm:max-h-32">
                                 @foreach($clients as $client)
                                     <label class="flex items-center gap-3 text-sm text-slate-700">
                                         <input
@@ -566,8 +578,8 @@
                         </div>
                     @else
                         <div class="md:col-span-2">
-                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Cliente</label>
-                            <div class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                            <div class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                                 {{ $singleClient->name }}
                             </div>
                             <input type="hidden" name="client_id" value="{{ $singleClient->id }}" id="edit_selected_client_id">
@@ -575,11 +587,11 @@
                     @endif
 
                     <div>
-                        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Tipo de activo</label>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo de activo</label>
                         <select
                             name="element_type_id"
                             id="edit_element_type_id"
-                            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
                         >
                             @foreach($elementTypes as $elementType)
                                 <option
@@ -593,27 +605,27 @@
                     </div>
 
                     <div>
-                        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Código</label>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Código</label>
                         <input
                             type="text"
                             name="code"
                             id="edit_condition_code"
-                            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
                         >
                     </div>
 
                     <div>
-                        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Nombre</label>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Nombre</label>
                         <input
                             type="text"
                             name="name"
                             id="edit_condition_name"
-                            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
                         >
                     </div>
 
                     <div>
-                        <div class="mb-1.5 flex items-center gap-2">
+                        <div class="mb-1 flex items-center gap-2">
                             <label class="block text-sm font-semibold text-slate-700">Criticidad</label>
 
                             <div class="relative group">
@@ -638,35 +650,35 @@
                             name="severity"
                             id="edit_condition_severity"
                             min="0"
-                            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
+                            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
                         >
                     </div>
 
                     <div>
-                        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Color</label>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Color</label>
                         <div class="flex items-center gap-3">
                             <input
                                 type="color"
                                 name="color"
                                 id="edit_condition_color"
-                                class="h-11 w-16 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
+                                class="h-10 w-14 shrink-0 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
                             >
                             <input
                                 type="text"
                                 readonly
-                                class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-700"
+                                class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                                 id="edit_color_preview"
                             >
                         </div>
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Descripción</label>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Descripción</label>
                         <textarea
                             name="description"
                             id="edit_condition_description"
-                            rows="4"
-                            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
+                            rows="2"
+                            class="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-[#d94d33] focus:ring-2 focus:ring-[#d94d33]/20"
                         ></textarea>
                     </div>
                 </div>
@@ -689,21 +701,23 @@
             @endforeach
             <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
 
-            <div class="flex items-center justify-end gap-3 bg-slate-50 px-6 py-4">
-                <button
-                    type="button"
-                    onclick="closeEditConditionModal()"
-                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                    Cancelar
-                </button>
+            <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                    <button
+                        type="button"
+                        onclick="closeEditConditionModal()"
+                        class="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                    >
+                        Cancelar
+                    </button>
 
-                <button
-                    type="submit"
-                    class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                >
-                    Actualizar condición
-                </button>
+                    <button
+                        type="submit"
+                        class="inline-flex w-full justify-center rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] sm:w-auto"
+                    >
+                        Actualizar condición
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -737,36 +751,91 @@
             </button>
         </div>
     </div>
-    <div id="componentConditionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
-        <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
-            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                <h3 class="text-lg font-semibold text-slate-900">Asociar componentes</h3>
-                <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeComponentConditionModal()">✕</button>
+<div
+    id="componentConditionModal"
+    class="fixed left-0 top-0 z-[9999] hidden h-[100dvh] w-[100vw] items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
+
+>
+    <div
+        id="componentConditionModalContent"
+        class="flex w-full max-w-3xl scale-95 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white opacity-0 shadow-2xl transition duration-200 ease-out"
+        style="max-height: calc(100dvh - 2rem);"
+    >
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 sm:text-lg">
+                    Asociar componentes
+                </h3>
+                <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Selecciona los componentes disponibles para esta condición.
+                </p>
             </div>
 
-            <form id="componentConditionForm" method="POST" class="space-y-5 p-6">
-                @csrf
+            <button
+                type="button"
+                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onclick="closeComponentConditionModal()"
+                title="Cerrar"
+            >
+                ✕
+            </button>
+        </div>
 
-                <div class="grid gap-4 md:grid-cols-3">
+        <form id="componentConditionForm" method="POST" class="flex min-h-0 flex-1 flex-col">
+            @csrf
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+                <div class="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</div>
-                        <div id="cc_client_name" class="mt-1 text-sm text-slate-900"></div>
+                        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                            Cliente
+                        </div>
+                        <div id="cc_client_name" class="mt-1 text-sm font-semibold text-slate-900"></div>
                     </div>
+
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de activo</div>
-                        <div id="cc_element_type_name" class="mt-1 text-sm text-slate-900"></div>
+                        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                            Tipo de activo
+                        </div>
+                        <div id="cc_element_type_name" class="mt-1 text-sm font-semibold text-slate-900"></div>
                     </div>
+
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Condición</div>
-                        <div id="cc_condition_name" class="mt-1 text-sm text-slate-900"></div>
+                        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                            Condición
+                        </div>
+                        <div id="cc_condition_name" class="mt-1 text-sm font-semibold text-slate-900"></div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Componentes disponibles</label>
+                <div class="mt-4">
+                    <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <label class="block text-sm font-semibold text-slate-700">
+                            Componentes disponibles
+                        </label>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onclick="selectAllConditionComponents()"
+                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                                Seleccionar todo
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="unselectAllConditionComponents()"
+                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                                Deseleccionar todo
+                            </button>
+                        </div>
+                    </div>
+
                     <div
                         id="cc_components_container"
-                        class="grid max-h-[420px] gap-3 overflow-y-auto rounded-xl border border-slate-200 p-4 md:grid-cols-2"
+                        class="grid max-h-[44dvh] gap-3 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-2"
                     ></div>
                 </div>
 
@@ -786,25 +855,29 @@
                     <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
                 @endforeach
                 <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
+            </div>
 
-                <div class="flex justify-end gap-3">
+            <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                     <button
                         type="button"
                         onclick="closeComponentConditionModal()"
-                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        class="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
                     >
                         Cancelar
                     </button>
+
                     <button
                         type="submit"
-                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                        class="inline-flex w-full justify-center rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] sm:w-auto"
                     >
                         Guardar componentes
                     </button>
                 </div>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
+</div>
 <script>
 const filterOptions = {
     @if($showClientColumn)
@@ -1129,6 +1202,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     const createConditionForm = document.getElementById('createConditionForm');
     const editConditionForm = document.getElementById('editConditionForm');
+    const componentConditionForm = document.getElementById('componentConditionForm');
 
     if (createConditionForm) {
         createConditionForm.addEventListener('submit', handleCreateConditionSubmit);
@@ -1137,7 +1211,51 @@ document.addEventListener('DOMContentLoaded', function () {
     if (editConditionForm) {
         editConditionForm.addEventListener('submit', handleEditConditionSubmit);
     }
+
+    if (componentConditionForm) {
+        componentConditionForm.addEventListener('submit', handleComponentConditionSubmit);
+    }
 });
+
+async function handleComponentConditionSubmit(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    setFormSubmittingState(form, true, 'Guardando...');
+
+    try {
+        const formData = new FormData(form);
+
+        const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: formData,
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            throw new Error('El servidor no devolvió JSON. Revisa sesión, permisos o respuesta del controlador.');
+        }
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || 'No fue posible actualizar los componentes.');
+        }
+
+        showCrudToast(data.message || 'Componentes actualizados correctamente.', 'success');
+        closeComponentConditionModal();
+    } catch (error) {
+        showCrudToast(error.message || 'Ocurrió un error al actualizar los componentes.', 'error');
+    } finally {
+        setFormSubmittingState(form, false);
+    }
+}
 
 document.addEventListener('click', function (event) {
     const popover = document.getElementById('filterPopover');
@@ -1182,8 +1300,17 @@ async function openComponentConditionModal(conditionId, clientName, elementTypeN
         <div class="text-sm text-slate-500 md:col-span-2">Cargando componentes...</div>
     `;
 
+    const content = document.getElementById('componentConditionModalContent');
+
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    document.documentElement.classList.add('overflow-hidden');
+    document.body.classList.add('overflow-hidden');
+
+    setTimeout(() => {
+        content?.classList.remove('scale-95', 'opacity-0');
+        content?.classList.add('scale-100', 'opacity-100');
+    }, 10);
 
     try {
         const response = await fetch(`/admin/managed-conditions/${conditionId}/components`, {
@@ -1208,7 +1335,7 @@ async function openComponentConditionModal(conditionId, clientName, elementTypeN
             const checked = data.assigned_ids.includes(component.id);
 
             const item = document.createElement('label');
-            item.className = 'flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700';
+            item.className = 'flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 transition hover:border-[#d94d33]/40 hover:bg-orange-50/40';
 
             item.innerHTML = `
                 <input
@@ -1234,14 +1361,23 @@ async function openComponentConditionModal(conditionId, clientName, elementTypeN
 
 function closeComponentConditionModal() {
     const modal = document.getElementById('componentConditionModal');
+    const content = document.getElementById('componentConditionModalContent');
     const container = document.getElementById('cc_components_container');
 
-    if (container) {
-        container.innerHTML = '';
-    }
+    content?.classList.remove('scale-100', 'opacity-100');
+    content?.classList.add('scale-95', 'opacity-0');
 
-    modal.classList.remove('flex');
-    modal.classList.add('hidden');
+    setTimeout(() => {
+        if (container) {
+            container.innerHTML = '';
+        }
+
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+
+        document.documentElement.classList.remove('overflow-hidden');
+        document.body.classList.remove('overflow-hidden');
+    }, 150);
 }
 
 function showCrudToast(message, type = 'success') {
@@ -1273,10 +1409,12 @@ async function toggleConditionStatus(conditionId) {
     const badge = document.getElementById(`condition-status-badge-${conditionId}`);
     if (!badge) return;
 
-    const originalText = badge.textContent;
+    const originalHtml = badge.innerHTML;
     const originalClass = badge.className;
 
-    badge.textContent = 'Cambiando...';
+    badge.innerHTML = `
+        <span>Cambiando...</span>
+    `;
     badge.classList.add('opacity-70', 'pointer-events-none');
 
     try {
@@ -1300,8 +1438,12 @@ async function toggleConditionStatus(conditionId) {
             throw new Error(data.message || 'No fue posible cambiar el estado.');
         }
 
-        badge.textContent = data.label;
-        badge.className = 'inline-flex rounded-full px-3 py-1 text-xs font-semibold transition ' +
+        badge.innerHTML = `
+            <i data-lucide="${data.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+            <span>${data.label}</span>
+        `;
+
+        badge.className = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ' +
             (data.status
                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                 : 'bg-red-100 text-red-700 hover:bg-red-200');
@@ -1310,11 +1452,14 @@ async function toggleConditionStatus(conditionId) {
 
         showCrudToast(data.message || 'Estado actualizado correctamente.', 'success');
     } catch (error) {
-        badge.textContent = originalText;
+        badge.innerHTML = originalHtml;
         badge.className = originalClass;
         showCrudToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
     } finally {
         badge.classList.remove('opacity-70', 'pointer-events-none');
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
     }
 }
 
@@ -1510,6 +1655,7 @@ async function handleEditConditionSubmit(event) {
         setFormSubmittingState(form, false);
     }
 }
+
 function updateConditionRow(condition) {
     if (!condition || !condition.id) return;
 
@@ -1653,13 +1799,14 @@ function insertConditionRow(condition) {
             <button
                 type="button"
                 onclick="toggleConditionStatus(${condition.id})"
-                class="inline-flex rounded-full px-3 py-1 text-xs font-semibold transition ${condition.status
+                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${condition.status
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
                     : 'bg-red-100 text-red-700 hover:bg-red-200'}"
                 id="condition-status-badge-${condition.id}"
                 title="Cambiar estado"
             >
-                ${condition.status ? 'Activo' : 'Inactivo'}
+                <i data-lucide="${condition.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+                <span>${condition.status ? 'Activo' : 'Inactivo'}</span>
             </button>
         </td>
 
@@ -1732,10 +1879,25 @@ function insertConditionRow(condition) {
 
     tbody.prepend(row);
 
-    requestAnimationFrame(() => {
-        row.style.opacity = '1';
-        row.style.transform = 'translateY(0)';
-    });
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
+function selectAllConditionComponents() {
+    document
+        .querySelectorAll('#cc_components_container input[type="checkbox"][name="component_ids[]"]')
+        .forEach((checkbox) => {
+            checkbox.checked = true;
+        });
+}
+
+function unselectAllConditionComponents() {
+    document
+        .querySelectorAll('#cc_components_container input[type="checkbox"][name="component_ids[]"]')
+        .forEach((checkbox) => {
+            checkbox.checked = false;
+        });
 }
 </script>
 @endsection

@@ -26,13 +26,6 @@
     @endphp
 
     <div class="space-y-8">
-        <div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de tipos de activos</h2>
-            <p class="mt-2 text-slate-600">
-                Crea y administra las plantillas de tipos de activos por cliente.
-            </p>
-        </div>
-
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {{ session('success') }}
@@ -57,14 +50,19 @@
         @endif
 
         <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-lg font-semibold text-slate-900">Nuevo tipo de activo</h3>
                     <p class="mt-1 text-sm text-slate-500">
                         Registra un tipo de activo para uno de tus clientes.
                     </p>
-
-                    <form method="POST" action="{{ route('admin.managed-element-types.store') }}" class="mt-6 space-y-5">
+                    <div id="createElementTypeAjaxErrors" class="mt-4 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+                    <form
+                        id="createElementTypeForm"
+                        method="POST"
+                        action="{{ route('admin.managed-element-types.store') }}"
+                        class="mt-6 space-y-5"
+                    >
                         @csrf
 
                         @if($singleClient)
@@ -159,7 +157,7 @@
                     </form>
                 </div>
             </div>
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
@@ -236,20 +234,20 @@
                                     </th>
                                 </tr>
                             </thead>
-<tbody class="divide-y divide-slate-200 bg-white">
+                            <tbody id="elementTypesTableBody" class="divide-y divide-slate-200 bg-white">
                                 @forelse($elementTypes as $elementType)
                                     @php
                                         $hasDependencies = (($elementType->components_count ?? 0) + ($elementType->elements_count ?? 0)) > 0;
                                     @endphp
 
-                                    <tr class="hover:bg-slate-50">
+                                    <tr class="hover:bg-slate-50" id="element-type-row-{{ $elementType->id }}">
                                         @if($showClientColumn)
-                                            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                                {{ $elementType->client?->name ?? '—' }}
-                                            </td>
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="element-type-client-{{ $elementType->id }}">
+                                            {{ $elementType->client?->name ?? '—' }}
+                                        </td>
                                         @endif
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="element-type-name-{{ $elementType->id }}">
                                             {{ $elementType->name }}
                                         </td>
                                         <td class="whitespace-nowrap px-5 py-3 text-sm">
@@ -283,7 +281,7 @@
                                         </td>
 
                                         <td class="whitespace-nowrap px-5 py-3 text-right">
-                                            <div class="flex justify-end gap-2">
+                                            <div class="flex items-center justify-end gap-2">
                                                 <button
                                                     type="button"
                                                     data-edit-element-type
@@ -294,16 +292,33 @@
                                                     data-status="{{ $elementType->status ? '1' : '0' }}"
                                                     data-action="{{ route('admin.managed-element-types.update', $elementType) }}"
                                                     onclick="openEditElementTypeModalFromButton(this)"
-                                                    class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                                                    class="text-slate-400 transition hover:text-[#d94d33]"
+                                                    title="Editar tipo de activo"
                                                 >
-                                                    Editar
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                                                    </svg>
                                                 </button>
 
                                                 @if(!$hasDependencies)
+                                                    <button
+                                                        type="button"
+                                                        onclick="deleteElementType({{ $elementType->id }})"
+                                                        class="text-red-500 transition hover:text-red-700"
+                                                        title="Eliminar tipo de activo"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                                                        </svg>
+                                                    </button>
+
                                                     <form
+                                                        id="delete-element-type-form-{{ $elementType->id }}"
                                                         method="POST"
                                                         action="{{ route('admin.managed-element-types.destroy', $elementType) }}"
-                                                        onsubmit="return confirm('¿Seguro que deseas eliminar este tipo de activo?');"
+                                                        class="hidden"
                                                     >
                                                         @csrf
                                                         @method('DELETE')
@@ -318,13 +333,6 @@
                                                             <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
                                                         @endforeach
                                                         <input type="hidden" name="redirect_page" value="{{ $elementTypes->currentPage() }}">
-
-                                                        <button
-                                                            type="submit"
-                                                            class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
-                                                        >
-                                                            Eliminar
-                                                        </button>
                                                     </form>
                                                 @endif
                                             </div>
@@ -350,91 +358,120 @@
             </div>
         </div>
     </div>
-<div id="editElementTypeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
-        <div class="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
-            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                <h3 class="text-lg font-semibold text-slate-900">Editar tipo de activo</h3>
-                <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditElementTypeModal()">✕</button>
+    <div
+        id="editElementTypeModal"
+        class="fixed left-0 top-0 z-[9999] hidden h-[100dvh] w-[100vw] items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
+    >
+        <div
+            id="editElementTypeModalContent"
+            class="flex w-full max-w-xl scale-95 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white opacity-0 shadow-2xl transition duration-200 ease-out"
+            style="max-height: calc(100dvh - 2rem);"
+        >
+            <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 sm:text-lg">
+                        Editar tipo de activo
+                    </h3>
+                    <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                        Actualiza la plantilla del tipo de activo seleccionado.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    onclick="closeEditElementTypeModal()"
+                    title="Cerrar"
+                >
+                    ✕
+                </button>
             </div>
 
-            <form id="editElementTypeForm" method="POST" class="space-y-5 p-6">
+            <form id="editElementTypeForm" method="POST" class="flex min-h-0 flex-1 flex-col">
                 @csrf
                 @method('PUT')
 
-                @if($showClientColumn)
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                        <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
-                            @foreach($clients as $client)
-                                <label class="flex items-center gap-3 text-sm text-slate-700">
-                                    <input
-                                        type="checkbox"
-                                        name="edit_client_id_checkbox"
-                                        value="{{ $client->id }}"
-                                        class="edit-client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                        onchange="handleSingleClientSelectionEdit(this)"
-                                    >
-                                    {{ $client->name }}
-                                </label>
-                            @endforeach
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+                    <div id="editElementTypeAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+                    <div class="space-y-4">
+                        @if($showClientColumn)
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                                <div class="max-h-32 space-y-2 overflow-y-auto rounded-xl border border-slate-300 bg-white p-3">
+                                    @foreach($clients as $client)
+                                        <label class="flex items-center gap-3 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="edit_client_id_checkbox"
+                                                value="{{ $client->id }}"
+                                                class="edit-client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                onchange="handleSingleClientSelectionEdit(this)"
+                                            >
+                                            {{ $client->name }}
+                                        </label>
+                                    @endforeach
+                                </div>
+                                <input type="hidden" name="client_id" id="edit_selected_client_id">
+                            </div>
+                        @else
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                                <input
+                                    type="text"
+                                    value="{{ $singleClient?->name }}"
+                                    disabled
+                                    class="w-full rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"
+                                >
+                                <input type="hidden" name="client_id" value="{{ $singleClient?->id }}" id="edit_selected_client_id">
+                            </div>
+                        @endif
+
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Nombre</label>
+                            <input
+                                type="text"
+                                name="name"
+                                id="edit_element_type_name"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                            >
                         </div>
-                        <input type="hidden" name="client_id" id="edit_selected_client_id">
+
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <label class="flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    name="has_semaphore"
+                                    id="edit_element_type_has_semaphore"
+                                    value="1"
+                                    class="mt-1 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                >
+
+                                <span>
+                                    <span class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                        <i data-lucide="calendar-days" class="h-4 w-4 text-[#d94d33]"></i>
+                                        ¿Tiene semáforo semanal?
+                                    </span>
+
+                                    <span class="mt-1 block text-xs leading-5 text-slate-500">
+                                        Activa esta opción si este tipo de activo debe aparecer en el semáforo de indicadores por semana.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Estado</label>
+                            <select
+                                name="status"
+                                id="edit_element_type_status"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                            >
+                                <option value="1">Activo</option>
+                                <option value="0">Inactivo</option>
+                            </select>
+                        </div>
                     </div>
-                @else
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                        <input
-                            type="text"
-                            value="{{ $singleClient?->name }}"
-                            disabled
-                            class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700"
-                        >
-                        <input type="hidden" name="client_id" value="{{ $singleClient?->id }}" id="edit_selected_client_id">
-                    </div>
-                @endif
-
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
-                    <input
-                        type="text"
-                        name="name"
-                        id="edit_element_type_name"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    >
-                </div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <label class="flex items-start gap-3">
-                        <input
-                            type="checkbox"
-                            name="has_semaphore"
-                            id="edit_element_type_has_semaphore"
-                            value="1"
-                            class="mt-1 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                        >
-
-                        <span>
-                            <span class="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                                <i data-lucide="calendar-days" class="h-4 w-4 text-[#d94d33]"></i>
-                                ¿Tiene semáforo semanal?
-                            </span>
-
-                            <span class="mt-1 block text-xs leading-5 text-slate-500">
-                                Activa esta opción si este tipo de activo debe aparecer en el semáforo de indicadores por semana.
-                            </span>
-                        </span>
-                    </label>
-                </div>
-
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Estado</label>
-                    <select
-                        name="status"
-                        id="edit_element_type_status"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    >
-                        <option value="1">Activo</option>
-                        <option value="0">Inactivo</option>
-                    </select>
                 </div>
 
                 @foreach(($activeFilters['client_ids'] ?? []) as $value)
@@ -448,20 +485,23 @@
                 @endforeach
                 <input type="hidden" name="redirect_page" value="{{ $elementTypes->currentPage() }}">
 
-                <div class="flex justify-end gap-3">
-                    <button
-                        type="button"
-                        onclick="closeEditElementTypeModal()"
-                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        type="submit"
-                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
-                    >
-                        Actualizar tipo de activo
-                    </button>
+                <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                        <button
+                            type="button"
+                            onclick="closeEditElementTypeModal()"
+                            class="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="submit"
+                            class="inline-flex w-full justify-center rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] sm:w-auto"
+                        >
+                            Actualizar tipo de activo
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -906,6 +946,8 @@
     }
 
     function openEditElementTypeModal(id, clientId, name, hasSemaphore, status, actionUrl) {
+        clearElementTypeAjaxErrors('editElementTypeAjaxErrors');
+
         document.getElementById('editElementTypeForm').action = actionUrl;
         document.getElementById('edit_selected_client_id').value = clientId ?? '';
         document.getElementById('edit_element_type_name').value = name ?? '';
@@ -917,14 +959,40 @@
         });
 
         const modal = document.getElementById('editElementTypeModal');
+        const content = document.getElementById('editElementTypeModalContent');
+
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+
+        document.documentElement.classList.add('overflow-hidden');
+        document.body.classList.add('overflow-hidden');
+
+        setTimeout(() => {
+            content?.classList.remove('scale-95', 'opacity-0');
+            content?.classList.add('scale-100', 'opacity-100');
+        }, 10);
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
     }
 
     function closeEditElementTypeModal() {
         const modal = document.getElementById('editElementTypeModal');
-        modal.classList.remove('flex');
-        modal.classList.add('hidden');
+        const content = document.getElementById('editElementTypeModalContent');
+
+        clearElementTypeAjaxErrors('editElementTypeAjaxErrors');
+
+        content?.classList.remove('scale-100', 'opacity-100');
+        content?.classList.add('scale-95', 'opacity-0');
+
+        setTimeout(() => {
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+
+            document.documentElement.classList.remove('overflow-hidden');
+            document.body.classList.remove('overflow-hidden');
+        }, 150);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -947,6 +1015,17 @@
 
             this.value = value.charAt(0).toUpperCase() + value.slice(1);
         });
+
+        const createElementTypeForm = document.getElementById('createElementTypeForm');
+        const editElementTypeForm = document.getElementById('editElementTypeForm');
+
+        if (createElementTypeForm) {
+            createElementTypeForm.addEventListener('submit', handleCreateElementTypeSubmit);
+        }
+
+        if (editElementTypeForm) {
+            editElementTypeForm.addEventListener('submit', handleEditElementTypeSubmit);
+        }
     });
 
     document.addEventListener('click', function (event) {
@@ -970,5 +1049,394 @@
             closeEditElementTypeModal();
         }
     });
+
+    function clearElementTypeAjaxErrors(containerId) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+
+        box.classList.add('hidden');
+        box.innerHTML = '';
+    }
+
+    function renderElementTypeAjaxErrors(containerId, errors) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+
+        const messages = [];
+
+        Object.values(errors || {}).forEach((fieldErrors) => {
+            (fieldErrors || []).forEach((message) => messages.push(message));
+        });
+
+        if (messages.length === 0) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        box.innerHTML = `
+            <div class="font-semibold">Hay errores en el formulario.</div>
+            <ul class="mt-2 list-disc pl-5">
+                ${messages.map(message => `<li>${escapeHtml(String(message))}</li>`).join('')}
+            </ul>
+        `;
+
+        box.classList.remove('hidden');
+    }
+
+    function setElementTypeFormSubmittingState(form, isSubmitting, loadingText = 'Guardando...') {
+        if (!form) return;
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (!submitButton) return;
+
+        if (isSubmitting) {
+            submitButton.dataset.originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = loadingText;
+        } else {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = submitButton.dataset.originalText || submitButton.innerHTML;
+        }
+    }
+
+    async function parseElementTypeJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            throw new Error('El servidor no devolvió JSON. Revisa sesión, permisos o respuesta del controlador.');
+        }
+
+        return await response.json();
+    }
+
+    async function handleCreateElementTypeSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        clearElementTypeAjaxErrors('createElementTypeAjaxErrors');
+        setElementTypeFormSubmittingState(form, true, 'Guardando...');
+
+        try {
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseElementTypeJsonResponse(response);
+
+            if (response.status === 422) {
+                renderElementTypeAjaxErrors('createElementTypeAjaxErrors', data.errors || {});
+                showElementTypeToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible crear el tipo de activo.');
+            }
+
+            insertElementTypeRow(data.element_type);
+            resetCreateElementTypeForm();
+
+            showElementTypeToast(data.message || 'Tipo de activo creado correctamente.', 'success');
+        } catch (error) {
+            showElementTypeToast(error.message || 'Ocurrió un error al crear el tipo de activo.', 'error');
+        } finally {
+            setElementTypeFormSubmittingState(form, false);
+        }
+    }
+
+    async function handleEditElementTypeSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        clearElementTypeAjaxErrors('editElementTypeAjaxErrors');
+        setElementTypeFormSubmittingState(form, true, 'Actualizando...');
+
+        try {
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseElementTypeJsonResponse(response);
+
+            if (response.status === 422) {
+                renderElementTypeAjaxErrors('editElementTypeAjaxErrors', data.errors || {});
+                showElementTypeToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible actualizar el tipo de activo.');
+            }
+
+            updateElementTypeRow(data.element_type);
+            closeEditElementTypeModal();
+
+            showElementTypeToast(data.message || 'Tipo de activo actualizado correctamente.', 'success');
+        } catch (error) {
+            showElementTypeToast(error.message || 'Ocurrió un error al actualizar el tipo de activo.', 'error');
+        } finally {
+            setElementTypeFormSubmittingState(form, false);
+        }
+    }
+
+    async function deleteElementType(elementTypeId) {
+        const confirmed = confirm('¿Seguro que deseas eliminar este tipo de activo?');
+
+        if (!confirmed) return;
+
+        const row = document.getElementById(`element-type-row-${elementTypeId}`);
+        const form = document.getElementById(`delete-element-type-form-${elementTypeId}`);
+
+        if (!form) {
+            showElementTypeToast('No se encontró el formulario de eliminación.', 'error');
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        if (row) {
+            row.classList.add('opacity-60', 'pointer-events-none');
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseElementTypeJsonResponse(response);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible eliminar el tipo de activo.');
+            }
+
+            if (row) {
+                row.style.transition = 'opacity 180ms ease, transform 180ms ease';
+                row.style.opacity = '0';
+                row.style.transform = 'scale(0.98)';
+
+                setTimeout(() => row.remove(), 180);
+            }
+
+            showElementTypeToast(data.message || 'Tipo de activo eliminado correctamente.', 'success');
+        } catch (error) {
+            if (row) {
+                row.classList.remove('opacity-60', 'pointer-events-none');
+            }
+
+            showElementTypeToast(error.message || 'Ocurrió un error al eliminar el tipo de activo.', 'error');
+        }
+    }
+
+    function resetCreateElementTypeForm() {
+        const form = document.getElementById('createElementTypeForm');
+        if (!form) return;
+
+        form.reset();
+        clearElementTypeAjaxErrors('createElementTypeAjaxErrors');
+
+        const selectedClientInput = document.getElementById('selected_client_id');
+
+        if (selectedClientInput) {
+            selectedClientInput.value = '';
+        }
+
+        document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+    }
+
+    function updateElementTypeRow(elementType) {
+        if (!elementType || !elementType.id) return;
+
+        const row = document.getElementById(`element-type-row-${elementType.id}`);
+        const nameEl = document.getElementById(`element-type-name-${elementType.id}`);
+        const clientEl = document.getElementById(`element-type-client-${elementType.id}`);
+        const editButton = row?.querySelector('[data-edit-element-type]');
+        const semaphoreButton = row?.querySelector('[data-semaphore-toggle]');
+        const statusButton = row?.querySelector('[data-status-toggle]');
+
+        if (nameEl) {
+            nameEl.textContent = elementType.name ?? '—';
+        }
+
+        if (clientEl) {
+            clientEl.textContent = elementType.client_name ?? '—';
+        }
+
+        if (editButton) {
+            editButton.dataset.clientId = elementType.client_id ?? '';
+            editButton.dataset.name = elementType.name ?? '';
+            editButton.dataset.hasSemaphore = elementType.has_semaphore ? '1' : '0';
+            editButton.dataset.status = elementType.status ? '1' : '0';
+            editButton.dataset.action = elementType.update_url ?? '';
+        }
+
+        if (semaphoreButton) {
+            semaphoreButton.dataset.url = elementType.toggle_semaphore_url ?? semaphoreButton.dataset.url;
+            renderSemaphoreButton(semaphoreButton, Boolean(elementType.has_semaphore));
+        }
+
+        if (statusButton) {
+            statusButton.dataset.url = elementType.toggle_status_url ?? statusButton.dataset.url;
+            renderElementTypeStatusButton(statusButton, Boolean(elementType.status));
+        }
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    function insertElementTypeRow(elementType) {
+        if (!elementType || !elementType.id) return;
+
+        const tbody = document.getElementById('elementTypesTableBody');
+
+        if (!tbody) return;
+
+        const emptyRow = tbody.querySelector('td[colspan]');
+        if (emptyRow) {
+            emptyRow.closest('tr')?.remove();
+        }
+
+        const hasClientColumn = @json($showClientColumn);
+        const canDelete = !((Number(elementType.components_count || 0) + Number(elementType.elements_count || 0)) > 0);
+
+        const row = document.createElement('tr');
+        row.id = `element-type-row-${elementType.id}`;
+        row.className = 'hover:bg-slate-50';
+
+        row.innerHTML = `
+            ${hasClientColumn ? `
+                <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="element-type-client-${elementType.id}">
+                    ${escapeHtml(elementType.client_name ?? '—')}
+                </td>
+            ` : ''}
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="element-type-name-${elementType.id}">
+                ${escapeHtml(elementType.name ?? '—')}
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm">
+                <button
+                    type="button"
+                    data-semaphore-toggle
+                    data-url="${escapeHtml(elementType.toggle_semaphore_url ?? '')}"
+                    data-enabled="${elementType.has_semaphore ? '1' : '0'}"
+                    onclick="toggleElementTypeSemaphore(this)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${elementType.has_semaphore
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
+                    title="Clic para activar o desactivar semáforo semanal"
+                >
+                    <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
+                    <span>${elementType.has_semaphore ? 'Sí' : 'No'}</span>
+                </button>
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm">
+                <button
+                    type="button"
+                    data-status-toggle
+                    data-url="${escapeHtml(elementType.toggle_status_url ?? '')}"
+                    data-enabled="${elementType.status ? '1' : '0'}"
+                    onclick="toggleElementTypeStatus(this)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${elementType.status
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200'}"
+                    title="Clic para activar o inactivar"
+                >
+                    <i data-lucide="${elementType.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+                    <span>${elementType.status ? 'Activo' : 'Inactivo'}</span>
+                </button>
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-right">
+                <div class="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        data-edit-element-type
+                        data-id="${escapeHtml(String(elementType.id))}"
+                        data-client-id="${escapeHtml(String(elementType.client_id ?? ''))}"
+                        data-name="${escapeHtml(elementType.name ?? '')}"
+                        data-has-semaphore="${elementType.has_semaphore ? '1' : '0'}"
+                        data-status="${elementType.status ? '1' : '0'}"
+                        data-action="${escapeHtml(elementType.update_url ?? '')}"
+                        onclick="openEditElementTypeModalFromButton(this)"
+                        class="text-slate-400 transition hover:text-[#d94d33]"
+                        title="Editar tipo de activo"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                        </svg>
+                    </button>
+
+                    ${canDelete ? `
+                        <button
+                            type="button"
+                            onclick="deleteElementType(${elementType.id})"
+                            class="text-red-500 transition hover:text-red-700"
+                            title="Eliminar tipo de activo"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                            </svg>
+                        </button>
+
+                        <form
+                            id="delete-element-type-form-${elementType.id}"
+                            method="POST"
+                            action="${escapeHtml(elementType.destroy_url ?? '')}"
+                            class="hidden"
+                        >
+                            <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
+                            <input type="hidden" name="_method" value="DELETE">
+                        </form>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+
+        row.style.opacity = '0';
+        row.style.transform = 'translateY(-6px)';
+        row.style.transition = 'opacity 180ms ease, transform 180ms ease';
+
+        tbody.prepend(row);
+
+        requestAnimationFrame(() => {
+            row.style.opacity = '1';
+            row.style.transform = 'translateY(0)';
+        });
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
 </script>
 @endsection

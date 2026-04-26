@@ -534,12 +534,12 @@
                     return 'text-slate-400';
                 }
 
-                if (number < 60) {
+                if (number <= 54.9) {
                     return 'text-red-700';
                 }
 
-                if (number < 80) {
-                    return 'text-amber-700';
+                if (number >= 55 && number <= 89.9) {
+                    return 'text-amber-600';
                 }
 
                 return 'text-emerald-700';
@@ -555,11 +555,11 @@
                     return 'bg-slate-100 text-slate-400 ring-slate-200';
                 }
 
-                if (number < 60) {
+                if (number <= 54.9) {
                     return 'bg-red-50 text-red-700 ring-red-200';
                 }
 
-                if (number < 80) {
+                if (number >= 55 && number <= 89.9) {
                     return 'bg-amber-50 text-amber-700 ring-amber-200';
                 }
 

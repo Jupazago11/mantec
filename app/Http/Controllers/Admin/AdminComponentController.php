@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 class AdminComponentController extends Controller
 {
@@ -41,7 +42,7 @@ class AdminComponentController extends Controller
             ->all();
 
         $selectedStatuses = collect($request->input('statuses', []))
-            ->filter()
+            ->filter(fn ($status) => $status !== null && $status !== '')
             ->map(fn ($status) => (string) $status)
             ->values()
             ->all();
@@ -175,161 +176,261 @@ class AdminComponentController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+public function store(Request $request): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $validated = $request->validate([
-            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:255'],
-            'is_default' => ['required', 'boolean'],
-        ]);
+    $validated = $request->validate([
+        'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+        'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+        'name' => ['required', 'string', 'max:255'],
+        'is_default' => ['required', 'boolean'],
+    ]);
 
-        $elementTypeBelongs = ElementType::query()
-            ->where('id', $validated['element_type_id'])
-            ->where('client_id', $validated['client_id'])
-            ->exists();
+    $elementTypeBelongs = ElementType::query()
+        ->where('id', $validated['element_type_id'])
+        ->where('client_id', $validated['client_id'])
+        ->exists();
 
-        if (!$elementTypeBelongs) {
-            return back()
-                ->withErrors([
-                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
-                ])
-                ->withInput();
+    if (!$elementTypeBelongs) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                'errors' => [
+                    'element_type_id' => ['El tipo de activo no pertenece al cliente seleccionado.'],
+                ],
+            ], 422);
         }
 
-        $exists = Component::query()
-            ->where('client_id', $validated['client_id'])
-            ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
-            ->exists();
+        return back()
+            ->withErrors([
+                'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+            ])
+            ->withInput();
+    }
 
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
-                ])
-                ->withInput();
+    $exists = Component::query()
+        ->where('client_id', $validated['client_id'])
+        ->where('element_type_id', $validated['element_type_id'])
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+        ->exists();
+
+    if ($exists) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+                'errors' => [
+                    'name' => ['Ya existe un componente con ese nombre para ese cliente y tipo de activo.'],
+                ],
+            ], 422);
         }
 
-        Component::create([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
-            'name' => trim($validated['name']),
-            'is_default' => (bool) $validated['is_default'],
-            'status' => true,
+        return back()
+            ->withErrors([
+                'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+            ])
+            ->withInput();
+    }
+
+    $component = Component::create([
+        'client_id' => (int) $validated['client_id'],
+        'element_type_id' => (int) $validated['element_type_id'],
+        'name' => trim($validated['name']),
+        'is_default' => (bool) $validated['is_default'],
+        'status' => true,
+    ]);
+
+    $component->load(['client', 'elementType']);
+    $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Componente creado correctamente.',
+            'component' => $this->componentPayload($component),
         ]);
+    }
+
+    return redirect()
+        ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+        ->with([
+            'success' => 'Componente creado correctamente.',
+            'preferred_component_client_id' => (string) $validated['client_id'],
+            'preferred_component_element_type_id' => (string) $validated['element_type_id'],
+        ]);
+}
+
+public function update(Request $request, Component $component): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $component->client_id, $allowedClientIds, true), 403);
+
+    $validated = $request->validate([
+        'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+        'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+        'name' => ['required', 'string', 'max:255'],
+        'is_default' => ['required', 'boolean'],
+    ]);
+
+    $elementTypeBelongs = ElementType::query()
+        ->where('id', $validated['element_type_id'])
+        ->where('client_id', $validated['client_id'])
+        ->exists();
+
+    if (!$elementTypeBelongs) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                'errors' => [
+                    'element_type_id' => ['El tipo de activo no pertenece al cliente seleccionado.'],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+            ])
+            ->withInput();
+    }
+
+    $exists = Component::query()
+        ->where('id', '!=', $component->id)
+        ->where('client_id', $validated['client_id'])
+        ->where('element_type_id', $validated['element_type_id'])
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+        ->exists();
+
+    if ($exists) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+                'errors' => [
+                    'name' => ['Ya existe un componente con ese nombre para ese cliente y tipo de activo.'],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
+            ])
+            ->withInput();
+    }
+
+    $component->update([
+        'client_id' => (int) $validated['client_id'],
+        'element_type_id' => (int) $validated['element_type_id'],
+        'name' => trim($validated['name']),
+        'is_default' => (bool) $validated['is_default'],
+    ]);
+
+    $component->load(['client', 'elementType']);
+    $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Componente actualizado correctamente.',
+            'component' => $this->componentPayload($component),
+        ]);
+    }
+
+    return redirect()
+        ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Componente actualizado correctamente.');
+}
+
+public function destroy(Request $request, Component $component): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $component->client_id, $allowedClientIds, true), 403);
+
+    $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+    $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
+
+    if ($hasDependencies) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este componente no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.',
+            ], 422);
+        }
 
         return redirect()
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-            ->with([
-                'success' => 'Componente creado correctamente.',
-                'preferred_component_client_id' => (string) $validated['client_id'],
-                'preferred_component_element_type_id' => (string) $validated['element_type_id'],
-            ]);
+            ->with('error', 'Este componente no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
     }
 
-    public function update(Request $request, Component $component): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+    $componentId = $component->id;
+    $component->delete();
 
-        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
-
-        $validated = $request->validate([
-            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:255'],
-            'is_default' => ['required', 'boolean'],
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Componente eliminado correctamente.',
+            'component_id' => $componentId,
         ]);
+    }
 
-        $elementTypeBelongs = ElementType::query()
-            ->where('id', $validated['element_type_id'])
-            ->where('client_id', $validated['client_id'])
-            ->exists();
+    return redirect()
+        ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Componente eliminado correctamente.');
+}
 
-        if (!$elementTypeBelongs) {
-            return back()
-                ->withErrors([
-                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
-                ])
-                ->withInput();
+public function toggleStatus(Request $request, Component $component): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $component->client_id, $allowedClientIds, true), 403);
+
+    $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
+
+    $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
+
+    if (!$hasDependencies) {
+        $message = 'Este componente no tiene dependencias. Puedes eliminarlo si lo deseas.';
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], 422);
         }
-
-        $exists = Component::query()
-            ->where('id', '!=', $component->id)
-            ->where('client_id', $validated['client_id'])
-            ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
-            ->exists();
-
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'name' => 'Ya existe un componente con ese nombre para ese cliente y tipo de activo.',
-                ])
-                ->withInput();
-        }
-
-        $component->update([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
-            'name' => trim($validated['name']),
-            'is_default' => (bool) $validated['is_default'],
-        ]);
 
         return redirect()
             ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Componente actualizado correctamente.');
+            ->with('error', $message);
     }
 
-    public function destroy(Request $request, Component $component): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+    $component->update([
+        'status' => !$component->status,
+    ]);
 
-        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
+    $message = $component->status
+        ? 'Componente activado correctamente.'
+        : 'Componente inactivado correctamente.';
 
-        $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
-
-        $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
-
-        if ($hasDependencies) {
-            return redirect()
-                ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este componente no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
-        }
-
-        $component->delete();
-
-        return redirect()
-            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Componente eliminado correctamente.');
-    }
-
-    public function toggleStatus(Request $request, Component $component): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
-
-        abort_unless(in_array($component->client_id, $allowedClientIds), 403);
-
-        $component->loadCount(['elements', 'diagnostics', 'reportDetails']);
-
-        $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
-
-        if (!$hasDependencies) {
-            return redirect()
-                ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este componente no tiene dependencias. Puedes eliminarlo si lo deseas.');
-        }
-
-        $component->update([
-            'status' => !$component->status,
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'status' => (bool) $component->status,
+            'label' => $component->status ? 'Activo' : 'Inactivo',
         ]);
-
-        return redirect()
-            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado del componente actualizado correctamente.');
     }
+
+    return redirect()
+        ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+        ->with('success', $message);
+}
 
     public function getElementTypesByClient(Client $client)
     {
@@ -397,5 +498,59 @@ class AdminComponentController extends Controller
         }
 
         return $query;
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
+    }
+
+    private function componentPayload(Component $component): array
+    {
+        return [
+            'id' => $component->id,
+            'client_id' => $component->client_id,
+            'client_name' => $component->client?->name ?? '—',
+            'element_type_id' => $component->element_type_id,
+            'element_type_name' => $component->elementType?->name ?? '—',
+            'name' => $component->name,
+            'is_default' => (bool) $component->is_default,
+            'status' => (bool) $component->status,
+            'elements_count' => (int) ($component->elements_count ?? 0),
+            'diagnostics_count' => (int) ($component->diagnostics_count ?? 0),
+            'report_details_count' => (int) ($component->report_details_count ?? 0),
+            'update_url' => route('admin.managed-components.update', $component),
+            'destroy_url' => route('admin.managed-components.destroy', $component),
+            'toggle_default_url' => route('admin.managed-components.toggle-default', $component),
+            'toggle_status_url' => route('admin.managed-components.toggle-status', $component),
+        ];
+    }
+
+    public function toggleDefault(Request $request, Component $component): RedirectResponse|JsonResponse
+    {
+        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+        abort_unless(in_array((int) $component->client_id, $allowedClientIds, true), 403);
+
+        $component->update([
+            'is_default' => !$component->is_default,
+        ]);
+
+        $message = $component->is_default
+            ? 'Componente marcado por defecto correctamente.'
+            : 'Componente desmarcado por defecto correctamente.';
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'is_default' => (bool) $component->is_default,
+                'label' => $component->is_default ? 'Sí' : 'No',
+            ]);
+        }
+
+        return redirect()
+            ->route('admin.managed-components.index', $this->buildRedirectQuery($request))
+            ->with('success', $message);
     }
 }

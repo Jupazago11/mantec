@@ -156,9 +156,11 @@
             }
 
             .preventive-table .cell-short {
-                width: 68px;
-                min-width: 68px;
-                max-width: 68px;
+                width: 82px;
+                min-width: 82px;
+                max-width: 82px;
+                white-space: normal;
+                overflow-wrap: break-word;
             }
 
             .preventive-table .cell-week {
@@ -180,9 +182,11 @@
             }
 
             .preventive-table .cell-evidence {
-                width: 68px;
-                min-width: 68px;
-                max-width: 68px;
+                width: 92px;
+                min-width: 92px;
+                max-width: 92px;
+                white-space: normal;
+                overflow-wrap: break-word;
             }
 
             .preventive-table th,
@@ -248,9 +252,11 @@
             }
 
             .preventive-table.compact-mode .cell-short {
-                width: 58px;
-                min-width: 58px;
-                max-width: 58px;
+                width: 76px;
+                min-width: 76px;
+                max-width: 76px;
+                white-space: normal;
+                overflow-wrap: break-word;
             }
 
             .preventive-table.compact-mode .cell-week {
@@ -272,9 +278,11 @@
             }
 
             .preventive-table.compact-mode .cell-evidence {
-                width: 56px;
-                min-width: 56px;
-                max-width: 56px;
+                width: 86px;
+                min-width: 86px;
+                max-width: 86px;
+                white-space: normal;
+                overflow-wrap: break-word;
             }
 
             .custom-pagination {
@@ -367,18 +375,25 @@
             .preventive-table th > div {
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
-                gap: 6px;
+                justify-content: flex-start;
+                gap: 4px;
                 min-height: 32px;
+                max-width: 100%;
             }
 
             .preventive-table thead th button {
+                display: block;
+                max-width: 100%;
                 background: transparent;
                 border: 0;
                 padding: 0;
                 font: inherit;
+                text-align: left;
                 text-transform: inherit;
                 letter-spacing: inherit;
+                line-height: 1.05rem;
+                white-space: normal;
+                overflow-wrap: break-word;
                 cursor: pointer;
             }
 
@@ -622,17 +637,6 @@
 
                         <div class="flex flex-col gap-2 xl:items-end">
                             <div class="flex flex-wrap gap-2 xl:justify-end">
-                                <div class="compact-metric border border-slate-200 bg-slate-50 text-right">
-                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                        Rango
-                                    </div>
-                                    <div class="mt-1 text-sm font-bold text-slate-900">
-                                        {{ \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') }}
-                                        —
-                                        {{ \Carbon\Carbon::parse($dateTo)->format('d/m/Y') }}
-                                    </div>
-                                </div>
-
                                 <div class="compact-metric border border-slate-200 bg-slate-50 text-right">
                                     <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                                         Total generado

@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 class AdminElementTypeController extends Controller
 {
@@ -123,7 +124,7 @@ class AdminElementTypeController extends Controller
         ));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -139,6 +140,16 @@ class AdminElementTypeController extends Controller
             ->exists();
 
         if ($exists) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un tipo de activo con ese nombre para el cliente seleccionado.',
+                    'errors' => [
+                        'name' => ['Ya existe un tipo de activo con ese nombre para el cliente seleccionado.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors([
                     'name' => 'Ya existe un tipo de activo con ese nombre para el cliente seleccionado.',
@@ -146,12 +157,23 @@ class AdminElementTypeController extends Controller
                 ->withInput();
         }
 
-        ElementType::create([
-            'client_id' => $validated['client_id'],
+        $elementType = ElementType::create([
+            'client_id' => (int) $validated['client_id'],
             'name' => trim($validated['name']),
             'has_semaphore' => $request->boolean('has_semaphore'),
             'status' => true,
         ]);
+
+        $elementType->load('client');
+        $elementType->loadCount(['components', 'elements']);
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Tipo de activo creado correctamente.',
+                'element_type' => $this->elementTypePayload($elementType),
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
@@ -161,67 +183,104 @@ class AdminElementTypeController extends Controller
             ]);
     }
 
-    public function update(Request $request, ElementType $elementType): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+public function update(Request $request, ElementType $elementType): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
+    abort_unless(in_array((int) $elementType->client_id, $allowedClientIds, true), 403);
 
-        $validated = $request->validate([
-            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'name' => ['required', 'string', 'max:255'],
-            'has_semaphore' => ['nullable', 'boolean'],
-            'status' => ['required', 'boolean'],
-        ]);
+    $validated = $request->validate([
+        'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+        'name' => ['required', 'string', 'max:255'],
+        'has_semaphore' => ['nullable', 'boolean'],
+        'status' => ['required', 'boolean'],
+    ]);
 
-        $exists = ElementType::query()
-            ->where('id', '!=', $elementType->id)
-            ->where('client_id', $validated['client_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
-            ->exists();
+    $exists = ElementType::query()
+        ->where('id', '!=', $elementType->id)
+        ->where('client_id', $validated['client_id'])
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+        ->exists();
 
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'name' => 'Ya existe un tipo de activo con ese nombre para el cliente seleccionado.',
-                ])
-                ->withInput();
+    if ($exists) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un tipo de activo con ese nombre para el cliente seleccionado.',
+                'errors' => [
+                    'name' => ['Ya existe un tipo de activo con ese nombre para el cliente seleccionado.'],
+                ],
+            ], 422);
         }
 
-        $elementType->update([
-            'client_id' => $validated['client_id'],
-            'name' => trim($validated['name']),
-            'has_semaphore' => $request->boolean('has_semaphore'),
-            'status' => (bool) $validated['status'],
+        return back()
+            ->withErrors([
+                'name' => 'Ya existe un tipo de activo con ese nombre para el cliente seleccionado.',
+            ])
+            ->withInput();
+    }
+
+    $elementType->update([
+        'client_id' => (int) $validated['client_id'],
+        'name' => trim($validated['name']),
+        'has_semaphore' => $request->boolean('has_semaphore'),
+        'status' => (bool) $validated['status'],
+    ]);
+
+    $elementType->load('client');
+    $elementType->loadCount(['components', 'elements']);
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Tipo de activo actualizado correctamente.',
+            'element_type' => $this->elementTypePayload($elementType),
         ]);
+    }
+
+    return redirect()
+        ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Tipo de activo actualizado correctamente.');
+}
+
+public function destroy(Request $request, ElementType $elementType): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $elementType->client_id, $allowedClientIds, true), 403);
+
+    $elementType->loadCount(['components', 'elements']);
+
+    $hasDependencies = (($elementType->components_count ?? 0) + ($elementType->elements_count ?? 0)) > 0;
+
+    if ($hasDependencies) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este tipo de activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.',
+            ], 422);
+        }
 
         return redirect()
             ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Tipo de activo actualizado correctamente.');
+            ->with('error', 'Este tipo de activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
     }
 
-    public function destroy(Request $request, ElementType $elementType): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+    $elementTypeId = $elementType->id;
+    $elementType->delete();
 
-        abort_unless(in_array($elementType->client_id, $allowedClientIds), 403);
-
-        $elementType->loadCount(['components', 'elements']);
-
-        $hasDependencies = (($elementType->components_count ?? 0) + ($elementType->elements_count ?? 0)) > 0;
-
-        if ($hasDependencies) {
-            return redirect()
-                ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este tipo de activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
-        }
-
-        $elementType->delete();
-
-        return redirect()
-            ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Tipo de activo eliminado correctamente.');
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Tipo de activo eliminado correctamente.',
+            'element_type_id' => $elementTypeId,
+        ]);
     }
+
+    return redirect()
+        ->route('admin.managed-element-types.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Tipo de activo eliminado correctamente.');
+}
 
     public function toggleStatus(Request $request, ElementType $elementType)
     {
@@ -314,5 +373,28 @@ class AdminElementTypeController extends Controller
                 : 'Semáforo semanal desactivado para este tipo de activo.',
             'has_semaphore' => (bool) $elementType->has_semaphore,
         ]);
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
+    }
+
+    private function elementTypePayload(ElementType $elementType): array
+    {
+        return [
+            'id' => $elementType->id,
+            'client_id' => $elementType->client_id,
+            'client_name' => $elementType->client?->name ?? '—',
+            'name' => $elementType->name,
+            'has_semaphore' => (bool) $elementType->has_semaphore,
+            'status' => (bool) $elementType->status,
+            'components_count' => (int) ($elementType->components_count ?? 0),
+            'elements_count' => (int) ($elementType->elements_count ?? 0),
+            'update_url' => route('admin.managed-element-types.update', $elementType),
+            'destroy_url' => route('admin.managed-element-types.destroy', $elementType),
+            'toggle_status_url' => route('admin.managed-element-types.toggle-status', $elementType),
+            'toggle_semaphore_url' => route('admin.managed-element-types.toggle-semaphore', $elementType),
+        ];
     }
 }

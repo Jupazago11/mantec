@@ -30,13 +30,6 @@
     @endphp
 
     <div class="space-y-8">
-        <div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Gestión de componentes</h2>
-            <p class="mt-2 text-slate-600">
-                Crea y administra componentes para los clientes que tienes asignados.
-            </p>
-        </div>
-
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {{ session('success') }}
@@ -67,8 +60,13 @@
                     <p class="mt-1 text-sm text-slate-500">
                         Registra un nuevo componente para uno de tus clientes.
                     </p>
-
-                    <form method="POST" action="{{ route('admin.managed-components.store') }}" class="mt-6 space-y-5">
+                    <div id="createComponentAjaxErrors" class="mt-4 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+                    <form
+                        id="createComponentForm"
+                        method="POST"
+                        action="{{ route('admin.managed-components.store') }}"
+                        class="mt-6 space-y-5"
+                    >
                         @csrf
 
                         @if($singleClient)
@@ -141,6 +139,7 @@
                             <input
                                 type="text"
                                 name="name"
+                                id="component_name"
                                 value="{{ old('name') }}"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                 placeholder="Ej. Tambor motriz"
@@ -149,10 +148,11 @@
 
                         <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">¿Viene marcado por defecto?</label>
-                            <select
-                                name="is_default"
-                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                            >
+                                <select
+                                    name="is_default"
+                                    id="component_is_default"
+                                    class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                                >
                                 <option value="1" @selected(old('is_default', '1') == '1')>Sí</option>
                                 <option value="0" @selected(old('is_default') == '0')>No</option>
                             </select>
@@ -181,7 +181,7 @@
                     </form>
                 </div>
             </div>
-<div>
+            <div>
                 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
@@ -284,128 +284,125 @@
                                 </tr>
                             </thead>
 
-                            <tbody class="divide-y divide-slate-200 bg-white">
-@forelse($components as $component)
+                            <tbody id="componentsTableBody" class="divide-y divide-slate-200 bg-white">
+                                @forelse($components as $component)
                                     @php
                                         $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
                                     @endphp
 
-                                    <tr class="hover:bg-slate-50">
+                                    <tr class="hover:bg-slate-50" id="component-row-{{ $component->id }}">
                                         @if($showClientColumn)
-                                            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                                {{ $component->client?->name ?? '—' }}
-                                            </td>
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-client-{{ $component->id }}">
+                                            {{ $component->client?->name ?? '—' }}
+                                        </td>
                                         @endif
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-element-type-{{ $component->id }}">
                                             {{ $component->elementType?->name ?? '—' }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="component-name-{{ $component->id }}">
                                             {{ $component->name }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                            {{ $component->is_default ? 'Sí' : 'No' }}
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm" id="component-default-{{ $component->id }}">
+                                            <button
+                                                type="button"
+                                                data-default-toggle
+                                                data-url="{{ route('admin.managed-components.toggle-default', $component) }}"
+                                                data-enabled="{{ $component->is_default ? '1' : '0' }}"
+                                                onclick="toggleComponentDefault(this)"
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $component->is_default ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200' }}"
+                                                title="Clic para marcar o desmarcar por defecto"
+                                            >
+                                                <i data-lucide="{{ $component->is_default ? 'check-circle-2' : 'circle' }}" class="h-3.5 w-3.5"></i>
+                                                <span>{{ $component->is_default ? 'Sí' : 'No' }}</span>
+                                            </button>
                                         </td>
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-diagnostics-count-{{ $component->id }}">
                                             {{ $component->diagnostics_count ?? 0 }}
                                         </td>
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
+                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-report-details-count-{{ $component->id }}">
                                             {{ $component->report_details_count ?? 0 }}
                                         </td>
 
                                         <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            @if($component->status)
-                                                <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                                                    Activo
-                                                </span>
-                                            @else
-                                                <span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                    Inactivo
-                                                </span>
-                                            @endif
+                                            <button
+                                                type="button"
+                                                data-status-toggle
+                                                data-url="{{ route('admin.managed-components.toggle-status', $component) }}"
+                                                data-enabled="{{ $component->status ? '1' : '0' }}"
+                                                onclick="toggleComponentStatus(this)"
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $component->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
+                                                title="{{ $hasDependencies ? 'Clic para activar o inactivar' : 'Este componente puede eliminarse si no tiene uso' }}"
+                                            >
+                                                <i data-lucide="{{ $component->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
+                                                <span>{{ $component->status ? 'Activo' : 'Inactivo' }}</span>
+                                            </button>
                                         </td>
 
-                                        <td class="whitespace-nowrap px-5 py-3 text-right">
-                                            <div class="flex justify-end gap-2">
+                                    <td class="whitespace-nowrap px-5 py-3 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                class="text-slate-400 transition hover:text-[#d94d33]"
+                                                data-edit-component
+                                                data-id="{{ $component->id }}"
+                                                data-client_id="{{ $component->client_id }}"
+                                                data-element_type_id="{{ $component->element_type_id }}"
+                                                data-name="{{ $component->name }}"
+                                                data-is_default="{{ $component->is_default ? 1 : 0 }}"
+                                                data-action="{{ route('admin.managed-components.update', $component) }}"
+                                                onclick="openEditComponentModal(this)"
+                                                title="Editar componente"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                                                </svg>
+                                            </button>
+
+                                            @if(!$hasDependencies)
                                                 <button
                                                     type="button"
-                                                    class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                    data-client_id="{{ $component->client_id }}"
-                                                    data-element_type_id="{{ $component->element_type_id }}"
-                                                    data-name="{{ $component->name }}"
-                                                    data-is_default="{{ $component->is_default ? 1 : 0 }}"
-                                                    data-action="{{ route('admin.managed-components.update', $component) }}"
-                                                    onclick="openEditComponentModal(this)"
+                                                    onclick="deleteComponent({{ $component->id }})"
+                                                    class="text-red-500 transition hover:text-red-700"
+                                                    title="Eliminar componente"
                                                 >
-                                                    Editar
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                                                    </svg>
                                                 </button>
 
-                                                @if(!$hasDependencies)
-                                                    <form
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-components.destroy', $component) }}"
-                                                        onsubmit="return confirm('¿Seguro que deseas eliminar este componente?');"
-                                                    >
-                                                        @csrf
-                                                        @method('DELETE')
+                                                <form
+                                                    id="delete-component-form-{{ $component->id }}"
+                                                    method="POST"
+                                                    action="{{ route('admin.managed-components.destroy', $component) }}"
+                                                    class="hidden"
+                                                >
+                                                    @csrf
+                                                    @method('DELETE')
 
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['component_names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
-
-                                                        <button
-                                                            type="submit"
-                                                            class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
-                                                        >
-                                                            Eliminar
-                                                        </button>
-                                                    </form>
-                                                @else
-                                                    <form
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-components.toggle-status', $component) }}"
-                                                    >
-                                                        @csrf
-                                                        @method('PATCH')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['component_names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
-
-                                                        <button
-                                                            type="submit"
-                                                            class="rounded-lg px-3 py-2 text-xs font-semibold text-white transition {{ $component->status ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700' }}"
-                                                        >
-                                                            {{ $component->status ? 'Inactivar' : 'Activar' }}
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </td>
+                                                    @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                                                        <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+                                                    @endforeach
+                                                    @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                                                        <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
+                                                    @endforeach
+                                                    @foreach(($activeFilters['component_names'] ?? []) as $value)
+                                                        <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
+                                                    @endforeach
+                                                    @foreach(($activeFilters['statuses'] ?? []) as $value)
+                                                        <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
+                                                    @endforeach
+                                                    <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -427,111 +424,142 @@
             </div>
         </div>
     </div>
-<div id="editComponentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
-        <div class="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
-            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                <h3 class="text-lg font-semibold text-slate-900">Editar componente</h3>
-                <button type="button" class="text-slate-500 hover:text-slate-900" onclick="closeEditComponentModal()">✕</button>
+<div
+    id="editComponentModal"
+    class="fixed left-0 top-0 z-[9999] hidden h-[100dvh] w-[100vw] items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
+>
+    <div
+        id="editComponentModalContent"
+        class="flex w-full max-w-2xl scale-95 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white opacity-0 shadow-2xl transition duration-200 ease-out"
+        style="max-height: calc(100dvh - 2rem);"
+    >
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 sm:text-lg">
+                    Editar componente
+                </h3>
+                <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Actualiza el componente seleccionado.
+                </p>
             </div>
 
-            <form id="editComponentForm" method="POST" class="space-y-5 p-6">
-                @csrf
-                @method('PUT')
+            <button
+                type="button"
+                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onclick="closeEditComponentModal()"
+                title="Cerrar"
+            >
+                ✕
+            </button>
+        </div>
 
-                @if($singleClient)
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                        <div class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                            {{ $singleClient->name }}
+        <form id="editComponentForm" method="POST" class="flex min-h-0 flex-1 flex-col">
+            @csrf
+            @method('PUT')
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+                <div id="editComponentAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+                <div class="space-y-4">
+                    @if($singleClient)
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                            <div class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                {{ $singleClient->name }}
+                            </div>
+                            <input type="hidden" name="client_id" value="{{ $singleClient->id }}" id="edit_selected_client_id">
                         </div>
-                        <input type="hidden" name="client_id" value="{{ $singleClient->id }}" id="edit_selected_client_id">
-                    </div>
-                @else
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
-                        <div class="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-300 p-4">
-                            @foreach($clients as $client)
-                                <label class="flex items-center gap-3 text-sm text-slate-700">
-                                    <input
-                                        type="checkbox"
-                                        name="edit_client_id_checkbox"
-                                        value="{{ $client->id }}"
-                                        class="edit-client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                        onchange="handleSingleClientSelectionEdit(this)"
-                                    >
-                                    {{ $client->name }}
-                                </label>
-                            @endforeach
+                    @else
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">Cliente</label>
+                            <div class="max-h-32 space-y-2 overflow-y-auto rounded-xl border border-slate-300 bg-white p-3">
+                                @foreach($clients as $client)
+                                    <label class="flex items-center gap-3 text-sm text-slate-700">
+                                        <input
+                                            type="checkbox"
+                                            name="edit_client_id_checkbox"
+                                            value="{{ $client->id }}"
+                                            class="edit-client-single-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                            onchange="handleSingleClientSelectionEdit(this)"
+                                        >
+                                        {{ $client->name }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <input type="hidden" name="client_id" id="edit_selected_client_id">
                         </div>
-                        <input type="hidden" name="client_id" id="edit_selected_client_id">
+                    @endif
+
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo de activo</label>
+                        <select
+                            name="element_type_id"
+                            id="edit_element_type_id"
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        >
+                            <option value="">Seleccione un tipo de activo</option>
+                        </select>
                     </div>
-                @endif
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Tipo de activo</label>
-                    <select
-                        name="element_type_id"
-                        id="edit_element_type_id"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    >
-                        <option value="">Seleccione un tipo de activo</option>
-                    </select>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Nombre</label>
+                        <input
+                            type="text"
+                            name="name"
+                            id="edit_component_name"
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">¿Viene marcado por defecto?</label>
+                        <select
+                            name="is_default"
+                            id="edit_component_is_default"
+                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        >
+                            <option value="1">Sí</option>
+                            <option value="0">No</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">Nombre</label>
-                    <input
-                        type="text"
-                        name="name"
-                        id="edit_component_name"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    >
-                </div>
+            @foreach(($activeFilters['client_ids'] ?? []) as $value)
+                <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
+            @endforeach
+            @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
+                <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
+            @endforeach
+            @foreach(($activeFilters['component_names'] ?? []) as $value)
+                <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
+            @endforeach
+            @foreach(($activeFilters['statuses'] ?? []) as $value)
+                <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
+            @endforeach
+            <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700">¿Viene marcado por defecto?</label>
-                    <select
-                        name="is_default"
-                        id="edit_component_is_default"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                    >
-                        <option value="1">Sí</option>
-                        <option value="0">No</option>
-                    </select>
-                </div>
-
-                @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                    <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                    <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['component_names'] ?? []) as $value)
-                    <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['statuses'] ?? []) as $value)
-                    <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                @endforeach
-                <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
-
-                <div class="flex justify-end gap-3">
+            <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                     <button
                         type="button"
                         onclick="closeEditComponentModal()"
-                        class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        class="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
                     >
                         Cancelar
                     </button>
+
                     <button
                         type="submit"
-                        class="rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                        class="inline-flex w-full justify-center rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] sm:w-auto"
                     >
                         Actualizar componente
                     </button>
                 </div>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
+</div>
 
     <div id="filterPopover" class="fixed z-50 hidden w-[340px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div class="border-b border-slate-200 px-4 py-3">
@@ -561,6 +589,7 @@
             </button>
         </div>
     </div>
+    <div id="componentToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
 <script>
     const filterOptions = {
         @if($showClientColumn)
@@ -816,6 +845,8 @@
     }
 
     async function openEditComponentModal(btn) {
+        clearComponentAjaxErrors('editComponentAjaxErrors');
+
         document.getElementById('editComponentForm').action = btn.dataset.action;
         document.getElementById('edit_component_name').value = btn.dataset.name ?? '';
         document.getElementById('edit_component_is_default').value = btn.dataset.is_default ?? '0';
@@ -835,14 +866,36 @@
         await loadElementTypes(clientId, 'edit_element_type_id', elementTypeId);
 
         const modal = document.getElementById('editComponentModal');
+        const content = document.getElementById('editComponentModalContent');
+
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+
+        document.documentElement.classList.add('overflow-hidden');
+        document.body.classList.add('overflow-hidden');
+
+        setTimeout(() => {
+            content?.classList.remove('scale-95', 'opacity-0');
+            content?.classList.add('scale-100', 'opacity-100');
+        }, 10);
     }
 
     function closeEditComponentModal() {
         const modal = document.getElementById('editComponentModal');
-        modal.classList.remove('flex');
-        modal.classList.add('hidden');
+        const content = document.getElementById('editComponentModalContent');
+
+        clearComponentAjaxErrors('editComponentAjaxErrors');
+
+        content?.classList.remove('scale-100', 'opacity-100');
+        content?.classList.add('scale-95', 'opacity-0');
+
+        setTimeout(() => {
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+
+            document.documentElement.classList.remove('overflow-hidden');
+            document.body.classList.remove('overflow-hidden');
+        }, 150);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -862,6 +915,17 @@
             @endif
         } else if (@json((bool) $singleClient)) {
             populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
+        }
+
+        const createComponentForm = document.getElementById('createComponentForm');
+        const editComponentForm = document.getElementById('editComponentForm');
+
+        if (createComponentForm) {
+            createComponentForm.addEventListener('submit', handleCreateComponentSubmit);
+        }
+
+        if (editComponentForm) {
+            editComponentForm.addEventListener('submit', handleEditComponentSubmit);
         }
     });
 
@@ -886,5 +950,591 @@
             closeEditComponentModal();
         }
     });
+
+    function showComponentToast(message, type = 'success') {
+        const container = document.getElementById('componentToastContainer');
+
+        if (!container) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    function clearComponentAjaxErrors(containerId) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+
+        box.classList.add('hidden');
+        box.innerHTML = '';
+    }
+
+    function renderComponentAjaxErrors(containerId, errors) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+
+        const messages = [];
+
+        Object.values(errors || {}).forEach((fieldErrors) => {
+            (fieldErrors || []).forEach((message) => messages.push(message));
+        });
+
+        if (messages.length === 0) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        box.innerHTML = `
+            <div class="font-semibold">Hay errores en el formulario.</div>
+            <ul class="mt-2 list-disc pl-5">
+                ${messages.map(message => `<li>${escapeHtml(String(message))}</li>`).join('')}
+            </ul>
+        `;
+
+        box.classList.remove('hidden');
+    }
+
+    function setComponentFormSubmittingState(form, isSubmitting, loadingText = 'Guardando...') {
+        if (!form) return;
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (!submitButton) return;
+
+        if (isSubmitting) {
+            submitButton.dataset.originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = loadingText;
+        } else {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = submitButton.dataset.originalText || submitButton.innerHTML;
+        }
+    }
+
+    async function parseComponentJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            throw new Error('El servidor no devolvió JSON. Revisa sesión, permisos o respuesta del controlador.');
+        }
+
+        return await response.json();
+    }
+
+    async function handleCreateComponentSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        clearComponentAjaxErrors('createComponentAjaxErrors');
+        setComponentFormSubmittingState(form, true, 'Guardando...');
+
+        try {
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseComponentJsonResponse(response);
+
+            if (response.status === 422) {
+                renderComponentAjaxErrors('createComponentAjaxErrors', data.errors || {});
+                showComponentToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible crear el componente.');
+            }
+
+            insertComponentRow(data.component);
+            resetCreateComponentForm();
+
+            showComponentToast(data.message || 'Componente creado correctamente.', 'success');
+        } catch (error) {
+            showComponentToast(error.message || 'Ocurrió un error al crear el componente.', 'error');
+        } finally {
+            setComponentFormSubmittingState(form, false);
+        }
+    }
+
+    async function handleEditComponentSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        clearComponentAjaxErrors('editComponentAjaxErrors');
+        setComponentFormSubmittingState(form, true, 'Actualizando...');
+
+        try {
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseComponentJsonResponse(response);
+
+            if (response.status === 422) {
+                renderComponentAjaxErrors('editComponentAjaxErrors', data.errors || {});
+                showComponentToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible actualizar el componente.');
+            }
+
+            updateComponentRow(data.component);
+            closeEditComponentModal();
+
+            showComponentToast(data.message || 'Componente actualizado correctamente.', 'success');
+        } catch (error) {
+            showComponentToast(error.message || 'Ocurrió un error al actualizar el componente.', 'error');
+        } finally {
+            setComponentFormSubmittingState(form, false);
+        }
+    }
+
+    async function deleteComponent(componentId) {
+        const confirmed = confirm('¿Seguro que deseas eliminar este componente?');
+
+        if (!confirmed) return;
+
+        const row = document.getElementById(`component-row-${componentId}`);
+        const form = document.getElementById(`delete-component-form-${componentId}`);
+
+        if (!form) {
+            showComponentToast('No se encontró el formulario de eliminación.', 'error');
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        if (row) {
+            row.classList.add('opacity-60', 'pointer-events-none');
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseComponentJsonResponse(response);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible eliminar el componente.');
+            }
+
+            if (row) {
+                row.style.transition = 'opacity 180ms ease, transform 180ms ease';
+                row.style.opacity = '0';
+                row.style.transform = 'scale(0.98)';
+
+                setTimeout(() => row.remove(), 180);
+            }
+
+            showComponentToast(data.message || 'Componente eliminado correctamente.', 'success');
+        } catch (error) {
+            if (row) {
+                row.classList.remove('opacity-60', 'pointer-events-none');
+            }
+
+            showComponentToast(error.message || 'Ocurrió un error al eliminar el componente.', 'error');
+        }
+    }
+
+    async function toggleComponentStatus(button) {
+        const url = button.dataset.url;
+
+        if (!url || button.disabled) return;
+
+        const originalHtml = button.innerHTML;
+        const originalClass = button.className;
+
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await parseComponentJsonResponse(response);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible cambiar el estado.');
+            }
+
+            renderComponentStatusButton(button, Boolean(data.status));
+            showComponentToast(data.message || 'Estado actualizado correctamente.', 'success');
+        } catch (error) {
+            button.innerHTML = originalHtml;
+            button.className = originalClass;
+            showComponentToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
+
+    function renderComponentStatusButton(button, enabled) {
+        button.dataset.enabled = enabled ? '1' : '0';
+
+        button.classList.remove(
+            'bg-green-100',
+            'text-green-700',
+            'hover:bg-green-200',
+            'bg-red-100',
+            'text-red-700',
+            'hover:bg-red-200'
+        );
+
+        if (enabled) {
+            button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+        } else {
+            button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+        }
+
+        button.innerHTML = `
+            <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+            <span>${enabled ? 'Activo' : 'Inactivo'}</span>
+        `;
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    function resetCreateComponentForm() {
+        const form = document.getElementById('createComponentForm');
+
+        if (!form) return;
+
+        form.reset();
+        clearComponentAjaxErrors('createComponentAjaxErrors');
+
+        const selectedClientInput = document.getElementById('selected_client_id');
+        const createSelect = document.getElementById('element_type_id');
+
+        if (selectedClientInput && !@json((bool) $singleClient)) {
+            selectedClientInput.value = '';
+        }
+
+        if (!@json((bool) $singleClient)) {
+            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            if (createSelect) {
+                createSelect.innerHTML = '<option value="">Seleccione un tipo de activo</option>';
+            }
+        } else {
+            const preferredElementTypeId = @json($singleCreateElementType->id ?? '');
+            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
+        }
+    }
+
+    function updateComponentRow(component) {
+        if (!component || !component.id) return;
+
+        const row = document.getElementById(`component-row-${component.id}`);
+        const clientEl = document.getElementById(`component-client-${component.id}`);
+        const elementTypeEl = document.getElementById(`component-element-type-${component.id}`);
+        const nameEl = document.getElementById(`component-name-${component.id}`);
+        const defaultEl = document.getElementById(`component-default-${component.id}`);
+        const diagnosticsEl = document.getElementById(`component-diagnostics-count-${component.id}`);
+        const reportDetailsEl = document.getElementById(`component-report-details-count-${component.id}`);
+        const editButton = row?.querySelector('[data-edit-component]');
+        const statusButton = row?.querySelector('[data-status-toggle]');
+        const defaultButton = row?.querySelector('[data-default-toggle]');
+
+        if (clientEl) clientEl.textContent = component.client_name ?? '—';
+        if (elementTypeEl) elementTypeEl.textContent = component.element_type_name ?? '—';
+        if (nameEl) nameEl.textContent = component.name ?? '—';
+        if (defaultEl) {
+            const defaultButton = defaultEl.querySelector('[data-default-toggle]');
+            if (defaultButton) {
+                renderComponentDefaultButton(defaultButton, Boolean(component.is_default));
+            }
+        }
+        if (diagnosticsEl) diagnosticsEl.textContent = String(component.diagnostics_count ?? 0);
+        if (reportDetailsEl) reportDetailsEl.textContent = String(component.report_details_count ?? 0);
+
+        if (editButton) {
+            editButton.dataset.client_id = component.client_id ?? '';
+            editButton.dataset.element_type_id = component.element_type_id ?? '';
+            editButton.dataset.name = component.name ?? '';
+            editButton.dataset.is_default = component.is_default ? '1' : '0';
+            editButton.dataset.action = component.update_url ?? '';
+        }
+
+        if (statusButton) {
+            statusButton.dataset.url = component.toggle_status_url ?? statusButton.dataset.url;
+            renderComponentStatusButton(statusButton, Boolean(component.status));
+        }
+
+        if (defaultButton) {
+            defaultButton.dataset.url = component.toggle_default_url ?? defaultButton.dataset.url;
+            renderComponentDefaultButton(defaultButton, Boolean(component.is_default));
+        }
+    }
+
+    function insertComponentRow(component) {
+        if (!component || !component.id) return;
+
+        const tbody = document.getElementById('componentsTableBody');
+
+        if (!tbody) return;
+
+        const emptyRow = tbody.querySelector('td[colspan]');
+        if (emptyRow) {
+            emptyRow.closest('tr')?.remove();
+        }
+
+        const hasClientColumn = @json($showClientColumn);
+        const hasDependencies =
+            (Number(component.elements_count || 0) +
+                Number(component.diagnostics_count || 0) +
+                Number(component.report_details_count || 0)) > 0;
+
+        const row = document.createElement('tr');
+        row.id = `component-row-${component.id}`;
+        row.className = 'hover:bg-slate-50';
+
+        row.innerHTML = `
+            ${hasClientColumn ? `
+                <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-client-${component.id}">
+                    ${escapeHtml(component.client_name ?? '—')}
+                </td>
+            ` : ''}
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-element-type-${component.id}">
+                ${escapeHtml(component.element_type_name ?? '—')}
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="component-name-${component.id}">
+                ${escapeHtml(component.name ?? '—')}
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm" id="component-default-${component.id}">
+                <button
+                    type="button"
+                    data-default-toggle
+                    data-url="${escapeHtml(component.toggle_default_url ?? '')}"
+                    data-enabled="${component.is_default ? '1' : '0'}"
+                    onclick="toggleComponentDefault(this)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${component.is_default
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
+                    title="Clic para marcar o desmarcar por defecto"
+                >
+                    <i data-lucide="${component.is_default ? 'check-circle-2' : 'circle'}" class="h-3.5 w-3.5"></i>
+                    <span>${component.is_default ? 'Sí' : 'No'}</span>
+                </button>
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-diagnostics-count-${component.id}">
+                ${escapeHtml(String(component.diagnostics_count ?? 0))}
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-report-details-count-${component.id}">
+                ${escapeHtml(String(component.report_details_count ?? 0))}
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-sm">
+                <button
+                    type="button"
+                    data-status-toggle
+                    data-url="${escapeHtml(component.toggle_status_url ?? '')}"
+                    data-enabled="${component.status ? '1' : '0'}"
+                    onclick="toggleComponentStatus(this)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${component.status
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200'}"
+                    title="${hasDependencies ? 'Clic para activar o inactivar' : 'Este componente puede eliminarse si no tiene uso'}"
+                >
+                    <i data-lucide="${component.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
+                    <span>${component.status ? 'Activo' : 'Inactivo'}</span>
+                </button>
+            </td>
+
+            <td class="whitespace-nowrap px-5 py-3 text-right">
+                <div class="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        class="text-slate-400 transition hover:text-[#d94d33]"
+                        data-edit-component
+                        data-id="${escapeHtml(String(component.id))}"
+                        data-client_id="${escapeHtml(String(component.client_id ?? ''))}"
+                        data-element_type_id="${escapeHtml(String(component.element_type_id ?? ''))}"
+                        data-name="${escapeHtml(component.name ?? '')}"
+                        data-is_default="${component.is_default ? '1' : '0'}"
+                        data-action="${escapeHtml(component.update_url ?? '')}"
+                        onclick="openEditComponentModal(this)"
+                        title="Editar componente"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                        </svg>
+                    </button>
+
+                    ${!hasDependencies ? `
+                        <button
+                            type="button"
+                            onclick="deleteComponent(${component.id})"
+                            class="text-red-500 transition hover:text-red-700"
+                            title="Eliminar componente"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                            </svg>
+                        </button>
+
+                        <form
+                            id="delete-component-form-${component.id}"
+                            method="POST"
+                            action="${escapeHtml(component.destroy_url ?? '')}"
+                            class="hidden"
+                        >
+                            <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
+                            <input type="hidden" name="_method" value="DELETE">
+                        </form>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+
+        row.style.opacity = '0';
+        row.style.transform = 'translateY(-6px)';
+        row.style.transition = 'opacity 180ms ease, transform 180ms ease';
+
+        tbody.prepend(row);
+
+        requestAnimationFrame(() => {
+            row.style.opacity = '1';
+            row.style.transform = 'translateY(0)';
+        });
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    async function toggleComponentDefault(button) {
+        const url = button.dataset.url;
+
+        if (!url || button.disabled) return;
+
+        const originalHtml = button.innerHTML;
+        const originalClass = button.className;
+
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await parseComponentJsonResponse(response);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible cambiar el marcado por defecto.');
+            }
+
+            renderComponentDefaultButton(button, Boolean(data.is_default));
+            showComponentToast(data.message || 'Marcado por defecto actualizado.', 'success');
+        } catch (error) {
+            button.innerHTML = originalHtml;
+            button.className = originalClass;
+            showComponentToast(error.message || 'Ocurrió un error al cambiar el marcado por defecto.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
+
+    function renderComponentDefaultButton(button, enabled) {
+        button.dataset.enabled = enabled ? '1' : '0';
+
+        button.classList.remove(
+            'bg-emerald-100',
+            'text-emerald-700',
+            'hover:bg-emerald-200',
+            'bg-slate-100',
+            'text-slate-500',
+            'hover:bg-slate-200'
+        );
+
+        if (enabled) {
+            button.classList.add('bg-emerald-100', 'text-emerald-700', 'hover:bg-emerald-200');
+        } else {
+            button.classList.add('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
+        }
+
+        button.innerHTML = `
+            <i data-lucide="${enabled ? 'check-circle-2' : 'circle'}" class="h-3.5 w-3.5"></i>
+            <span>${enabled ? 'Sí' : 'No'}</span>
+        `;
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
 </script>
 @endsection

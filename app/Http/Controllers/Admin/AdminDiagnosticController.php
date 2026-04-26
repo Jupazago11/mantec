@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 class AdminDiagnosticController extends Controller
 {
@@ -166,160 +167,240 @@ class AdminDiagnosticController extends Controller
 
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+public function store(Request $request): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $validated = $request->validate([
-            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'boolean'],
-        ]);
+    $validated = $request->validate([
+        'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+        'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+        'name' => ['required', 'string', 'max:255'],
+    ]);
 
-        $elementTypeBelongs = ElementType::query()
-            ->where('id', $validated['element_type_id'])
-            ->where('client_id', $validated['client_id'])
-            ->exists();
+    $elementTypeBelongs = ElementType::query()
+        ->where('id', $validated['element_type_id'])
+        ->where('client_id', $validated['client_id'])
+        ->exists();
 
-        if (!$elementTypeBelongs) {
-            return back()
-                ->withErrors([
-                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
-                ])
-                ->withInput();
+    if (!$elementTypeBelongs) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                'errors' => [
+                    'element_type_id' => ['El tipo de activo no pertenece al cliente seleccionado.'],
+                ],
+            ], 422);
         }
 
-        $exists = Diagnostic::query()
-            ->where('client_id', $validated['client_id'])
-            ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
-            ->exists();
+        return back()
+            ->withErrors([
+                'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+            ])
+            ->withInput();
+    }
 
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
-                ])
-                ->withInput();
+    $exists = Diagnostic::query()
+        ->where('client_id', $validated['client_id'])
+        ->where('element_type_id', $validated['element_type_id'])
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+        ->exists();
+
+    if ($exists) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
+                'errors' => [
+                    'name' => ['Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.'],
+                ],
+            ], 422);
         }
 
-        Diagnostic::create([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
-            'name' => trim($validated['name']),
-            'status' => (bool) $validated['status'],
+        return back()
+            ->withErrors([
+                'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
+            ])
+            ->withInput();
+    }
+
+    $diagnostic = Diagnostic::create([
+        'client_id' => (int) $validated['client_id'],
+        'element_type_id' => (int) $validated['element_type_id'],
+        'name' => trim($validated['name']),
+        'status' => true,
+    ]);
+
+    $diagnostic->load(['client', 'elementType']);
+    $diagnostic->loadCount(['components', 'reportDetails']);
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Diagnóstico creado correctamente.',
+            'diagnostic' => $this->diagnosticPayload($diagnostic),
         ]);
+    }
+
+    return redirect()
+        ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
+        ->with([
+            'success' => 'Diagnóstico creado correctamente.',
+            'preferred_diagnostic_client_id' => (string) $validated['client_id'],
+            'preferred_diagnostic_element_type_id' => (string) $validated['element_type_id'],
+        ]);
+}
+
+public function update(Request $request, Diagnostic $diagnostic): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $diagnostic->client_id, $allowedClientIds, true), 403);
+
+    $validated = $request->validate([
+        'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
+        'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+        'name' => ['required', 'string', 'max:255'],
+        'status' => ['required', 'boolean'],
+    ]);
+
+    $elementTypeBelongs = ElementType::query()
+        ->where('id', $validated['element_type_id'])
+        ->where('client_id', $validated['client_id'])
+        ->exists();
+
+    if (!$elementTypeBelongs) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                'errors' => [
+                    'element_type_id' => ['El tipo de activo no pertenece al cliente seleccionado.'],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
+            ])
+            ->withInput();
+    }
+
+    $exists = Diagnostic::query()
+        ->where('id', '!=', $diagnostic->id)
+        ->where('client_id', $validated['client_id'])
+        ->where('element_type_id', $validated['element_type_id'])
+        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
+        ->exists();
+
+    if ($exists) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
+                'errors' => [
+                    'name' => ['Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.'],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
+            ])
+            ->withInput();
+    }
+
+    $diagnostic->update([
+        'client_id' => (int) $validated['client_id'],
+        'element_type_id' => (int) $validated['element_type_id'],
+        'name' => trim($validated['name']),
+        'status' => (bool) $validated['status'],
+    ]);
+
+    $diagnostic->load(['client', 'elementType']);
+    $diagnostic->loadCount(['components', 'reportDetails']);
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Diagnóstico actualizado correctamente.',
+            'diagnostic' => $this->diagnosticPayload($diagnostic),
+        ]);
+    }
+
+    return redirect()
+        ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Diagnóstico actualizado correctamente.');
+}
+
+public function destroy(Request $request, Diagnostic $diagnostic): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+
+    abort_unless(in_array((int) $diagnostic->client_id, $allowedClientIds, true), 403);
+
+    $diagnostic->loadCount(['components', 'reportDetails']);
+
+    $hasDependencies = (($diagnostic->components_count ?? 0) + ($diagnostic->report_details_count ?? 0)) > 0;
+
+    if ($hasDependencies) {
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este diagnóstico no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.',
+            ], 422);
+        }
 
         return redirect()
             ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-            ->with([
-                'success' => 'Diagnóstico creado correctamente.',
-                'preferred_diagnostic_client_id' => (string) $validated['client_id'],
-                'preferred_diagnostic_element_type_id' => (string) $validated['element_type_id'],
-            ]);
+            ->with('error', 'Este diagnóstico no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
     }
 
-    public function update(Request $request, Diagnostic $diagnostic): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
+    $diagnosticId = $diagnostic->id;
+    $diagnostic->delete();
 
-        abort_unless(in_array($diagnostic->client_id, $allowedClientIds), 403);
-
-        $validated = $request->validate([
-            'client_id' => ['required', 'integer', Rule::in($allowedClientIds)],
-            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
-            'name' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'boolean'],
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Diagnóstico eliminado correctamente.',
+            'diagnostic_id' => $diagnosticId,
         ]);
+    }
 
-        $elementTypeBelongs = ElementType::query()
-            ->where('id', $validated['element_type_id'])
-            ->where('client_id', $validated['client_id'])
-            ->exists();
+    return redirect()
+        ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
+        ->with('success', 'Diagnóstico eliminado correctamente.');
+}
 
-        if (!$elementTypeBelongs) {
-            return back()
-                ->withErrors([
-                    'element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.',
-                ])
-                ->withInput();
-        }
+public function toggleStatus(Request $request, Diagnostic $diagnostic): RedirectResponse|JsonResponse
+{
+    $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        $exists = Diagnostic::query()
-            ->where('id', '!=', $diagnostic->id)
-            ->where('client_id', $validated['client_id'])
-            ->where('element_type_id', $validated['element_type_id'])
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($validated['name']))])
-            ->exists();
+    abort_unless(in_array((int) $diagnostic->client_id, $allowedClientIds, true), 403);
 
-        if ($exists) {
-            return back()
-                ->withErrors([
-                    'name' => 'Ya existe un diagnóstico con ese nombre para ese cliente y tipo de activo.',
-                ])
-                ->withInput();
-        }
+    $diagnostic->update([
+        'status' => !$diagnostic->status,
+    ]);
 
-        $diagnostic->update([
-            'client_id' => $validated['client_id'],
-            'element_type_id' => $validated['element_type_id'],
-            'name' => trim($validated['name']),
-            'status' => (bool) $validated['status'],
+    $message = $diagnostic->status
+        ? 'Diagnóstico activado correctamente.'
+        : 'Diagnóstico inactivado correctamente.';
+
+    if ($this->isAjaxRequest($request)) {
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'status' => (bool) $diagnostic->status,
+            'label' => $diagnostic->status ? 'Activo' : 'Inactivo',
         ]);
-
-        return redirect()
-            ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Diagnóstico actualizado correctamente.');
     }
 
-    public function destroy(Request $request, Diagnostic $diagnostic): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
-
-        abort_unless(in_array($diagnostic->client_id, $allowedClientIds), 403);
-
-        $diagnostic->loadCount(['components', 'reportDetails']);
-
-        $hasDependencies = (($diagnostic->components_count ?? 0) + ($diagnostic->report_details_count ?? 0)) > 0;
-
-        if ($hasDependencies) {
-            return redirect()
-                ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este diagnóstico no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
-        }
-
-        $diagnostic->delete();
-
-        return redirect()
-            ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Diagnóstico eliminado correctamente.');
-    }
-
-    public function toggleStatus(Request $request, Diagnostic $diagnostic): RedirectResponse
-    {
-        $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
-
-        abort_unless(in_array($diagnostic->client_id, $allowedClientIds), 403);
-
-        $diagnostic->loadCount(['components', 'reportDetails']);
-
-        $hasDependencies = (($diagnostic->components_count ?? 0) + ($diagnostic->report_details_count ?? 0)) > 0;
-
-        if (!$hasDependencies) {
-            return redirect()
-                ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este diagnóstico no tiene dependencias. Puedes eliminarlo si lo deseas.');
-        }
-
-        $diagnostic->update([
-            'status' => !$diagnostic->status,
-        ]);
-
-        return redirect()
-            ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado del diagnóstico actualizado correctamente.');
-    }
+    return redirect()
+        ->route('admin.managed-diagnostics.index', $this->buildRedirectQuery($request))
+        ->with('success', $message);
+}
 
     private function getScopedClients()
     {
@@ -355,13 +436,6 @@ class AdminDiagnosticController extends Controller
             }
         }
 
-
-        foreach ((array) $request->input('redirect_element_type_ids', []) as $value) {
-            if ($value !== null && $value !== '') {
-                $query['element_type_ids'][] = $value;
-            }
-        }
-
         foreach ((array) $request->input('redirect_diagnostic_names', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['diagnostic_names'][] = $value;
@@ -379,5 +453,28 @@ class AdminDiagnosticController extends Controller
         }
 
         return $query;
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
+    }
+
+    private function diagnosticPayload(Diagnostic $diagnostic): array
+    {
+        return [
+            'id' => $diagnostic->id,
+            'client_id' => $diagnostic->client_id,
+            'client_name' => $diagnostic->client?->name ?? '—',
+            'element_type_id' => $diagnostic->element_type_id,
+            'element_type_name' => $diagnostic->elementType?->name ?? '—',
+            'name' => $diagnostic->name,
+            'status' => (bool) $diagnostic->status,
+            'components_count' => (int) ($diagnostic->components_count ?? 0),
+            'report_details_count' => (int) ($diagnostic->report_details_count ?? 0),
+            'update_url' => route('admin.managed-diagnostics.update', $diagnostic),
+            'destroy_url' => route('admin.managed-diagnostics.destroy', $diagnostic),
+            'toggle_status_url' => route('admin.managed-diagnostics.toggle-status', $diagnostic),
+        ];
     }
 }

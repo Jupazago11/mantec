@@ -148,6 +148,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/managed-components/{component}', [AdminComponentController::class, 'update'])->name('managed-components.update');
         Route::delete('/managed-components/{component}', [AdminComponentController::class, 'destroy'])->name('managed-components.destroy');
         Route::patch('/managed-components/{component}/toggle-status', [AdminComponentController::class, 'toggleStatus'])->name('managed-components.toggle-status');
+        Route::patch('/managed-components/{component}/toggle-default', [AdminComponentController::class, 'toggleDefault'])->name('managed-components.toggle-default');
 
         // Componente - Diagnóstico
         Route::get('/managed-component-diagnostics', [AdminComponentDiagnosticController::class, 'index'])->name('managed-component-diagnostics.index');

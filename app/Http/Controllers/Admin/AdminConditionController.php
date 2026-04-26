@@ -437,11 +437,11 @@ class AdminConditionController extends Controller
         ]);
     }
 
-    public function syncComponents(Request $request, Condition $condition): RedirectResponse
+    public function syncComponents(Request $request, Condition $condition): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
-        abort_unless(in_array($condition->client_id, $allowedClientIds), 403);
+        abort_unless(in_array((int) $condition->client_id, $allowedClientIds, true), 403);
 
         $validated = $request->validate([
             'component_ids' => ['nullable', 'array'],
@@ -462,6 +462,13 @@ class AdminConditionController extends Controller
                 ->count();
 
             if ($validCount !== count($componentIds)) {
+                if ($this->isAjaxRequest($request)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Uno o más componentes no pertenecen al cliente o tipo de activo de la condición.',
+                    ], 422);
+                }
+
                 return back()->withErrors([
                     'component_ids' => 'Uno o más componentes no pertenecen al cliente o tipo de activo de la condición.',
                 ]);
@@ -469,6 +476,16 @@ class AdminConditionController extends Controller
         }
 
         $condition->components()->sync($componentIds);
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Componentes de la condición actualizados correctamente.',
+                'condition_id' => $condition->id,
+                'component_ids' => $componentIds,
+                'components_count' => count($componentIds),
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-conditions.index', $this->buildRedirectQuery($request))
