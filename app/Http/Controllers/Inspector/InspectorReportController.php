@@ -196,6 +196,7 @@ class InspectorReportController extends Controller
                 'conditions.element_type_id',
                 'conditions.name',
                 'conditions.code',
+                'conditions.description',
                 'conditions.severity',
                 'conditions.color',
             ]);
