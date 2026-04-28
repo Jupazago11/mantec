@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
 class AdminManagedGroupController extends Controller
@@ -52,7 +53,7 @@ class AdminManagedGroupController extends Controller
             ->all();
 
         $selectedStatuses = collect($request->input('statuses', []))
-            ->filter()
+            ->filter(fn ($value) => $value !== null && $value !== '')
             ->map(fn ($value) => (string) $value)
             ->values()
             ->all();
@@ -152,7 +153,7 @@ class AdminManagedGroupController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $allowedClientIds = $this->allowedClientIds($authUser);
@@ -170,19 +171,31 @@ class AdminManagedGroupController extends Controller
             'description' => ['nullable', 'string'],
         ]);
 
-        Group::create([
+        $group = Group::create([
             'client_id' => (int) $validated['client_id'],
             'name' => trim($validated['name']),
             'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+            'auto_sync' => false,
             'status' => true,
         ]);
+
+        $group->load('client');
+        $group->loadCount('elements');
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Agrupación creada correctamente.',
+                'group' => $this->groupPayload($group),
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
             ->with('success', 'Agrupación creada correctamente.');
     }
 
-    public function update(Request $request, Group $group): RedirectResponse
+    public function update(Request $request, Group $group): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $allowedClientIds = $this->allowedClientIds($authUser);
@@ -210,34 +223,81 @@ class AdminManagedGroupController extends Controller
             'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
         ]);
 
+        $group->load('client');
+        $group->loadCount('elements');
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Agrupación actualizada correctamente.',
+                'group' => $this->groupPayload($group),
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
             ->with('success', 'Agrupación actualizada correctamente.');
     }
 
-    public function toggleStatus(Request $request, Group $group): RedirectResponse
+    public function toggleStatus(Request $request, Group $group): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $allowedClientIds = $this->allowedClientIds($authUser);
 
         abort_unless(in_array((int) $group->client_id, $allowedClientIds, true), 403);
 
-        if (!$group->elements()->exists()) {
-            return redirect()
-                ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Esta agrupación no tiene activos asociados. Puedes eliminarla si lo deseas.');
-        }
-
         $group->update([
             'status' => !$group->status,
         ]);
 
+        $message = $group->status
+            ? 'Agrupación activada correctamente.'
+            : 'Agrupación inactivada correctamente.';
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'status' => (bool) $group->status,
+                'label' => $group->status ? 'Activo' : 'Inactivo',
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado de la agrupación actualizado correctamente.');
+            ->with('success', $message);
     }
 
-    public function destroy(Request $request, Group $group): RedirectResponse
+    public function toggleSync(Request $request, Group $group): JsonResponse|RedirectResponse
+    {
+        $authUser = auth()->user();
+        $allowedClientIds = $this->allowedClientIds($authUser);
+
+        abort_unless(in_array((int) $group->client_id, $allowedClientIds, true), 403);
+
+        $group->update([
+            'auto_sync' => !$group->auto_sync,
+        ]);
+
+        $message = $group->auto_sync
+            ? 'Sincronización automática activada para esta agrupación.'
+            : 'Sincronización automática desactivada para esta agrupación.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'auto_sync' => (bool) $group->auto_sync,
+                'label' => $group->auto_sync ? 'ON' : 'OFF',
+            ]);
+        }
+
+        return redirect()
+            ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
+            ->with('success', $message);
+    }
+
+    public function destroy(Request $request, Group $group): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $allowedClientIds = $this->allowedClientIds($authUser);
@@ -252,12 +312,27 @@ class AdminManagedGroupController extends Controller
 
         $group->delete();
 
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Agrupación eliminada correctamente.',
+                'group_id' => $group->id,
+            ]);
+        }
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede eliminar la agrupación porque tiene activos asociados.',
+            ], 422);
+        }
+
         return redirect()
             ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
             ->with('success', 'Agrupación eliminada correctamente.');
     }
 
-    public function syncElements(Request $request, Group $group): RedirectResponse
+    public function syncElements(Request $request, Group $group): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $allowedClientIds = $this->allowedClientIds($authUser);
@@ -301,6 +376,25 @@ class AdminManagedGroupController extends Controller
                     ->update(['group_id' => $group->id]);
             }
         });
+
+        $group->load('client');
+        $group->loadCount('elements');
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Activos de la agrupación actualizados correctamente.',
+                'group' => $this->groupPayload($group),
+            ]);
+        }
+
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Uno o más activos no pertenecen al cliente de la agrupación o no están activos.',
+            ], 422);
+        }
 
         return redirect()
             ->route('admin.managed-groups.index', $this->buildRedirectQuery($request))
@@ -355,5 +449,33 @@ class AdminManagedGroupController extends Controller
         }
 
         return $query;
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
+    }
+
+    private function groupPayload(Group $group): array
+    {
+        $group->loadMissing('client');
+        $group->loadCount('elements');
+
+        return [
+            'id' => $group->id,
+            'client_id' => $group->client_id,
+            'client_name' => $group->client?->name ?? '—',
+            'name' => $group->name,
+            'description' => $group->description,
+            'description_label' => $group->description ?: '—',
+            'auto_sync' => (bool) $group->auto_sync,
+            'status' => (bool) $group->status,
+            'elements_count' => (int) ($group->elements_count ?? 0),
+            'update_url' => route('admin.managed-groups.update', $group),
+            'destroy_url' => route('admin.managed-groups.destroy', $group),
+            'toggle_status_url' => route('admin.managed-groups.toggle-status', $group),
+            'toggle_sync_url' => route('admin.managed-groups.toggle-sync', $group),
+            'sync_elements_url' => route('admin.managed-groups.elements.sync', $group),
+        ];
     }
 }

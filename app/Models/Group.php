@@ -10,12 +10,14 @@ class Group extends Model
         'client_id',
         'name',
         'description',
+        'auto_sync',
         'status',
     ];
 
     protected function casts(): array
     {
         return [
+            'auto_sync' => 'boolean',
             'status' => 'boolean',
         ];
     }

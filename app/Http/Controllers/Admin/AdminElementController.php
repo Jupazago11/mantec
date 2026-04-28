@@ -11,6 +11,7 @@ use App\Models\Group;
 use App\Models\ElementType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -200,7 +201,7 @@ class AdminElementController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -212,11 +213,20 @@ class AdminElementController extends Controller
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'code' => ['nullable', 'string', 'max:255'],
             'warehouse_code' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'boolean'],
         ]);
 
         $area = Area::findOrFail($validated['area_id']);
         if ((int) $area->client_id !== (int) $validated['client_id']) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El área no pertenece al cliente seleccionado.',
+                    'errors' => [
+                        'area_id' => ['El área no pertenece al cliente seleccionado.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['area_id' => 'El área no pertenece al cliente seleccionado.'])
                 ->withInput();
@@ -224,6 +234,16 @@ class AdminElementController extends Controller
 
         $elementType = ElementType::findOrFail($validated['element_type_id']);
         if ((int) $elementType->client_id !== (int) $validated['client_id']) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El tipo de activo no pertenece al cliente seleccionado.',
+                    'errors' => [
+                        'element_type_id' => ['El tipo de activo no pertenece al cliente seleccionado.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente seleccionado.'])
                 ->withInput();
@@ -233,6 +253,16 @@ class AdminElementController extends Controller
             $group = Group::findOrFail($validated['group_id']);
 
             if ((int) $group->client_id !== (int) $validated['client_id']) {
+                if ($this->isAjaxRequest($request)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La agrupación no pertenece al cliente seleccionado.',
+                        'errors' => [
+                            'group_id' => ['La agrupación no pertenece al cliente seleccionado.'],
+                        ],
+                    ], 422);
+                }
+
                 return back()
                     ->withErrors(['group_id' => 'La agrupación no pertenece al cliente seleccionado.'])
                     ->withInput();
@@ -247,6 +277,16 @@ class AdminElementController extends Controller
             ->exists();
 
         if ($exists) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.',
+                    'errors' => [
+                        'name' => ['Ya existe un activo con ese nombre para esa área y tipo de activo.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['name' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.'])
                 ->withInput();
@@ -259,7 +299,7 @@ class AdminElementController extends Controller
             'group_id' => !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
             'code' => $validated['code'] ? trim($validated['code']) : null,
             'warehouse_code' => $validated['warehouse_code'] ? trim($validated['warehouse_code']) : null,
-            'status' => (bool) $validated['status'],
+            'status' => true,
         ]);
 
         $defaultComponentIds = Component::query()
@@ -275,13 +315,30 @@ class AdminElementController extends Controller
             $element->components()->sync($defaultComponentIds);
         }
 
+        $element->load([
+            'area.client',
+            'elementType',
+            'group',
+            'components',
+        ]);
+
+        $element->loadCount(['components', 'reportDetails']);
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Activo creado correctamente.',
+                'element' => $this->elementPayload($element),
+            ]);
+        }
+
 
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
             ->with('success', 'Activo creado correctamente.');
     }
 
-    public function update(Request $request, Element $element): RedirectResponse
+    public function update(Request $request, Element $element): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -303,6 +360,16 @@ class AdminElementController extends Controller
 
         $elementType = ElementType::findOrFail($validated['element_type_id']);
         if ((int) $elementType->client_id !== (int) $area->client_id) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El tipo de activo no pertenece al cliente del área seleccionada.',
+                    'errors' => [
+                        'element_type_id' => ['El tipo de activo no pertenece al cliente del área seleccionada.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['element_type_id' => 'El tipo de activo no pertenece al cliente del área seleccionada.'])
                 ->withInput();
@@ -312,6 +379,16 @@ class AdminElementController extends Controller
             $group = Group::findOrFail($validated['group_id']);
 
             if ((int) $group->client_id !== (int) $area->client_id) {
+                if ($this->isAjaxRequest($request)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La agrupación no pertenece al cliente del área seleccionada.',
+                        'errors' => [
+                            'group_id' => ['La agrupación no pertenece al cliente del área seleccionada.'],
+                        ],
+                    ], 422);
+                }
+
                 return back()
                     ->withErrors(['group_id' => 'La agrupación no pertenece al cliente del área seleccionada.'])
                     ->withInput();
@@ -327,6 +404,16 @@ class AdminElementController extends Controller
             ->exists();
 
         if ($exists) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.',
+                    'errors' => [
+                        'name' => ['Ya existe un activo con ese nombre para esa área y tipo de activo.'],
+                    ],
+                ], 422);
+            }
+
             return back()
                 ->withErrors(['name' => 'Ya existe un activo con ese nombre para esa área y tipo de activo.'])
                 ->withInput();
@@ -342,62 +429,98 @@ class AdminElementController extends Controller
             'status' => (bool) $validated['status'],
         ]);
 
+        $element->load([
+            'area.client',
+            'elementType',
+            'group',
+            'components',
+        ]);
+
+        $element->loadCount(['components', 'reportDetails']);
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Activo actualizado correctamente.',
+                'element' => $this->elementPayload($element),
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
             ->with('success', 'Activo actualizado correctamente.');
     }
 
-    public function destroy(Request $request, Element $element): RedirectResponse
+    public function destroy(Request $request, Element $element): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         $element->loadMissing('area');
-        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
+        abort_unless(in_array((int) $element->area?->client_id, $allowedClientIds, true), 403);
 
         $element->loadCount(['components', 'reportDetails']);
 
         $hasDependencies = (($element->components_count ?? 0) + ($element->report_details_count ?? 0)) > 0;
 
         if ($hasDependencies) {
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.',
+                ], 422);
+            }
+
             return redirect()
                 ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
                 ->with('error', 'Este activo no se puede eliminar porque ya tiene uso. Solo puedes inactivarlo.');
         }
 
+        $elementId = $element->id;
         $element->delete();
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Activo eliminado correctamente.',
+                'element_id' => $elementId,
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
             ->with('success', 'Activo eliminado correctamente.');
     }
 
-    public function toggleStatus(Request $request, Element $element): RedirectResponse
+    public function toggleStatus(Request $request, Element $element): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
         $element->loadMissing('area');
-        abort_unless(in_array($element->area?->client_id, $allowedClientIds), 403);
-
-        $element->loadCount(['components', 'reportDetails']);
-
-        $hasDependencies = (($element->components_count ?? 0) + ($element->report_details_count ?? 0)) > 0;
-
-        if (!$hasDependencies) {
-            return redirect()
-                ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
-                ->with('error', 'Este activo no tiene dependencias. Puedes eliminarlo si lo deseas.');
-        }
+        abort_unless(in_array((int) $element->area?->client_id, $allowedClientIds, true), 403);
 
         $element->update([
             'status' => !$element->status,
         ]);
 
+        $message = $element->status
+            ? 'Activo activado correctamente.'
+            : 'Activo inactivado correctamente.';
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'status' => (bool) $element->status,
+                'label' => $element->status ? 'Activo' : 'Inactivo',
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado del activo actualizado correctamente.');
+            ->with('success', $message);
     }
 
-    public function syncComponents(Request $request, Element $element): RedirectResponse
+    public function syncComponents(Request $request, Element $element): RedirectResponse|JsonResponse
     {
         $allowedClientIds = $this->getScopedClients()->pluck('id')->toArray();
 
@@ -422,6 +545,13 @@ class AdminElementController extends Controller
                 ->count();
 
             if ($validCount !== count($componentIds)) {
+                if ($this->isAjaxRequest($request)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Uno o más componentes no pertenecen al cliente o al tipo de activo del elemento.',
+                    ], 422);
+                }
+
                 return back()->withErrors([
                     'component_ids' => 'Uno o más componentes no pertenecen al cliente o al tipo de activo del elemento.',
                 ]);
@@ -429,6 +559,23 @@ class AdminElementController extends Controller
         }
 
         $element->components()->sync($componentIds);
+
+        $element->load([
+            'area.client',
+            'elementType',
+            'group',
+            'components',
+        ]);
+
+        $element->loadCount(['components', 'reportDetails']);
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Componentes del activo actualizados correctamente.',
+                'element' => $this->elementPayload($element),
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-elements.index', $this->buildRedirectQuery($request))
@@ -499,4 +646,25 @@ class AdminElementController extends Controller
 
         return $query;
     }
+
+private function isAjaxRequest(Request $request): bool
+{
+    return $request->expectsJson() || $request->ajax();
+}
+
+private function elementPayload(Element $element): array
+{
+    $element->loadMissing([
+        'area.client',
+        'elementType',
+        'group',
+        'components',
+    ]);
+
+    $element->loadCount(['components', 'reportDetails']);
+
+    return [
+        // tu array actual
+    ];
+}
 }

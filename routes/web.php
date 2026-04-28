@@ -27,9 +27,14 @@ use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
 use App\Http\Controllers\Admin\SystemModules\BandEventReportController;
-
+/*
 Route::get('/', function () {
     return view('public.home');
+})->name('home');
+*/
+
+Route::get('/', function () {
+    return redirect()->route('login');
 })->name('home');
 
 Route::get('/test-r2', function () {
@@ -173,6 +178,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/managed-groups/{group}/toggle-status', [AdminManagedGroupController::class, 'toggleStatus'])->name('managed-groups.toggle-status');
         Route::delete('/managed-groups/{group}', [AdminManagedGroupController::class, 'destroy'])->name('managed-groups.destroy');
         Route::post('/managed-groups/{group}/elements', [AdminManagedGroupController::class, 'syncElements'])->name('managed-groups.elements.sync');
+        Route::patch('/managed-groups/{group}/toggle-sync', [AdminManagedGroupController::class, 'toggleSync'])->name('managed-groups.toggle-sync');
 
         // AJAX compartido
         Route::get('/clients/{client}/areas', [AdminElementController::class, 'getAreasByClient'])->name('clients.areas');

@@ -1834,12 +1834,13 @@
                 bottomScrollbar.scrollLeft = tableScrollContainer.scrollLeft;
             });
         }
-                function updateCompactMode() {
-            if (!tableScrollContainer || !preventiveTable) {
+        function updateCompactMode() {
+            if (!preventiveTable) {
                 return;
             }
 
-            const shouldCompact = preventiveTable.scrollWidth > tableScrollContainer.clientWidth + 140;
+            const shouldCompact = window.innerWidth <= 1366;
+
             preventiveTable.classList.toggle('compact-mode', shouldCompact);
 
             requestAnimationFrame(() => {
@@ -1848,11 +1849,11 @@
             });
         }
 
-        window.addEventListener('resize', updateCompactMode);
-
-        requestAnimationFrame(() => {
-            updateCompactMode();
+        window.addEventListener('resize', () => {
+            requestAnimationFrame(updateCompactMode);
         });
+
+        requestAnimationFrame(updateCompactMode);
 
         async function toggleExecution(reportId) {
             if (@json($isReadOnly)) {
@@ -1950,19 +1951,20 @@
 
         let resizeObserver = null;
 
-        if (typeof ResizeObserver !== 'undefined' && preventiveTable) {
+        if (typeof ResizeObserver !== 'undefined' && tableScrollContainer) {
             resizeObserver = new ResizeObserver(() => {
-                syncBottomScrollbarWidth();
-                updateBottomScrollbarVisibility();
-                updateCompactMode();
+                requestAnimationFrame(() => {
+                    syncBottomScrollbarWidth();
+                    updateBottomScrollbarVisibility();
+                });
             });
 
-            resizeObserver.observe(preventiveTable);
+            resizeObserver.observe(tableScrollContainer);
         }
 
         window.addEventListener('beforeunload', () => {
-            if (resizeObserver && preventiveTable) {
-                resizeObserver.unobserve(preventiveTable);
+            if (resizeObserver && tableScrollContainer) {
+                resizeObserver.unobserve(tableScrollContainer);
             }
         });
 

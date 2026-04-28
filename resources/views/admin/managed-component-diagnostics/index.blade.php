@@ -4,13 +4,6 @@
 
 @section('content')
     <div class="space-y-8">
-        <div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Asignación de diagnósticos a componentes</h2>
-            <p class="mt-2 text-slate-600">
-                Configura qué diagnósticos aplican a cada componente según el cliente y tipo de activo.
-            </p>
-        </div>
-
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {{ session('success') }}

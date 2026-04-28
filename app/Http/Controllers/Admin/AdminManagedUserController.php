@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\Client;
 use App\Models\ElementType;
+use App\Models\Group;
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Group;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -101,6 +102,7 @@ class AdminManagedUserController extends Controller
             ->groupBy('client_id');
 
         $groupsByClient = Group::query()
+            ->with(['elements.elementType'])
             ->whereIn('client_id', $clientIds)
             ->where('status', true)
             ->orderBy('name')
@@ -109,26 +111,26 @@ class AdminManagedUserController extends Controller
 
         $selectedClientIds = $showClientColumn
             ? collect($request->input('client_ids', []))
-                ->filter()
+                ->filter(fn ($id) => $id !== null && $id !== '')
                 ->map(fn ($id) => (string) $id)
                 ->values()
                 ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
         $selectedNames = collect($request->input('names', []))
-            ->filter()
+            ->filter(fn ($value) => $value !== null && $value !== '')
             ->map(fn ($value) => (string) $value)
             ->values()
             ->all();
 
         $selectedRoleKeys = collect($request->input('role_keys', []))
-            ->filter()
+            ->filter(fn ($value) => $value !== null && $value !== '')
             ->map(fn ($value) => (string) $value)
             ->values()
             ->all();
 
         $selectedStatuses = collect($request->input('statuses', []))
-            ->filter()
+            ->filter(fn ($value) => $value !== null && $value !== '')
             ->map(fn ($value) => (string) $value)
             ->values()
             ->all();
@@ -176,7 +178,7 @@ class AdminManagedUserController extends Controller
         }
 
         if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
+            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
         }
 
         $users = (clone $baseQuery)
@@ -216,8 +218,6 @@ class AdminManagedUserController extends Controller
             'statuses' => $statusFilterOptions,
         ];
 
-        
-
         $activeFilters = [
             'client_ids' => $selectedClientIds,
             'names' => $selectedNames,
@@ -241,22 +241,12 @@ class AdminManagedUserController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $authRoleKey = $authUser->role?->key;
 
-        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
-            $allowedClientIds = Client::query()
-                ->where('status', true)
-                ->pluck('id')
-                ->all();
-        } else {
-            $allowedClientIds = $authUser->clients()
-                ->where('clients.status', true)
-                ->pluck('clients.id')
-                ->all();
-        }
+        $allowedClientIds = $this->allowedClientIdsFor($authUser, $authRoleKey);
 
         $assignableRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
             ? [
@@ -277,7 +267,6 @@ class AdminManagedUserController extends Controller
 
         $specializedRoleKeys = [
             'admin_cliente',
-            'inspector',
             'observador',
             'observador_cliente',
         ];
@@ -321,7 +310,8 @@ class AdminManagedUserController extends Controller
                 $validated['area_permissions'] ?? []
             );
         }
-        if (in_array($role->key, ['admin_cliente', 'observador_cliente'], true)) {
+
+        if (in_array($role->key, ['admin_cliente', 'inspector', 'observador_cliente'], true)) {
             $this->validateGroupPermissions(
                 $clientIds,
                 $validated['group_permissions'] ?? []
@@ -331,7 +321,7 @@ class AdminManagedUserController extends Controller
         DB::transaction(function () use ($validated, $role, $clientIds) {
             $user = User::create([
                 'name' => trim($validated['name']),
-                'document' => $validated['document'] ? trim($validated['document']) : null,
+                'document' => filled($validated['document'] ?? null) ? trim($validated['document']) : null,
                 'username' => trim($validated['username']),
                 'password' => Hash::make($validated['password']),
                 'role_id' => $role->id,
@@ -363,12 +353,19 @@ class AdminManagedUserController extends Controller
             );
         });
 
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario creado correctamente.',
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
             ->with('success', 'Usuario creado correctamente.');
     }
 
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
         $authRoleKey = $authUser->role?->key;
@@ -386,7 +383,7 @@ class AdminManagedUserController extends Controller
 
                 $payload = [
                     'name' => trim($validated['name']),
-                    'document' => $validated['document'] ? trim($validated['document']) : null,
+                    'document' => filled($validated['document'] ?? null) ? trim($validated['document']) : null,
                     'username' => trim($validated['username']),
                 ];
 
@@ -395,6 +392,13 @@ class AdminManagedUserController extends Controller
                 }
 
                 $user->update($payload);
+
+                if ($this->isAjaxRequest($request)) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Tu perfil fue actualizado correctamente.',
+                    ]);
+                }
 
                 return redirect()
                     ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
@@ -411,6 +415,13 @@ class AdminManagedUserController extends Controller
                 'password' => Hash::make($validated['password']),
             ]);
 
+            if ($this->isAjaxRequest($request)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Tu contraseña fue actualizada correctamente.',
+                ]);
+            }
+
             return redirect()
                 ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
                 ->with('success', 'Tu contraseña fue actualizada correctamente.');
@@ -418,17 +429,7 @@ class AdminManagedUserController extends Controller
 
         abort_unless($this->canManageTargetUser($authUser, $user), 403);
 
-        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
-            $allowedClientIds = Client::query()
-                ->where('status', true)
-                ->pluck('id')
-                ->all();
-        } else {
-            $allowedClientIds = $authUser->clients()
-                ->where('clients.status', true)
-                ->pluck('clients.id')
-                ->all();
-        }
+        $allowedClientIds = $this->allowedClientIdsFor($authUser, $authRoleKey);
 
         $assignableRoleKeys = in_array($authRoleKey, ['superadmin', 'admin_global'], true)
             ? [
@@ -449,7 +450,6 @@ class AdminManagedUserController extends Controller
 
         $specializedRoleKeys = [
             'admin_cliente',
-            'inspector',
             'observador',
             'observador_cliente',
         ];
@@ -469,8 +469,6 @@ class AdminManagedUserController extends Controller
             'clients.*' => [Rule::in($allowedClientIds)],
             'element_type_permissions' => ['nullable', 'array'],
             'area_permissions' => ['nullable', 'array'],
-
-            // Agrupaciones para indicadores
             'group_permissions' => ['nullable', 'array'],
             'group_permissions.*' => ['nullable', 'array'],
             'group_permissions.*.*' => ['integer', 'exists:groups,id'],
@@ -496,7 +494,7 @@ class AdminManagedUserController extends Controller
             );
         }
 
-        if (in_array($role->key, ['admin_cliente', 'observador_cliente'], true)) {
+        if (in_array($role->key, ['admin_cliente', 'inspector', 'observador_cliente'], true)) {
             $this->validateGroupPermissions(
                 $clientIds,
                 $validated['group_permissions'] ?? []
@@ -506,7 +504,7 @@ class AdminManagedUserController extends Controller
         DB::transaction(function () use ($user, $validated, $role, $clientIds) {
             $payload = [
                 'name' => trim($validated['name']),
-                'document' => $validated['document'] ? trim($validated['document']) : null,
+                'document' => filled($validated['document'] ?? null) ? trim($validated['document']) : null,
                 'username' => trim($validated['username']),
                 'role_id' => $role->id,
             ];
@@ -542,12 +540,19 @@ class AdminManagedUserController extends Controller
             );
         });
 
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario actualizado correctamente.',
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
             ->with('success', 'Usuario actualizado correctamente.');
     }
 
-    public function toggleStatus(Request $request, User $user): RedirectResponse
+    public function toggleStatus(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $authUser = auth()->user();
 
@@ -558,9 +563,22 @@ class AdminManagedUserController extends Controller
             'status' => !$user->status,
         ]);
 
+        $message = $user->status
+            ? 'Usuario activado correctamente.'
+            : 'Usuario inactivado correctamente.';
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'status' => (bool) $user->status,
+                'label' => $user->status ? 'Activo' : 'Inactivo',
+            ]);
+        }
+
         return redirect()
             ->route('admin.managed-users.index', $this->buildRedirectQuery($request))
-            ->with('success', 'Estado del usuario actualizado correctamente.');
+            ->with('success', $message);
     }
 
     public function destroy(Request $request, User $user): RedirectResponse
@@ -599,7 +617,7 @@ class AdminManagedUserController extends Controller
             ->where('user_id', $user->id)
             ->delete();
 
-        if (!in_array($roleKey, ['admin_cliente', 'inspector', 'observador', 'observador_cliente'], true)) {
+        if (!in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true)) {
             return;
         }
 
@@ -790,7 +808,7 @@ class AdminManagedUserController extends Controller
     ): void {
         $user->groups()->detach();
 
-        if (!in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
+        if (!in_array($roleKey, ['admin_cliente', 'inspector', 'observador_cliente'], true)) {
             return;
         }
 
@@ -838,7 +856,6 @@ class AdminManagedUserController extends Controller
             ->exists();
     }
 
-
     private function canManageTargetUser(User $authUser, User $targetUser): bool
     {
         $authRoleKey = $authUser->role?->key;
@@ -861,7 +878,6 @@ class AdminManagedUserController extends Controller
             ->whereIn('clients.id', $authUser->clients()->pluck('clients.id'))
             ->exists();
     }
-
 
     private function buildRedirectQuery(Request $request): array
     {
@@ -896,5 +912,25 @@ class AdminManagedUserController extends Controller
         }
 
         return $query;
+    }
+
+    private function allowedClientIdsFor(User $authUser, ?string $authRoleKey): array
+    {
+        if (in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+            return Client::query()
+                ->where('status', true)
+                ->pluck('id')
+                ->all();
+        }
+
+        return $authUser->clients()
+            ->where('clients.status', true)
+            ->pluck('clients.id')
+            ->all();
+    }
+
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
     }
 }

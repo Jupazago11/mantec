@@ -942,7 +942,7 @@ class AdminPreventiveReportController extends Controller
                 $report->condition_color = $condition?->color ?: '#e2e8f0';
 
                 $report->inspector_name = $inspector?->name ?: '—';
-                $report->responsable_name = '—';
+                $report->responsable_name = $this->resolveAdminClienteResponsables($report);
 
                 $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
 
@@ -998,6 +998,7 @@ class AdminPreventiveReportController extends Controller
                     'orden' => $report->orden,
                     'aviso' => $report->aviso,
                     'inspector_name' => $inspector?->name,
+                    'responsable_name' => $this->resolveAdminClienteResponsables($report),
                     'execution_status_name' => $executionStatus?->name,
                     'week' => $report->week,
                 ];
@@ -1070,7 +1071,14 @@ class AdminPreventiveReportController extends Controller
                 ->sort()
                 ->values(),
 
-            'responsable_names' => collect(),
+            'responsable_names' => $optionsRows
+                ->pluck('responsable_name')
+                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
+                ->flatMap(fn ($value) => collect(explode(', ', $value)))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values(),
 
             'condition_names' => $optionsRows
                 ->pluck('condition_name')
@@ -1489,6 +1497,38 @@ class AdminPreventiveReportController extends Controller
             $names = array_filter((array) $request->input('inspector_names', []));
             $query->whereHas('user', function ($userQuery) use ($names) {
                 $userQuery->whereIn('name', $names);
+            });
+        }
+
+        if ($request->filled('responsable_names')) {
+            $responsableNames = array_filter((array) $request->input('responsable_names', []));
+
+            $query->where(function ($outerQuery) use ($responsableNames) {
+                foreach ($responsableNames as $responsableName) {
+                    $outerQuery->orWhereExists(function ($subQuery) use ($responsableName) {
+                        $subQuery->selectRaw('1')
+                            ->from('users')
+                            ->join('roles', 'roles.id', '=', 'users.role_id')
+                            ->join('client_user', 'client_user.user_id', '=', 'users.id')
+                            ->join('user_client_element_type', function ($join) {
+                                $join->on('user_client_element_type.user_id', '=', 'users.id')
+                                    ->on('user_client_element_type.client_id', '=', 'client_user.client_id');
+                            })
+                            ->join('user_client_element_type_areas', function ($join) {
+                                $join->on('user_client_element_type_areas.user_id', '=', 'users.id')
+                                    ->on('user_client_element_type_areas.client_id', '=', 'user_client_element_type.client_id')
+                                    ->on('user_client_element_type_areas.element_type_id', '=', 'user_client_element_type.element_type_id');
+                            })
+                            ->join('elements', 'elements.id', '=', 'report_details.element_id')
+                            ->join('areas', 'areas.id', '=', 'elements.area_id')
+                            ->whereColumn('client_user.client_id', 'areas.client_id')
+                            ->whereColumn('user_client_element_type.element_type_id', 'elements.element_type_id')
+                            ->whereColumn('user_client_element_type_areas.area_id', 'areas.id')
+                            ->where('roles.key', 'admin_cliente')
+                            ->where('users.status', true)
+                            ->where('users.name', $responsableName);
+                    });
+                }
             });
         }
 
