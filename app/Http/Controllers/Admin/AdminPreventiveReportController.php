@@ -1017,41 +1017,41 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
         ->isNotEmpty();
 
-        $optionsRows = (clone $baseQuery)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get()
-            ->map(function ($report) use ($responsablesByArea) {
-            $element = $report->element;
-            $area = $element?->area;
-            $component = $report->component;
-            $diagnostic = $report->diagnostic;
-            $condition = $report->condition;
-            $inspector = $report->user;
-            $executionStatus = $report->executionStatus;
+        $optionsRows = (clone $query)
+    ->orderByDesc('created_at')
+    ->orderByDesc('id')
+    ->get()
+    ->map(function ($report) use ($responsablesByArea) {
+        $element = $report->element;
+        $area = $element?->area;
+        $component = $report->component;
+        $diagnostic = $report->diagnostic;
+        $condition = $report->condition;
+        $inspector = $report->user;
+        $executionStatus = $report->executionStatus;
 
-            return (object) [
-                'element_name' => $element?->name,
-                'area_name' => $area?->name,
-                'warehouse_code' => $element?->warehouse_code,
-                'component_id' => $component?->id,
-                'component_name' => $component?->name,
-                'diagnostic_id' => $diagnostic?->id,
-                'diagnostic_name' => $diagnostic?->name,
-                'recommendation' => $report->recommendation,
-                'condition_code' => $condition?->code,
-                'condition_name' => $condition?->name,
-                'orden' => $report->orden,
-                'aviso' => $report->aviso,
-                'inspector_name' => $inspector?->name,
-                'responsable_name' => $responsablesByArea->get(
-                    (int) ($element?->area_id ?? 0),
-                    '—'
-                ),
-                'execution_status_name' => $executionStatus?->name,
-                'week' => $report->week,
-            ];
-        });
+        return (object) [
+            'element_name' => $element?->name,
+            'area_name' => $area?->name,
+            'warehouse_code' => $element?->warehouse_code,
+            'component_id' => $component?->id,
+            'component_name' => $component?->name,
+            'diagnostic_id' => $diagnostic?->id,
+            'diagnostic_name' => $diagnostic?->name,
+            'recommendation' => $report->recommendation,
+            'condition_code' => $condition?->code,
+            'condition_name' => $condition?->name,
+            'orden' => $report->orden,
+            'aviso' => $report->aviso,
+            'inspector_name' => $inspector?->name,
+            'responsable_name' => $responsablesByArea->get(
+                (int) ($element?->area_id ?? 0),
+                '—'
+            ),
+            'execution_status_name' => $executionStatus?->name,
+            'week' => $report->week,
+        ];
+    });
 
     $filterOptions = [
         'element_names' => $optionsRows

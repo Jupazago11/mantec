@@ -1214,7 +1214,21 @@
             </button>
         </div>
 
-        <div class="px-6 py-5">
+        <div id="editReportLoader" class="hidden px-6 py-10">
+            <div class="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#d94d33]"></div>
+
+                <h3 class="text-base font-semibold text-slate-900">
+                    Cargando información del reporte
+                </h3>
+
+                <p class="mt-2 max-w-md text-sm text-slate-500">
+                    Estamos preparando los campos del reporte. Por favor espera un momento.
+                </p>
+            </div>
+        </div>
+
+        <div id="editReportFormContent" class="px-6 py-5">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Área</label>
@@ -1303,7 +1317,7 @@
             </div>
         </div>
 
-        <div class="flex justify-end gap-2 px-5 py-4">
+        <div id="editReportFooter" class="flex justify-end gap-2 px-5 py-4">
             <button
                 onclick="closeEditReportModal()"
                 class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
@@ -1660,7 +1674,7 @@
                         data-filter-key="${escapeHtml(filterKey)}"
                         class="max-h-72 space-y-1 overflow-y-auto pr-1"
                     >
-                        ${optionItems || '<p class="px-2 py-2 text-sm text-slate-500">No hay opciones disponibles.</p>'}
+                        ${optionItems || '<p class="px-2 py-2 text-sm text-slate-500">No hay opciones disponibles con los filtros actuales.</p>'}
                     </div>
 
                     <div class="flex items-center justify-between gap-2 pt-1">
@@ -2258,59 +2272,71 @@
         }
         let CURRENT_REPORT_ID = null;
 
-        async function openEditReportModal(reportId) {
-            CURRENT_REPORT_ID = reportId;
+async function openEditReportModal(reportId) {
+    CURRENT_REPORT_ID = reportId;
 
-            resetEditReportModalFields();
+    resetEditReportModalFields();
 
-            document.getElementById('editReportModal').classList.remove('hidden');
-            document.getElementById('editReportModal').classList.add('flex');
+    const modal = document.getElementById('editReportModal');
 
-            try {
-                const response = await fetch(
-                    "{{ route('admin.preventive-reports.edit-data', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
-                    {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    }
-                );
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
 
-                const data = await response.json();
+    setEditReportLoading(true);
 
-                if (!response.ok || !data.success) {
-                    throw new Error(data.message || 'No fue posible cargar el reporte.');
-                }
-
-                fillSelect(editArea, data.areas || [], data.report.area_id, 'Seleccione un área');
-
-                await reloadElementsByArea(data.report.area_id, data.report.element_id);
-                await reloadComponentsByElement(data.report.element_id, data.report.component_id);
-                await reloadDiagnosticsByComponent(data.report.component_id, data.report.diagnostic_id);
-                await reloadConditionsByComponent(data.report.component_id, data.report.condition_id);
-
-                if (editRecommendation) {
-                    editRecommendation.value = data.report.recommendation || '';
-                }
-
-                if (editNewDate) {
-                    editNewDate.value = data.report.report_date || new Date().toISOString().slice(0, 10);
-                }
-            } catch (error) {
-                showInlineToast(error.message || 'No fue posible cargar los datos del reporte.', 'error');
-                closeEditReportModal();
+    try {
+        const response = await fetch(
+            "{{ route('admin.preventive-reports.edit-data', ['reportDetail' => '__REPORT_ID__']) }}".replace('__REPORT_ID__', reportId),
+            {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No fue posible cargar el reporte.');
         }
 
-        function closeEditReportModal() {
-            CURRENT_REPORT_ID = null;
-            resetEditReportModalFields();
+        /*
+         * Importante:
+         * Mientras el loader está visible, llenamos todos los campos.
+         * El usuario no verá los selects cambiando progresivamente.
+         */
+        fillSelect(editArea, data.areas || [], data.report.area_id, 'Seleccione un área');
 
-            document.getElementById('editReportModal').classList.add('hidden');
-            document.getElementById('editReportModal').classList.remove('flex');
+        await reloadElementsByArea(data.report.area_id, data.report.element_id);
+        await reloadComponentsByElement(data.report.element_id, data.report.component_id);
+        await reloadDiagnosticsByComponent(data.report.component_id, data.report.diagnostic_id);
+        await reloadConditionsByComponent(data.report.component_id, data.report.condition_id);
+
+        if (editRecommendation) {
+            editRecommendation.value = data.report.recommendation || '';
         }
+
+        if (editNewDate) {
+            editNewDate.value = data.report.report_date || new Date().toISOString().slice(0, 10);
+        }
+
+        setEditReportLoading(false);
+    } catch (error) {
+        showInlineToast(error.message || 'No fue posible cargar los datos del reporte.', 'error');
+        closeEditReportModal();
+    }
+}
+
+function closeEditReportModal() {
+    CURRENT_REPORT_ID = null;
+    resetEditReportModalFields();
+    setEditReportLoading(false);
+
+    document.getElementById('editReportModal').classList.add('hidden');
+    document.getElementById('editReportModal').classList.remove('flex');
+}
 
         document.addEventListener('change', function (e) {
             if (e.target.name === 'edit-date-mode') {
@@ -2331,6 +2357,31 @@
         const editRecommendation = document.getElementById('edit-recommendation');
         const editCondition = document.getElementById('edit-condition');
         const editNewDate = document.getElementById('edit-new-date');
+
+        const editReportLoader = document.getElementById('editReportLoader');
+        const editReportFormContent = document.getElementById('editReportFormContent');
+        const editReportFooter = document.getElementById('editReportFooter');
+        const saveEditReportBtn = document.getElementById('saveEditReportBtn');
+
+        function setEditReportLoading(isLoading) {
+            if (editReportLoader) {
+                editReportLoader.classList.toggle('hidden', !isLoading);
+            }
+
+            if (editReportFormContent) {
+                editReportFormContent.classList.toggle('hidden', isLoading);
+            }
+
+            if (editReportFooter) {
+                editReportFooter.classList.toggle('hidden', isLoading);
+            }
+
+            if (saveEditReportBtn) {
+                saveEditReportBtn.disabled = isLoading;
+                saveEditReportBtn.classList.toggle('opacity-60', isLoading);
+                saveEditReportBtn.classList.toggle('pointer-events-none', isLoading);
+            }
+        }
 
         function fillSelect(select, items, selectedValue = null, placeholder = 'Seleccione') {
             if (!select) return;
