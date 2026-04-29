@@ -748,13 +748,40 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             });
     }
 
-    private function userCanAccessElement($user, Element $element): bool
-    {
-        $element->loadMissing('area');
+private function userCanAccessElement($user, Element $element): bool
+{
+    $element->loadMissing('area');
 
-        return $this->userHasClientAccess($user, $element->area->client_id)
-            && $user->hasElementTypeAccess($element->area->client_id, $element->element_type_id);
+    if (!$element->area) {
+        return false;
     }
+
+    $roleKey = $user->role->key ?? null;
+
+    if ($roleKey === 'inspector') {
+        if (!$element->group_id) {
+            return false;
+        }
+
+        $hasClientAccess = $user->clients()
+            ->where('clients.id', $element->area->client_id)
+            ->where('clients.status', true)
+            ->exists();
+
+        if (!$hasClientAccess) {
+            return false;
+        }
+
+        return $user->groups()
+            ->where('groups.id', $element->group_id)
+            ->where('groups.client_id', $element->area->client_id)
+            ->where('groups.status', true)
+            ->exists();
+    }
+
+    return $this->userHasClientAccess($user, $element->area->client_id)
+        && $user->hasElementTypeAccess($element->area->client_id, $element->element_type_id);
+}
 
     private function userCanAccessArea(User $user, Area $area): bool
     {
