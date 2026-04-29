@@ -715,11 +715,16 @@
                 </div>
             </div>
 
-            <form id="filtersForm" method="GET" class="hidden">
+            <form
+                id="filtersForm"
+                method="GET"
+                action="{{ route('admin.preventive-reports.group', ['group' => $group->id]) }}"
+                class="hidden"
+            >
                 <input type="hidden" name="date_from" value="{{ $dateFrom }}">
                 <input type="hidden" name="date_to" value="{{ $dateTo }}">
             </form>
-                        <div class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+            <div class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-end lg:justify-between">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                         <label for="date_from_visible" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1460,6 +1465,10 @@
             filtersForm.appendChild(dateToInput);
 
             Object.entries(params).forEach(([key, value]) => {
+                if (key === 'page') {
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     value.forEach(item => {
                         const input = document.createElement('input');
@@ -1480,10 +1489,15 @@
                 }
             });
         }
-                function submitFilters(nextFilters = {}) {
+
+        function submitFilters(nextFilters = {}) {
             const merged = {};
 
             Object.entries(ACTIVE_FILTERS).forEach(([key, value]) => {
+                if (key === 'page') {
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     const normalized = normalizeScalarArray(value);
                     if (normalized.length > 0) {
@@ -1498,6 +1512,10 @@
             });
 
             Object.entries(nextFilters).forEach(([key, value]) => {
+                if (key === 'page') {
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     const normalized = normalizeScalarArray(value);
                     if (normalized.length > 0) {
@@ -1514,6 +1532,8 @@
                     merged[key] = value;
                 }
             });
+
+            delete merged.page;
 
             rebuildFiltersForm(merged);
             filtersForm.submit();
