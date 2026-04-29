@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Support\ReportFilePathBuilder;
 
@@ -338,52 +339,81 @@ class InspectorReportController extends Controller
     }
 
 
-    public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
-    {
-        $user = Auth::user();
+public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
+{
+    $user = Auth::user();
 
-        abort_unless($this->userCanAccessElement($user, $element), 403);
+    abort_unless($this->userCanAccessElement($user, $element), 403);
 
-        $now = Carbon::now();
-        $week = (int) $now->isoWeek();
-        $year = (int) $now->isoWeekYear();
+    $now = Carbon::now();
+    $week = (int) $now->isoWeek();
+    $year = (int) $now->isoWeekYear();
 
-        $expected = $element->components()
-            ->with(['diagnostics' => function ($query) use ($element) {
-                $query->where('diagnostics.status', true)
-                    ->where('diagnostics.element_type_id', $element->element_type_id)
-                    ->orderBy('diagnostics.name');
-            }])
-            ->where('components.status', true)
-            ->where('components.element_type_id', $element->element_type_id)
-            ->orderBy('components.name')
-            ->get();
+    /*
+     * Matriz esperada del activo:
+     * element_components -> components -> component_diagnostics -> diagnostics
+     *
+     * Se hace por consulta directa para evitar que una relación Eloquent
+     * incompleta o un filtro lateral deje el resultado en [].
+     */
+    $expectedRows = DB::table('element_components')
+        ->join('components', 'components.id', '=', 'element_components.component_id')
+        ->join('component_diagnostics', 'component_diagnostics.component_id', '=', 'components.id')
+        ->join('diagnostics', 'diagnostics.id', '=', 'component_diagnostics.diagnostic_id')
+        ->where('element_components.element_id', $element->id)
+        ->where('components.status', true)
+        ->where('components.element_type_id', $element->element_type_id)
+        ->where('diagnostics.status', true)
+        ->where('diagnostics.element_type_id', $element->element_type_id)
+        ->orderBy('components.name')
+        ->orderBy('diagnostics.name')
+        ->get([
+            'components.id as component_id',
+            'components.name as component_name',
+            'components.code as component_code',
+            'diagnostics.id as diagnostic_id',
+            'diagnostics.name as diagnostic_name',
+        ]);
 
-        $doneKeys = ReportDetail::where('element_id', $element->id)
-            ->where('week', $week)
-            ->where('year', $year)
-            ->get(['component_id', 'diagnostic_id'])
-            ->map(fn ($row) => $row->component_id . '-' . $row->diagnostic_id)
-            ->flip();
-
-        $items = [];
-
-        foreach ($expected as $component) {
-            foreach ($component->diagnostics as $diagnostic) {
-                $key = $component->id . '-' . $diagnostic->id;
-
-                $items[] = [
-                    'component_id' => (int) $component->id,
-                    'component_name' => $component->name,
-                    'diagnostic_id' => (int) $diagnostic->id,
-                    'diagnostic_name' => $diagnostic->name,
-                    'status' => $doneKeys->has($key) ? 'DONE' : 'PENDING',
-                ];
-            }
-        }
-
-        return response()->json($items);
+    if ($expectedRows->isEmpty()) {
+        return response()->json([]);
     }
+
+    $componentIds = $expectedRows
+        ->pluck('component_id')
+        ->unique()
+        ->values();
+
+    $diagnosticIds = $expectedRows
+        ->pluck('diagnostic_id')
+        ->unique()
+        ->values();
+
+    $doneKeys = ReportDetail::query()
+        ->where('element_id', $element->id)
+        ->where('week', $week)
+        ->where('year', $year)
+        ->whereIn('component_id', $componentIds)
+        ->whereIn('diagnostic_id', $diagnosticIds)
+        ->get(['component_id', 'diagnostic_id'])
+        ->map(fn ($row) => $row->component_id . '-' . $row->diagnostic_id)
+        ->flip();
+
+    $items = $expectedRows->map(function ($row) use ($doneKeys) {
+        $key = $row->component_id . '-' . $row->diagnostic_id;
+
+        return [
+            'component_id' => (int) $row->component_id,
+            'component_name' => (string) $row->component_name,
+            'component_code' => $row->component_code,
+            'diagnostic_id' => (int) $row->diagnostic_id,
+            'diagnostic_name' => (string) $row->diagnostic_name,
+            'status' => $doneKeys->has($key) ? 'DONE' : 'PENDING',
+        ];
+    })->values();
+
+    return response()->json($items);
+}
 
     public function getWeeklyElementsStatus(Request $request, Area $area): JsonResponse
     {
