@@ -995,6 +995,7 @@
 
     const activeFilters = @json($activeFilters);
     let currentPopoverKey = null;
+    let currentEditingUserPayload = null;
 
     function getSelectedRoleKey(prefix) {
         const select = document.getElementById(`${prefix}_role_id`);
@@ -1297,12 +1298,9 @@ async function submitEditUserForm(event) {
         const data = await parseAjaxResponse(response);
 
         if (response.ok) {
+            refreshEditedUserRowFromForm();
             showCrudToast(data?.message || 'Usuario actualizado correctamente.', 'success');
             closeEditUserModal();
-
-            setTimeout(() => {
-                window.location.reload();
-            }, 700);
 
             return false;
         }
@@ -1422,7 +1420,9 @@ function validateAdminClienteGroupAreas(prefix) {
     return true;
 }
 
- function openEditUserModal(user) {
+function openEditUserModal(user) {
+    currentEditingUserPayload = user;
+
     const editForm = document.getElementById('editUserForm');
     const editSubmitButton = editForm?.querySelector('button[type="submit"]');
 
@@ -1868,5 +1868,274 @@ function validateAdminClienteGroupAreas(prefix) {
             closeEditUserModal();
         }
     });
+
+    function getCheckedValues(selector) {
+    return Array.from(document.querySelectorAll(selector))
+        .filter(input => input.checked)
+        .map(input => parseInt(input.value))
+        .filter(value => !Number.isNaN(value));
+}
+
+function getCheckedGroupedValues(selector, groupDatasetKey = 'clientId') {
+    const result = {};
+
+    document.querySelectorAll(selector).forEach(input => {
+        if (!input.checked) {
+            return;
+        }
+
+        const groupKey = input.dataset[groupDatasetKey];
+        const value = parseInt(input.value);
+
+        if (!groupKey || Number.isNaN(value)) {
+            return;
+        }
+
+        if (!result[groupKey]) {
+            result[groupKey] = [];
+        }
+
+        result[groupKey].push(value);
+    });
+
+    return result;
+}
+
+function getCheckedGroupAreaPermissions(prefix) {
+    const result = {};
+
+    document.querySelectorAll(`.${prefix}-group-area-checkbox:checked`).forEach(input => {
+        const clientId = input.dataset.clientId;
+        const groupId = input.dataset.groupId;
+        const areaId = parseInt(input.value);
+
+        if (!clientId || !groupId || Number.isNaN(areaId)) {
+            return;
+        }
+
+        if (!result[clientId]) {
+            result[clientId] = {};
+        }
+
+        if (!result[clientId][groupId]) {
+            result[clientId][groupId] = [];
+        }
+
+        result[clientId][groupId].push(areaId);
+    });
+
+    return result;
+}
+
+function getSelectedRoleLabel(prefix) {
+    const select = document.getElementById(`${prefix}_role_id`);
+
+    if (!select || select.selectedIndex < 0) {
+        return '—';
+    }
+
+    return select.options[select.selectedIndex]?.textContent?.trim() || '—';
+}
+
+function getSelectedClientNames(prefix) {
+    return Array.from(document.querySelectorAll(`.${prefix}-client-checkbox:checked`))
+        .map(input => input.closest('label')?.textContent?.trim())
+        .filter(Boolean);
+}
+
+function getSelectedGroupNamesByClient(prefix) {
+    const result = {};
+
+    document.querySelectorAll(`.${prefix}-group-checkbox:checked`).forEach(input => {
+        const clientId = input.dataset.clientId;
+        const groupName = input.closest('label')?.querySelector('.block.font-semibold')?.textContent?.trim()
+            || input.closest('label')?.textContent?.trim();
+
+        if (!clientId || !groupName) {
+            return;
+        }
+
+        if (!result[clientId]) {
+            result[clientId] = [];
+        }
+
+        result[clientId].push(groupName);
+    });
+
+    return result;
+}
+
+function buildUpdatedEditPayloadFromForm() {
+    if (!currentEditingUserPayload) {
+        return null;
+    }
+
+    const roleSelect = document.getElementById('edit_role_id');
+    const selectedRoleOption = roleSelect?.options[roleSelect.selectedIndex];
+
+    const clients = getCheckedValues('.edit-client-checkbox:checked');
+    const groupPermissions = getCheckedGroupedValues('.edit-group-checkbox:checked', 'clientId');
+    const groupAreaPermissions = getCheckedGroupAreaPermissions('edit');
+
+    const permissions = getCheckedGroupedValues('.edit-element-type-checkbox:checked', 'clientId');
+
+    const areaPermissions = {};
+
+    document.querySelectorAll('.edit-area-checkbox:checked').forEach(input => {
+        const clientId = input.dataset.clientId;
+        const elementTypeId = input.dataset.elementTypeId;
+        const areaId = parseInt(input.value);
+
+        if (!clientId || !elementTypeId || Number.isNaN(areaId)) {
+            return;
+        }
+
+        if (!areaPermissions[clientId]) {
+            areaPermissions[clientId] = {};
+        }
+
+        if (!areaPermissions[clientId][elementTypeId]) {
+            areaPermissions[clientId][elementTypeId] = [];
+        }
+
+        areaPermissions[clientId][elementTypeId].push(areaId);
+    });
+
+    return {
+        ...currentEditingUserPayload,
+        name: document.getElementById('edit_name')?.value?.trim() || '',
+        document: document.getElementById('edit_document')?.value?.trim() || null,
+        username: document.getElementById('edit_username')?.value?.trim() || '',
+        role_id: roleSelect ? parseInt(roleSelect.value) : currentEditingUserPayload.role_id,
+        role_key: selectedRoleOption?.dataset?.roleKey || currentEditingUserPayload.role_key,
+        clients,
+        permissions,
+        area_permissions: areaPermissions,
+        group_permissions: groupPermissions,
+        group_area_permissions: groupAreaPermissions,
+        password: undefined,
+    };
+}
+
+function buildPermissionsHtmlForRow(prefix, roleKey) {
+    const selectedClientInputs = Array.from(document.querySelectorAll(`.${prefix}-client-checkbox:checked`));
+
+    if (['admin_cliente', 'inspector', 'observador_cliente'].includes(roleKey)) {
+        const groupNamesByClient = getSelectedGroupNamesByClient(prefix);
+        const rows = [];
+
+        selectedClientInputs.forEach(clientInput => {
+            const clientId = clientInput.value;
+            const clientName = clientInput.closest('label')?.textContent?.trim() || '';
+            const groupNames = groupNamesByClient[clientId] || [];
+
+            if (groupNames.length > 0) {
+                rows.push(`
+                    <div>
+                        <span class="font-semibold text-slate-900">${escapeHtml(clientName)}:</span>
+                        ${escapeHtml(groupNames.join(', '))}
+                    </div>
+                `);
+            }
+        });
+
+        return rows.length > 0
+            ? `<div class="space-y-1">${rows.join('')}</div>`
+            : '—';
+    }
+
+    if (roleKey === 'observador') {
+        const rows = [];
+
+        selectedClientInputs.forEach(clientInput => {
+            const clientId = clientInput.value;
+            const clientName = clientInput.closest('label')?.textContent?.trim() || '';
+
+            const typeNames = Array.from(document.querySelectorAll(`.edit-element-type-checkbox[data-client-id="${clientId}"]:checked`))
+                .map(input => input.closest('label')?.textContent?.trim())
+                .filter(Boolean);
+
+            if (typeNames.length > 0) {
+                rows.push(`
+                    <div>
+                        <span class="font-semibold text-slate-900">${escapeHtml(clientName)}:</span>
+                        ${escapeHtml(typeNames.join(', '))}
+                    </div>
+                `);
+            }
+        });
+
+        return rows.length > 0
+            ? `<div class="space-y-1">${rows.join('')}</div>`
+            : '—';
+    }
+
+    return '—';
+}
+
+function refreshEditedUserRowFromForm() {
+    const updatedPayload = buildUpdatedEditPayloadFromForm();
+
+    if (!updatedPayload) {
+        return;
+    }
+
+    const row = document.getElementById(`user-row-${updatedPayload.id}`);
+
+    if (!row) {
+        currentEditingUserPayload = updatedPayload;
+        return;
+    }
+
+    const cells = row.querySelectorAll('td');
+    const showClientColumn = @json($showClientColumn);
+
+    const nameCellIndex = 0;
+    const usernameCellIndex = 1;
+    const roleCellIndex = 2;
+    const clientCellIndex = showClientColumn ? 3 : null;
+    const permissionsCellIndex = showClientColumn ? 4 : 3;
+    const actionsCellIndex = showClientColumn ? 6 : 5;
+
+    const roleLabel = getSelectedRoleLabel('edit');
+    const roleKey = updatedPayload.role_key;
+    const clientNames = getSelectedClientNames('edit');
+
+    if (cells[nameCellIndex]) {
+        const isSelfBadge = updatedPayload.is_self
+            ? '<span class="ml-2 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">Tú</span>'
+            : '';
+
+        cells[nameCellIndex].innerHTML = `${escapeHtml(updatedPayload.name)} ${isSelfBadge}`;
+    }
+
+    if (cells[usernameCellIndex]) {
+        cells[usernameCellIndex].textContent = updatedPayload.username || '—';
+    }
+
+    if (cells[roleCellIndex]) {
+        cells[roleCellIndex].textContent = roleLabel;
+    }
+
+    if (showClientColumn && cells[clientCellIndex]) {
+        cells[clientCellIndex].textContent = clientNames.length > 0 ? clientNames.join(', ') : '—';
+    }
+
+    if (cells[permissionsCellIndex]) {
+        cells[permissionsCellIndex].innerHTML = buildPermissionsHtmlForRow('edit', roleKey);
+    }
+
+    const editButton = cells[actionsCellIndex]?.querySelector('button[onclick^="openEditUserModal"]');
+
+    if (editButton) {
+        editButton.setAttribute('onclick', `openEditUserModal(${JSON.stringify(updatedPayload)})`);
+    }
+
+    currentEditingUserPayload = updatedPayload;
+
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
 </script>
 @endsection

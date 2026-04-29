@@ -700,15 +700,13 @@ class AdminPreventiveReportController extends Controller
                             ->from('users')
                             ->join('roles', 'roles.id', '=', 'users.role_id')
                             ->join('client_user', 'client_user.user_id', '=', 'users.id')
-                            ->join('user_client_group_areas', function ($join) {
-                                $join->on('user_client_group_areas.user_id', '=', 'users.id')
-                                    ->on('user_client_group_areas.client_id', '=', 'client_user.client_id');
-                            })
+                            ->join('group_user', 'group_user.user_id', '=', 'users.id')
+                            ->join('groups', 'groups.id', '=', 'group_user.group_id')
                             ->join('elements', 'elements.id', '=', 'report_details.element_id')
                             ->join('areas', 'areas.id', '=', 'elements.area_id')
                             ->whereColumn('client_user.client_id', 'areas.client_id')
-                            ->whereColumn('user_client_group_areas.group_id', 'elements.group_id')
-                            ->whereColumn('user_client_group_areas.area_id', 'elements.area_id')
+                            ->whereColumn('groups.client_id', 'client_user.client_id')
+                            ->whereColumn('group_user.group_id', 'elements.group_id')
                             ->where('roles.key', 'admin_cliente')
                             ->where('users.status', true)
                             ->where('users.name', $responsableName);
@@ -775,9 +773,8 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
 {
     $clientId = $report->element?->area?->client_id;
     $groupId = $report->element?->group_id;
-    $areaId = $report->element?->area_id;
 
-    if (!$clientId || !$groupId || !$areaId) {
+    if (!$clientId || !$groupId) {
         return '—';
     }
 
@@ -800,14 +797,6 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
                 ->where('group_user.group_id', $groupId)
                 ->where('groups.client_id', $clientId);
         })
-        ->whereExists(function ($query) use ($clientId, $groupId, $areaId) {
-            $query->selectRaw('1')
-                ->from('user_client_group_areas')
-                ->whereColumn('user_client_group_areas.user_id', 'users.id')
-                ->where('user_client_group_areas.client_id', $clientId)
-                ->where('user_client_group_areas.group_id', $groupId)
-                ->where('user_client_group_areas.area_id', $areaId);
-        })
         ->orderBy('users.name')
         ->pluck('users.name')
         ->unique()
@@ -817,326 +806,13 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
     return !empty($names) ? implode(', ', $names) : '—';
 }
 
-    public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $request): \Illuminate\View\View
-    {
-        $user = auth()->user();
-        $roleKey = $user->role?->key;
-
-        abort_unless(
-            in_array($roleKey, [
-                'superadmin',
-                'admin_global',
-                'admin',
-                'admin_cliente',
-                'observador',
-                'observador_cliente',
-            ], true),
-            403,
-            'No tienes permisos para ver este reporte.'
-        );
-
-        $allowedClientIds = match ($roleKey) {
-            'superadmin', 'admin_global', 'observador' => \App\Models\Client::query()
-                ->where('status', true)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all(),
-
-            default => $user->clients()
-                ->where('clients.status', true)
-                ->pluck('clients.id')
-                ->map(fn ($id) => (int) $id)
-                ->all(),
-        };
-
-        abort_unless(
-            in_array((int) $group->client_id, $allowedClientIds, true),
-            403,
-            'No tienes acceso a esta agrupación.'
-        );
-
-        if (in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
-            abort_unless(
-                $user->groups()
-                    ->where('groups.id', $group->id)
-                    ->exists(),
-                403,
-                'No tienes acceso a esta agrupación.'
-            );
-        }
-
-        $dateFrom = $request->input('date_from', now()->startOfYear()->toDateString());
-        $dateTo = $request->input('date_to', now()->toDateString());
-
-        abort_unless($dateFrom && $dateTo, 422, 'Debes enviar date_from y date_to.');
-        abort_unless($dateTo >= $dateFrom, 422, 'La fecha final no puede ser menor que la fecha inicial.');
-
-        $baseQuery = \App\Models\ReportDetail::query()
-            ->with([
-                'user:id,name',
-                'element:id,name,code,warehouse_code,area_id,element_type_id,group_id',
-                'element.area:id,name,client_id',
-                'component:id,name',
-                'diagnostic:id,name',
-                'condition:id,name,code,color',
-                'files:id,report_detail_id',
-                'executionStatus:id,code,name',
-            ])
-            ->where('status', true)
-            ->whereHas('element', function ($elementQuery) use ($group) {
-                $elementQuery->where('group_id', $group->id);
-            })
-            ->whereDate('created_at', '>=', $dateFrom)
-            ->whereDate('created_at', '<=', $dateTo);
-
-        if ($roleKey === 'admin_cliente') {
-            $allowedAreaIds = $this->getAllowedAreaIdsForClientAndGroup(
-                $user,
-                (int) $group->client_id,
-                (int) $group->id
-            );
-
-            if (empty($allowedAreaIds)) {
-                $baseQuery->whereRaw('1 = 0');
-            } else {
-                $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaIds) {
-                    $elementQuery->whereIn('area_id', $allowedAreaIds);
-                });
-            }
-        }
-
-        $query = clone $baseQuery;
-        $this->applyGroupFilters($query, $request);
-
-        $totalReportsGenerated = (clone $baseQuery)->count();
-        $totalReportsFiltered = (clone $query)->count();
-
-        $reports = $query
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->paginate(100)
-            ->withQueryString();
-
-        $reports->setCollection(
-            $reports->getCollection()->map(function ($report) {
-                $element = $report->element;
-                $area = $element?->area;
-                $component = $report->component;
-                $diagnostic = $report->diagnostic;
-                $condition = $report->condition;
-                $inspector = $report->user;
-                $executionStatus = $report->executionStatus;
-
-                $statusName = trim((string) ($executionStatus?->name ?? ''));
-                $statusUpper = mb_strtoupper($statusName);
-
-                $report->area_name = $area?->name ?: '—';
-                $report->element_name = $element?->name ?: '—';
-                $report->warehouse_code = $element?->warehouse_code ?: '—';
-
-                $report->component_name = $component?->name ?: '—';
-                $report->diagnostic_name = $diagnostic?->name ?: '—';
-
-                $report->condition_code = $condition?->code ?: '—';
-                $report->condition_name = $condition?->name ?: '—';
-                $report->condition_color = $condition?->color ?: '#e2e8f0';
-
-                $report->inspector_name = $inspector?->name ?: '—';
-                $report->responsable_name = $this->resolveAdminClienteResponsables($report);
-
-                $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
-
-                $report->executed = in_array($statusUpper, [
-                    'EJECUTADO',
-                    'EJECUTADA',
-                    'FINALIZADO',
-                    'FINALIZADA',
-                    'REALIZADO',
-                    'REALIZADA',
-                ], true);
-
-                if (!$report->executed) {
-                    $report->execution_date = null;
-                }
-
-                $report->report_date = optional($report->created_at)?->format('Y-m-d');
-                $report->has_evidence = $report->files->isNotEmpty();
-
-                return $report;
-            })
-        );
-
-        $showWarehouseColumn = $reports->getCollection()
-            ->pluck('warehouse_code')
-            ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
-            ->isNotEmpty();
-
-        $optionsRows = (clone $baseQuery)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get()
-            ->map(function ($report) {
-                $element = $report->element;
-                $area = $element?->area;
-                $component = $report->component;
-                $diagnostic = $report->diagnostic;
-                $condition = $report->condition;
-                $inspector = $report->user;
-                $executionStatus = $report->executionStatus;
-
-                return (object) [
-                    'element_name' => $element?->name,
-                    'area_name' => $area?->name,
-                    'warehouse_code' => $element?->warehouse_code,
-                    'component_id' => $component?->id,
-                    'component_name' => $component?->name,
-                    'diagnostic_id' => $diagnostic?->id,
-                    'diagnostic_name' => $diagnostic?->name,
-                    'recommendation' => $report->recommendation,
-                    'condition_code' => $condition?->code,
-                    'condition_name' => $condition?->name,
-                    'orden' => $report->orden,
-                    'aviso' => $report->aviso,
-                    'inspector_name' => $inspector?->name,
-                    'responsable_name' => $this->resolveAdminClienteResponsables($report),
-                    'execution_status_name' => $executionStatus?->name,
-                    'week' => $report->week,
-                ];
-            });
-
-        $filterOptions = [
-            'element_names' => $optionsRows
-                ->pluck('element_name')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'area_names' => $optionsRows
-                ->pluck('area_name')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'warehouse_codes' => $optionsRows
-                ->pluck('warehouse_code')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'diagnostic_pairs' => $optionsRows
-                ->filter(fn ($row) => $row->component_id && $row->diagnostic_id)
-                ->map(fn ($row) => [
-                    'value' => $row->component_id . '|' . $row->diagnostic_id,
-                    'label' => $row->component_name . ' | ' . $row->diagnostic_name,
-                ])
-                ->unique('value')
-                ->sortBy('label')
-                ->values(),
-
-            'recommendation_values' => $optionsRows
-                ->pluck('recommendation')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'condition_codes' => $optionsRows
-                ->pluck('condition_code')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'orden_values' => $optionsRows
-                ->pluck('orden')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'aviso_values' => $optionsRows
-                ->pluck('aviso')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'inspector_names' => $optionsRows
-                ->pluck('inspector_name')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'responsable_names' => $optionsRows
-                ->pluck('responsable_name')
-                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
-                ->flatMap(fn ($value) => collect(explode(', ', $value)))
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'condition_names' => $optionsRows
-                ->pluck('condition_name')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'execution_statuses' => $optionsRows
-                ->pluck('execution_status_name')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-
-            'weeks' => $optionsRows
-                ->pluck('week')
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values(),
-        ];
-
-        $activeFilters = [
-            'element_names' => (array) $request->input('element_names', []),
-            'area_names' => (array) $request->input('area_names', []),
-            'warehouse_codes' => (array) $request->input('warehouse_codes', []),
-            'diagnostic_pairs' => (array) $request->input('diagnostic_pairs', []),
-            'recommendation_values' => (array) $request->input('recommendation_values', []),
-            'condition_codes' => (array) $request->input('condition_codes', []),
-            'orden_values' => (array) $request->input('orden_values', []),
-            'aviso_values' => (array) $request->input('aviso_values', []),
-            'inspector_names' => (array) $request->input('inspector_names', []),
-            'responsable_names' => (array) $request->input('responsable_names', []),
-            'report_date_range' => $request->input('report_date_range'),
-            'execution_date_range' => $request->input('execution_date_range'),
-            'condition_names' => (array) $request->input('condition_names', []),
-            'execution_statuses' => (array) $request->input('execution_statuses', []),
-            'weeks' => (array) $request->input('weeks', []),
-        ];
-
-        return view('admin.reports.preventive.show', [
-            'group' => $group->loadMissing('client'),
-            'reports' => $reports,
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'isReadOnly' => in_array($roleKey, ['observador', 'observador_cliente'], true),
-            'roleKey' => $roleKey,
-            'activeFilters' => $activeFilters,
-            'filterOptions' => $filterOptions,
-            'showWarehouseColumn' => $showWarehouseColumn,
-            'totalGenerated' => $totalReportsGenerated,
-            'totalFiltered' => $totalReportsFiltered,
-            'canInlineEditOrderAviso' => $roleKey === 'admin_cliente',
-            'canInlineEditExecutionDate' => in_array($roleKey, ['superadmin', 'admin_global', 'admin', 'admin_cliente'], true),
-            'canEditReports' => in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
-        ]);
-    }
+/*
+ * Nueva regla ManTec:
+ * El admin_cliente ve todos los reportes de sus agrupaciones asignadas,
+ * independientemente de las áreas asociadas dentro de la agrupación.
+ *
+ * La validación de acceso a la agrupación ya se realiza arriba mediante group_user.
+ */
 
     public function editData(\App\Models\ReportDetail $reportDetail)
     {
@@ -1944,23 +1620,13 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
     }
 
     if ($roleKey === 'admin_cliente') {
-        if ($groupId <= 0 || $areaId <= 0) {
+        if ($groupId <= 0) {
             return false;
         }
 
-        $hasGroup = $user->groups()
+        return $user->groups()
             ->where('groups.id', $groupId)
             ->where('groups.client_id', $clientId)
-            ->exists();
-
-        if (!$hasGroup) {
-            return false;
-        }
-
-        return $user->allowedGroupAreas()
-            ->wherePivot('client_id', $clientId)
-            ->wherePivot('group_id', $groupId)
-            ->where('areas.id', $areaId)
             ->exists();
     }
 

@@ -1182,11 +1182,7 @@
                             @empty
                                 <tr>
                                     <td colspan="100%" class="px-4 py-10 text-center text-sm text-slate-500">
-                                        @if($roleKey === 'admin_cliente')
-                                            No se encontraron registros para tus áreas asignadas dentro de esta agrupación en el rango seleccionado.
-                                        @else
-                                            No se encontraron registros para esta agrupación en el rango seleccionado.
-                                        @endif
+                                        No se encontraron registros para esta agrupación en el rango seleccionado.
                                     </td>
                                 </tr>
                             @endforelse
