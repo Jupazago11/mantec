@@ -489,6 +489,17 @@ class AdminPreventiveReportController extends Controller
             'No tienes permisos para modificar la ejecución.'
         );
 
+        $reportDetail->loadMissing([
+            'element.area',
+            'element.elementType',
+        ]);
+
+        abort_unless(
+            $this->canAccessReportByCurrentScope($user, $reportDetail),
+            403,
+            'No autorizado para modificar este reporte.'
+        );
+
         $statuses = \App\Models\ExecutionStatus::query()
             ->where('status', true)
             ->get();
@@ -684,30 +695,23 @@ class AdminPreventiveReportController extends Controller
         if (!empty($responsableNames)) {
             $query->where(function ($outerQuery) use ($responsableNames) {
                 foreach ($responsableNames as $responsableName) {
-                    $outerQuery->orWhere(function ($innerQuery) use ($responsableName) {
-                        $innerQuery->whereExists(function ($subQuery) use ($responsableName) {
-                            $subQuery->selectRaw('1')
-                                ->from('users')
-                                ->join('roles', 'roles.id', '=', 'users.role_id')
-                                ->join('client_user', 'client_user.user_id', '=', 'users.id')
-                                ->join('user_client_element_type', function ($join) {
-                                    $join->on('user_client_element_type.user_id', '=', 'users.id')
-                                        ->on('user_client_element_type.client_id', '=', 'client_user.client_id');
-                                })
-                                ->join('user_client_element_type_areas', function ($join) {
-                                    $join->on('user_client_element_type_areas.user_id', '=', 'users.id')
-                                        ->on('user_client_element_type_areas.client_id', '=', 'user_client_element_type.client_id')
-                                        ->on('user_client_element_type_areas.element_type_id', '=', 'user_client_element_type.element_type_id');
-                                })
-                                ->join('elements', 'elements.id', '=', 'report_details.element_id')
-                                ->join('areas', 'areas.id', '=', 'elements.area_id')
-                                ->whereColumn('client_user.client_id', 'areas.client_id')
-                                ->whereColumn('user_client_element_type.element_type_id', 'elements.element_type_id')
-                                ->whereColumn('user_client_element_type_areas.area_id', 'areas.id')
-                                ->where('roles.key', 'admin_cliente')
-                                ->where('users.status', true)
-                                ->where('users.name', $responsableName);
-                        });
+                    $outerQuery->orWhereExists(function ($subQuery) use ($responsableName) {
+                        $subQuery->selectRaw('1')
+                            ->from('users')
+                            ->join('roles', 'roles.id', '=', 'users.role_id')
+                            ->join('client_user', 'client_user.user_id', '=', 'users.id')
+                            ->join('user_client_group_areas', function ($join) {
+                                $join->on('user_client_group_areas.user_id', '=', 'users.id')
+                                    ->on('user_client_group_areas.client_id', '=', 'client_user.client_id');
+                            })
+                            ->join('elements', 'elements.id', '=', 'report_details.element_id')
+                            ->join('areas', 'areas.id', '=', 'elements.area_id')
+                            ->whereColumn('client_user.client_id', 'areas.client_id')
+                            ->whereColumn('user_client_group_areas.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.area_id', 'elements.area_id')
+                            ->where('roles.key', 'admin_cliente')
+                            ->where('users.status', true)
+                            ->where('users.name', $responsableName);
                     });
                 }
             });
@@ -1259,29 +1263,11 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
             ->where('status', true)
             ->findOrFail($reportDetail->id);
 
-        $clientId = (int) ($report->element?->area?->client_id ?? 0);
-        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
-        $areaId = (int) ($report->element?->area_id ?? 0);
-
         abort_unless(
-            in_array($clientId, $this->getAllowedClientIds($user), true),
+            $this->canAccessReportByCurrentScope($user, $report),
             403,
             'No autorizado para ver la evidencia de este reporte.'
         );
-
-        abort_unless(
-            $this->canAccessElementType($user, $clientId, $elementTypeId),
-            403,
-            'No autorizado para ver la evidencia de este reporte.'
-        );
-
-        if ($this->mustRestrictByAreas($user)) {
-            abort_unless(
-                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
-                403,
-                'No autorizado para ver la evidencia de este reporte.'
-            );
-        }
 
         return view('admin.preventive-reports.evidence', compact('report'));
     }
@@ -1320,29 +1306,11 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
             ->where('status', true)
             ->findOrFail($reportDetail->id);
 
-        $clientId = (int) ($report->element?->area?->client_id ?? 0);
-        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
-        $areaId = (int) ($report->element?->area_id ?? 0);
-
         abort_unless(
-            in_array($clientId, $this->getAllowedClientIds($user), true),
+            $this->canAccessReportByCurrentScope($user, $report),
             403,
             'No autorizado para editar este reporte.'
         );
-
-        abort_unless(
-            $this->canAccessElementType($user, $clientId, $elementTypeId),
-            403,
-            'No autorizado para editar este reporte.'
-        );
-
-        if ($this->mustRestrictByAreas($user)) {
-            abort_unless(
-                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
-                403,
-                'No autorizado para editar este reporte.'
-            );
-        }
 
         $statusName = mb_strtoupper(trim((string) ($report->executionStatus?->name ?? '')));
         $isExecuted = in_array($statusName, [
@@ -1393,29 +1361,11 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
             ->where('status', true)
             ->findOrFail($reportDetail->id);
 
-        $clientId = (int) ($report->element?->area?->client_id ?? 0);
-        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
-        $areaId = (int) ($report->element?->area_id ?? 0);
-
         abort_unless(
-            in_array($clientId, $this->getAllowedClientIds($user), true),
+            $this->canAccessReportByCurrentScope($user, $report),
             403,
             'No autorizado para editar este reporte.'
         );
-
-        abort_unless(
-            $this->canAccessElementType($user, $clientId, $elementTypeId),
-            403,
-            'No autorizado para editar este reporte.'
-        );
-
-        if ($this->mustRestrictByAreas($user)) {
-            abort_unless(
-                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
-                403,
-                'No autorizado para editar este reporte.'
-            );
-        }
 
         $report->{$field} = $value;
         $report->save();
@@ -1506,20 +1456,15 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
                             ->from('users')
                             ->join('roles', 'roles.id', '=', 'users.role_id')
                             ->join('client_user', 'client_user.user_id', '=', 'users.id')
-                            ->join('user_client_element_type', function ($join) {
-                                $join->on('user_client_element_type.user_id', '=', 'users.id')
-                                    ->on('user_client_element_type.client_id', '=', 'client_user.client_id');
-                            })
-                            ->join('user_client_element_type_areas', function ($join) {
-                                $join->on('user_client_element_type_areas.user_id', '=', 'users.id')
-                                    ->on('user_client_element_type_areas.client_id', '=', 'user_client_element_type.client_id')
-                                    ->on('user_client_element_type_areas.element_type_id', '=', 'user_client_element_type.element_type_id');
+                            ->join('user_client_group_areas', function ($join) {
+                                $join->on('user_client_group_areas.user_id', '=', 'users.id')
+                                    ->on('user_client_group_areas.client_id', '=', 'client_user.client_id');
                             })
                             ->join('elements', 'elements.id', '=', 'report_details.element_id')
                             ->join('areas', 'areas.id', '=', 'elements.area_id')
                             ->whereColumn('client_user.client_id', 'areas.client_id')
-                            ->whereColumn('user_client_element_type.element_type_id', 'elements.element_type_id')
-                            ->whereColumn('user_client_element_type_areas.area_id', 'areas.id')
+                            ->whereColumn('user_client_group_areas.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.area_id', 'elements.area_id')
                             ->where('roles.key', 'admin_cliente')
                             ->where('users.status', true)
                             ->where('users.name', $responsableName);
@@ -1787,16 +1732,21 @@ private function mustRestrictByAreas($user): bool
             ->values()
             ->all();
     }
+public function getElementsByArea(\App\Models\Area $area, Request $request)
+{
+    $query = $area->elements()
+        ->where('status', true);
 
-    public function getElementsByArea(\App\Models\Area $area)
-    {
-        $elements = $area->elements()
-            ->where('status', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        return response()->json($elements);
+    if ($request->filled('group_id')) {
+        $query->where('group_id', (int) $request->input('group_id'));
     }
+
+    $elements = $query
+        ->orderBy('name')
+        ->get(['id', 'name']);
+
+    return response()->json($elements);
+}
 
     public function getComponentsByElement(\App\Models\Element $element)
     {
@@ -1839,9 +1789,35 @@ private function mustRestrictByAreas($user): bool
             'new_date' => ['nullable', 'date'],
         ]);
 
+        $reportDetail->loadMissing([
+            'element.area',
+            'element.elementType',
+        ]);
+
+        $currentGroupId = (int) ($reportDetail->element?->group_id ?? 0);
+        $currentClientId = (int) ($reportDetail->element?->area?->client_id ?? 0);
+
         $element = \App\Models\Element::query()
             ->with(['area', 'elementType'])
             ->findOrFail($validated['element_id']);
+
+        abort_unless(
+            $currentClientId > 0 && in_array($currentClientId, $this->getAllowedClientIds($user), true),
+            403,
+            'No autorizado para editar este reporte.'
+        );
+
+        abort_unless(
+            (int) ($element->area?->client_id ?? 0) === $currentClientId,
+            422,
+            'El activo seleccionado no pertenece al mismo cliente del reporte.'
+        );
+
+        abort_unless(
+            (int) ($element->group_id ?? 0) === $currentGroupId,
+            422,
+            'El activo seleccionado no pertenece a la misma agrupación del reporte.'
+        );
 
         $componentAllowed = $element->components()
             ->where('components.id', $validated['component_id'])
@@ -1920,29 +1896,11 @@ private function mustRestrictByAreas($user): bool
             'element.elementType',
         ])->findOrFail($reportDetail->id);
 
-        $clientId = (int) ($report->element?->area?->client_id ?? 0);
-        $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
-        $areaId = (int) ($report->element?->area_id ?? 0);
-
         abort_unless(
-            in_array($clientId, $this->getAllowedClientIds($user), true),
+            $this->canAccessReportByCurrentScope($user, $report),
             403,
             'No autorizado para modificar este reporte.'
         );
-
-        abort_unless(
-            $this->canAccessElementType($user, $clientId, $elementTypeId),
-            403,
-            'No autorizado para modificar este reporte.'
-        );
-
-        if ($this->mustRestrictByAreas($user)) {
-            abort_unless(
-                $this->canAccessArea($user, $clientId, $elementTypeId, $areaId),
-                403,
-                'No autorizado para modificar este reporte.'
-            );
-        }
 
         $report->status = !$report->status;
         $report->save();
@@ -1957,18 +1915,68 @@ private function mustRestrictByAreas($user): bool
     }
 
     private function getAllowedAreaIdsForClientAndGroup($user, int $clientId, int $groupId): array
-{
-    if ($user->role?->key !== 'admin_cliente') {
-        return [];
+    {
+        if ($user->role?->key !== 'admin_cliente') {
+            return [];
+        }
+
+        return $user->allowedGroupAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('group_id', $groupId)
+            ->pluck('areas.id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
-    return $user->allowedGroupAreas()
-        ->wherePivot('client_id', $clientId)
-        ->wherePivot('group_id', $groupId)
-        ->pluck('areas.id')
-        ->map(fn ($id) => (int) $id)
-        ->unique()
-        ->values()
-        ->all();
+    private function canAccessReportByCurrentScope($user, ReportDetail $report): bool
+{
+    $roleKey = $user->role?->key;
+
+    $clientId = (int) ($report->element?->area?->client_id ?? 0);
+    $groupId = (int) ($report->element?->group_id ?? 0);
+    $areaId = (int) ($report->element?->area_id ?? 0);
+    $elementTypeId = (int) ($report->element?->element_type_id ?? 0);
+
+    if ($clientId <= 0 || !in_array($clientId, $this->getAllowedClientIds($user), true)) {
+        return false;
+    }
+
+    if ($roleKey === 'admin_cliente') {
+        if ($groupId <= 0 || $areaId <= 0) {
+            return false;
+        }
+
+        $hasGroup = $user->groups()
+            ->where('groups.id', $groupId)
+            ->where('groups.client_id', $clientId)
+            ->exists();
+
+        if (!$hasGroup) {
+            return false;
+        }
+
+        return $user->allowedGroupAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('group_id', $groupId)
+            ->where('areas.id', $areaId)
+            ->exists();
+    }
+
+    if ($roleKey === 'observador_cliente') {
+        if ($groupId <= 0) {
+            return false;
+        }
+
+        return $user->groups()
+            ->where('groups.id', $groupId)
+            ->where('groups.client_id', $clientId)
+            ->exists();
+    }
+
+    return $this->canAccessElementType($user, $clientId, $elementTypeId);
 }
+
+
 }

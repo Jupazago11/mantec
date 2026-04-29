@@ -1182,7 +1182,11 @@
                             @empty
                                 <tr>
                                     <td colspan="100%" class="px-4 py-10 text-center text-sm text-slate-500">
-                                        No se encontraron registros para esta agrupación en el rango seleccionado.
+                                        @if($roleKey === 'admin_cliente')
+                                            No se encontraron registros para tus áreas asignadas dentro de esta agrupación en el rango seleccionado.
+                                        @else
+                                            No se encontraron registros para esta agrupación en el rango seleccionado.
+                                        @endif
                                     </td>
                                 </tr>
                             @endforelse
@@ -2401,24 +2405,31 @@
             return data;
         }
 
-        async function reloadElementsByArea(areaId, selectedElementId = null) {
-            fillSelect(editElement, [], null, 'Cargando activos...');
-            fillSelect(editComponent, [], null, 'Seleccione un componente');
-            fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
-            fillSelect(editCondition, [], null, 'Seleccione una condición');
+async function reloadElementsByArea(areaId, selectedElementId = null) {
+    fillSelect(editElement, [], null, 'Cargando activos...');
+    fillSelect(editComponent, [], null, 'Seleccione un componente');
+    fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+    fillSelect(editCondition, [], null, 'Seleccione una condición');
 
-            if (!areaId) {
-                fillSelect(editElement, [], null, 'Seleccione un activo');
-                return;
-            }
+    if (!areaId) {
+        fillSelect(editElement, [], null, 'Seleccione un activo');
+        return;
+    }
 
-            const data = await fetchJsonOrFail(
-                "{{ route('admin.preventive-report-data.elements-by-area', ['area' => '__AREA__']) }}".replace('__AREA__', areaId),
-                'No fue posible cargar los activos.'
-            );
+    const url = new URL(
+        "{{ route('admin.preventive-report-data.elements-by-area', ['area' => '__AREA__']) }}".replace('__AREA__', areaId),
+        window.location.origin
+    );
 
-            fillSelect(editElement, data || [], selectedElementId, 'Seleccione un activo');
-        }
+    url.searchParams.set('group_id', "{{ $group->id }}");
+
+    const data = await fetchJsonOrFail(
+        url.toString(),
+        'No fue posible cargar los activos.'
+    );
+
+    fillSelect(editElement, data || [], selectedElementId, 'Seleccione un activo');
+}
 
         async function reloadComponentsByElement(elementId, selectedComponentId = null) {
             fillSelect(editComponent, [], null, 'Cargando componentes...');
