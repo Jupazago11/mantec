@@ -102,7 +102,7 @@ class AdminManagedUserController extends Controller
             ->groupBy('client_id');
 
         $groupsByClient = Group::query()
-            ->with(['elements.elementType'])
+            ->with(['elements.area'])
             ->whereIn('client_id', $clientIds)
             ->where('status', true)
             ->orderBy('name')
@@ -142,6 +142,7 @@ class AdminManagedUserController extends Controller
                 'groups',
                 'allowedElementTypes',
                 'allowedAreas',
+                'allowedGroupAreas',
             ])
             ->whereHas('role', function ($query) use ($visibleRoleKeys) {
                 $query->whereIn('key', $visibleRoleKeys);
@@ -266,7 +267,6 @@ class AdminManagedUserController extends Controller
             ];
 
         $specializedRoleKeys = [
-            'admin_cliente',
             'observador',
             'observador_cliente',
         ];
@@ -289,6 +289,11 @@ class AdminManagedUserController extends Controller
             'group_permissions' => ['nullable', 'array'],
             'group_permissions.*' => ['nullable', 'array'],
             'group_permissions.*.*' => ['integer', 'exists:groups,id'],
+
+            'group_area_permissions' => ['nullable', 'array'],
+            'group_area_permissions.*' => ['nullable', 'array'],
+            'group_area_permissions.*.*' => ['nullable', 'array'],
+            'group_area_permissions.*.*.*' => ['integer', 'exists:areas,id'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -304,10 +309,10 @@ class AdminManagedUserController extends Controller
         }
 
         if ($role->key === 'admin_cliente') {
-            $this->validateAreaPermissions(
+            $this->validateGroupAreaPermissions(
                 $clientIds,
-                $validated['element_type_permissions'] ?? [],
-                $validated['area_permissions'] ?? []
+                $validated['group_permissions'] ?? [],
+                $validated['group_area_permissions'] ?? []
             );
         }
 
@@ -350,6 +355,13 @@ class AdminManagedUserController extends Controller
                 $role->key,
                 $clientIds,
                 $validated['group_permissions'] ?? []
+            );
+            $this->syncGroupAreaPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['group_permissions'] ?? [],
+                $validated['group_area_permissions'] ?? []
             );
         });
 
@@ -449,7 +461,6 @@ class AdminManagedUserController extends Controller
             ];
 
         $specializedRoleKeys = [
-            'admin_cliente',
             'observador',
             'observador_cliente',
         ];
@@ -467,11 +478,18 @@ class AdminManagedUserController extends Controller
             'role_id' => ['required', Rule::in($assignableRoleIds)],
             'clients' => ['required', 'array', 'min:1'],
             'clients.*' => [Rule::in($allowedClientIds)],
+
             'element_type_permissions' => ['nullable', 'array'],
             'area_permissions' => ['nullable', 'array'],
+
             'group_permissions' => ['nullable', 'array'],
             'group_permissions.*' => ['nullable', 'array'],
             'group_permissions.*.*' => ['integer', 'exists:groups,id'],
+
+            'group_area_permissions' => ['nullable', 'array'],
+            'group_area_permissions.*' => ['nullable', 'array'],
+            'group_area_permissions.*.*' => ['nullable', 'array'],
+            'group_area_permissions.*.*.*' => ['integer', 'exists:areas,id'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -487,10 +505,10 @@ class AdminManagedUserController extends Controller
         }
 
         if ($role->key === 'admin_cliente') {
-            $this->validateAreaPermissions(
+            $this->validateGroupAreaPermissions(
                 $clientIds,
-                $validated['element_type_permissions'] ?? [],
-                $validated['area_permissions'] ?? []
+                $validated['group_permissions'] ?? [],
+                $validated['group_area_permissions'] ?? []
             );
         }
 
@@ -537,6 +555,14 @@ class AdminManagedUserController extends Controller
                 $role->key,
                 $clientIds,
                 $validated['group_permissions'] ?? []
+            );
+
+            $this->syncGroupAreaPermissions(
+                $user,
+                $role->key,
+                $clientIds,
+                $validated['group_permissions'] ?? [],
+                $validated['group_area_permissions'] ?? []
             );
         });
 
@@ -617,7 +643,7 @@ class AdminManagedUserController extends Controller
             ->where('user_id', $user->id)
             ->delete();
 
-        if (!in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true)) {
+        if (!in_array($roleKey, ['observador', 'observador_cliente'], true)) {
             return;
         }
 
@@ -699,68 +725,31 @@ class AdminManagedUserController extends Controller
         }
     }
 
-    private function syncAreaPermissions(
-        User $user,
-        string $roleKey,
-        array $clientIds,
-        array $permissions,
-        array $areaPermissions
-    ): void {
-        DB::table('user_client_element_type_areas')
-            ->where('user_id', $user->id)
-            ->delete();
+private function syncAreaPermissions(
+    User $user,
+    string $roleKey,
+    array $clientIds,
+    array $permissions,
+    array $areaPermissions
+): void {
+    DB::table('user_client_element_type_areas')
+        ->where('user_id', $user->id)
+        ->delete();
 
-        if ($roleKey !== 'admin_cliente') {
-            return;
-        }
-
-        $rows = [];
-
-        foreach ($clientIds as $clientId) {
-            $elementTypeIds = collect($permissions[$clientId] ?? [])
-                ->filter()
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values();
-
-            $validElementTypeIds = ElementType::query()
-                ->where('client_id', $clientId)
-                ->whereIn('id', $elementTypeIds)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            foreach ($validElementTypeIds as $elementTypeId) {
-                $selectedAreaIds = collect($areaPermissions[$clientId][$elementTypeId] ?? [])
-                    ->filter()
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values();
-
-                $validAreaIds = Area::query()
-                    ->where('client_id', $clientId)
-                    ->whereIn('id', $selectedAreaIds)
-                    ->pluck('id')
-                    ->map(fn ($id) => (int) $id)
-                    ->all();
-
-                foreach ($validAreaIds as $areaId) {
-                    $rows[] = [
-                        'user_id' => $user->id,
-                        'client_id' => $clientId,
-                        'element_type_id' => $elementTypeId,
-                        'area_id' => $areaId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-            }
-        }
-
-        if (!empty($rows)) {
-            DB::table('user_client_element_type_areas')->insert($rows);
-        }
-    }
+    /*
+     * Esta tabla queda conservada solo por compatibilidad histórica.
+     * La nueva mecánica para admin_cliente ya no usa:
+     *
+     * usuario → cliente → tipo de activo → área
+     *
+     * Ahora usa:
+     *
+     * usuario → cliente → agrupación → área
+     *
+     * Por eso aquí solo limpiamos permisos viejos y no insertamos nuevos.
+     */
+    return;
+}
 
     private function validateGroupPermissions(array $clientIds, array $groupPermissions): void
     {
@@ -933,4 +922,152 @@ class AdminManagedUserController extends Controller
     {
         return $request->expectsJson() || $request->ajax();
     }
+    private function validateGroupAreaPermissions(
+    array $clientIds,
+    array $groupPermissions,
+    array $groupAreaPermissions
+): void {
+    foreach ($clientIds as $clientId) {
+        $selectedGroupIds = collect($groupPermissions[$clientId] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($selectedGroupIds as $groupId) {
+            $groupBelongsToClient = Group::query()
+                ->where('id', $groupId)
+                ->where('client_id', $clientId)
+                ->where('status', true)
+                ->exists();
+
+            if (!$groupBelongsToClient) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'group_area_permissions' => 'Una o más agrupaciones no pertenecen al cliente correspondiente.',
+                ]);
+            }
+
+            $selectedAreaIds = collect($groupAreaPermissions[$clientId][$groupId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if (empty($selectedAreaIds)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'group_area_permissions' => 'Debes asignar al menos un área por cada agrupación del administrador cliente.',
+                ]);
+            }
+
+            $validAreaCount = Area::query()
+                ->where('client_id', $clientId)
+                ->whereIn('id', $selectedAreaIds)
+                ->count();
+
+            if ($validAreaCount !== count($selectedAreaIds)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'group_area_permissions' => 'Una o más áreas seleccionadas no pertenecen al cliente correspondiente.',
+                ]);
+            }
+
+            $areasUsedByGroup = \App\Models\Element::query()
+                ->where('group_id', $groupId)
+                ->whereIn('area_id', $selectedAreaIds)
+                ->pluck('area_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $invalidAreaIds = array_diff($selectedAreaIds, $areasUsedByGroup);
+
+            if (!empty($invalidAreaIds)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'group_area_permissions' => 'Una o más áreas seleccionadas no tienen activos dentro de la agrupación correspondiente.',
+                ]);
+            }
+        }
+    }
+}
+
+private function syncGroupAreaPermissions(
+    User $user,
+    string $roleKey,
+    array $clientIds,
+    array $groupPermissions,
+    array $groupAreaPermissions
+): void {
+    DB::table('user_client_group_areas')
+        ->where('user_id', $user->id)
+        ->delete();
+
+    if ($roleKey !== 'admin_cliente') {
+        return;
+    }
+
+    $rows = [];
+
+    foreach ($clientIds as $clientId) {
+        $selectedGroupIds = collect($groupPermissions[$clientId] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        foreach ($selectedGroupIds as $groupId) {
+            $validGroup = Group::query()
+                ->where('id', $groupId)
+                ->where('client_id', $clientId)
+                ->where('status', true)
+                ->exists();
+
+            if (!$validGroup) {
+                continue;
+            }
+
+            $selectedAreaIds = collect($groupAreaPermissions[$clientId][$groupId] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($selectedAreaIds->isEmpty()) {
+                continue;
+            }
+
+            $validAreaIds = Area::query()
+                ->where('client_id', $clientId)
+                ->whereIn('id', $selectedAreaIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $areasUsedByGroup = \App\Models\Element::query()
+                ->where('group_id', $groupId)
+                ->whereIn('area_id', $validAreaIds)
+                ->pluck('area_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            foreach ($areasUsedByGroup as $areaId) {
+                $rows[] = [
+                    'user_id' => $user->id,
+                    'client_id' => $clientId,
+                    'group_id' => $groupId,
+                    'area_id' => $areaId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+    }
+
+    if (!empty($rows)) {
+        DB::table('user_client_group_areas')->insert($rows);
+    }
+}
 }

@@ -94,6 +94,29 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function allowedGroupAreas(): BelongsToMany
+    {
+        return $this->belongsToMany(Area::class, 'user_client_group_areas')
+            ->withPivot('client_id', 'group_id')
+            ->withTimestamps();
+    }
+
+    public function allowedAreasForClientAndGroup(int $clientId, int $groupId)
+    {
+        return $this->allowedGroupAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('group_id', $groupId);
+    }
+
+    public function hasAreaAccessForGroup(int $clientId, int $groupId, int $areaId): bool
+    {
+        return $this->allowedGroupAreas()
+            ->wherePivot('client_id', $clientId)
+            ->wherePivot('group_id', $groupId)
+            ->where('areas.id', $areaId)
+            ->exists();
+    }
+
     public function isRole(string $roleKey): bool
     {
         return $this->role?->key === $roleKey;

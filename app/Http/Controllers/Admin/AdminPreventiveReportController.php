@@ -767,50 +767,51 @@ class AdminPreventiveReportController extends Controller
         }
     }
 
-    private function resolveAdminClienteResponsables(ReportDetail $report): string
-    {
-        $clientId = $report->element?->area?->client_id;
-        $elementTypeId = $report->element?->element_type_id;
-        $areaId = $report->element?->area_id;
+private function resolveAdminClienteResponsables(ReportDetail $report): string
+{
+    $clientId = $report->element?->area?->client_id;
+    $groupId = $report->element?->group_id;
+    $areaId = $report->element?->area_id;
 
-        if (!$clientId || !$elementTypeId || !$areaId) {
-            return '—';
-        }
-
-        $names = User::query()
-            ->select('users.name')
-            ->join('roles', 'roles.id', '=', 'users.role_id')
-            ->where('roles.key', 'admin_cliente')
-            ->where('users.status', true)
-            ->whereExists(function ($query) use ($clientId) {
-                $query->selectRaw('1')
-                    ->from('client_user')
-                    ->whereColumn('client_user.user_id', 'users.id')
-                    ->where('client_user.client_id', $clientId);
-            })
-            ->whereExists(function ($query) use ($clientId, $elementTypeId) {
-                $query->selectRaw('1')
-                    ->from('user_client_element_type')
-                    ->whereColumn('user_client_element_type.user_id', 'users.id')
-                    ->where('user_client_element_type.client_id', $clientId)
-                    ->where('user_client_element_type.element_type_id', $elementTypeId);
-            })
-            ->whereExists(function ($query) use ($clientId, $elementTypeId, $areaId) {
-                $query->selectRaw('1')
-                    ->from('user_client_element_type_areas')
-                    ->whereColumn('user_client_element_type_areas.user_id', 'users.id')
-                    ->where('user_client_element_type_areas.client_id', $clientId)
-                    ->where('user_client_element_type_areas.element_type_id', $elementTypeId)
-                    ->where('user_client_element_type_areas.area_id', $areaId);
-            })
-            ->orderBy('users.name')
-            ->pluck('users.name')
-            ->unique()
-            ->values()
-            ->all();
-
-        return !empty($names) ? implode(', ', $names) : '—';
+    if (!$clientId || !$groupId || !$areaId) {
+        return '—';
     }
+
+    $names = User::query()
+        ->select('users.name')
+        ->join('roles', 'roles.id', '=', 'users.role_id')
+        ->where('roles.key', 'admin_cliente')
+        ->where('users.status', true)
+        ->whereExists(function ($query) use ($clientId) {
+            $query->selectRaw('1')
+                ->from('client_user')
+                ->whereColumn('client_user.user_id', 'users.id')
+                ->where('client_user.client_id', $clientId);
+        })
+        ->whereExists(function ($query) use ($clientId, $groupId) {
+            $query->selectRaw('1')
+                ->from('group_user')
+                ->join('groups', 'groups.id', '=', 'group_user.group_id')
+                ->whereColumn('group_user.user_id', 'users.id')
+                ->where('group_user.group_id', $groupId)
+                ->where('groups.client_id', $clientId);
+        })
+        ->whereExists(function ($query) use ($clientId, $groupId, $areaId) {
+            $query->selectRaw('1')
+                ->from('user_client_group_areas')
+                ->whereColumn('user_client_group_areas.user_id', 'users.id')
+                ->where('user_client_group_areas.client_id', $clientId)
+                ->where('user_client_group_areas.group_id', $groupId)
+                ->where('user_client_group_areas.area_id', $areaId);
+        })
+        ->orderBy('users.name')
+        ->pluck('users.name')
+        ->unique()
+        ->values()
+        ->all();
+
+    return !empty($names) ? implode(', ', $names) : '—';
+}
 
     public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $request): \Illuminate\View\View
     {
@@ -850,6 +851,16 @@ class AdminPreventiveReportController extends Controller
             'No tienes acceso a esta agrupación.'
         );
 
+        if (in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
+            abort_unless(
+                $user->groups()
+                    ->where('groups.id', $group->id)
+                    ->exists(),
+                403,
+                'No tienes acceso a esta agrupación.'
+            );
+        }
+
         $dateFrom = $request->input('date_from', now()->startOfYear()->toDateString());
         $dateTo = $request->input('date_to', now()->toDateString());
 
@@ -874,36 +885,21 @@ class AdminPreventiveReportController extends Controller
             ->whereDate('created_at', '>=', $dateFrom)
             ->whereDate('created_at', '<=', $dateTo);
 
-            if ($this->mustRestrictByElementTypes($user)) {
-                $allowedElementTypeIds = $this->getAllowedElementTypeIdsForClient($user, (int) $group->client_id);
+        if ($roleKey === 'admin_cliente') {
+            $allowedAreaIds = $this->getAllowedAreaIdsForClientAndGroup(
+                $user,
+                (int) $group->client_id,
+                (int) $group->id
+            );
 
-                if (empty($allowedElementTypeIds)) {
-                    $baseQuery->whereRaw('1 = 0');
-                } else {
-                    $baseQuery->whereHas('element', function ($elementQuery) use ($allowedElementTypeIds) {
-                        $elementQuery->whereIn('element_type_id', $allowedElementTypeIds);
-                    });
-                }
+            if (empty($allowedAreaIds)) {
+                $baseQuery->whereRaw('1 = 0');
+            } else {
+                $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaIds) {
+                    $elementQuery->whereIn('area_id', $allowedAreaIds);
+                });
             }
-
-            if ($this->mustRestrictByAreas($user)) {
-                $allowedAreaMap = $this->getAllowedAreaIdsGroupedByElementType($user, (int) $group->client_id);
-
-                if (empty($allowedAreaMap)) {
-                    $baseQuery->whereRaw('1 = 0');
-                } else {
-                    $baseQuery->whereHas('element', function ($elementQuery) use ($allowedAreaMap) {
-                        $elementQuery->where(function ($outer) use ($allowedAreaMap) {
-                            foreach ($allowedAreaMap as $elementTypeId => $areaIds) {
-                                $outer->orWhere(function ($inner) use ($elementTypeId, $areaIds) {
-                                    $inner->where('element_type_id', (int) $elementTypeId)
-                                        ->whereIn('area_id', $areaIds);
-                                });
-                            }
-                        });
-                    });
-                }
-            }
+        }
 
         $query = clone $baseQuery;
         $this->applyGroupFilters($query, $request);
@@ -1596,15 +1592,15 @@ class AdminPreventiveReportController extends Controller
         return in_array($user->role?->key, ['observador', 'observador_cliente'], true);
     }
 
-    private function mustRestrictByElementTypes($user): bool
-    {
-        return in_array($user->role?->key, ['admin_cliente', 'observador_cliente'], true);
-    }
+private function mustRestrictByElementTypes($user): bool
+{
+    return in_array($user->role?->key, ['observador_cliente'], true);
+}
 
-    private function mustRestrictByAreas($user): bool
-    {
-        return $user->role?->key === 'admin_cliente';
-    }
+private function mustRestrictByAreas($user): bool
+{
+    return false;
+}
 
     private function canAccessElementType($user, int $clientId, int $elementTypeId): bool
     {
@@ -1959,4 +1955,20 @@ class AdminPreventiveReportController extends Controller
                 : 'Reporte ocultado correctamente.',
         ]);
     }
+
+    private function getAllowedAreaIdsForClientAndGroup($user, int $clientId, int $groupId): array
+{
+    if ($user->role?->key !== 'admin_cliente') {
+        return [];
+    }
+
+    return $user->allowedGroupAreas()
+        ->wherePivot('client_id', $clientId)
+        ->wherePivot('group_id', $groupId)
+        ->pluck('areas.id')
+        ->map(fn ($id) => (int) $id)
+        ->unique()
+        ->values()
+        ->all();
+}
 }

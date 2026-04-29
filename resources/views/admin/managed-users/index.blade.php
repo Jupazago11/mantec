@@ -173,197 +173,124 @@
                             @endforeach
                         </div>
                     </div>
-                    <div id="create_group_permissions_wrapper" class="hidden">
-                        <label class="mb-2 block text-sm font-medium text-slate-700">
-                            Agrupaciones permitidas por cliente
-                        </label>
+<div id="create_group_permissions_wrapper" class="hidden">
+    <label class="mb-2 block text-sm font-medium text-slate-700">
+        Agrupaciones permitidas por cliente
+    </label>
 
-                        <div class="space-y-3 rounded-xl border border-slate-300 p-3">
-                            @foreach($clients as $client)
-                                <div class="create-client-groups-block hidden" data-client-id="{{ $client->id }}">
-                                    <div class="mb-3">
-                                        <p class="text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+    <div class="space-y-3 rounded-xl border border-slate-300 p-3">
+        @foreach($clients as $client)
+            <div class="create-client-groups-block hidden" data-client-id="{{ $client->id }}">
+                <div class="mb-3">
+                    <p class="text-sm font-semibold text-slate-900">{{ $client->name }}</p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Selecciona una o más agrupaciones. Para administradores cliente, asigna también las áreas permitidas dentro de cada agrupación.
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    @forelse(($groupsByClient[$client->id] ?? collect()) as $group)
+                        @php
+                            $groupAreas = collect($group->elements ?? [])
+                                ->pluck('area')
+                                ->filter()
+                                ->unique('id')
+                                ->sortBy('name')
+                                ->values();
+
+                            $areaCount = $groupAreas->count();
+                        @endphp
+
+                        <div
+                            class="rounded-xl border border-slate-200 bg-white p-3"
+                            data-create-group-card
+                            data-client-id="{{ $client->id }}"
+                            data-group-id="{{ $group->id }}"
+                        >
+                            <label class="flex items-start gap-3 text-sm text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    name="group_permissions[{{ $client->id }}][]"
+                                    value="{{ $group->id }}"
+                                    class="create-group-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                    data-client-id="{{ $client->id }}"
+                                    data-group-id="{{ $group->id }}"
+                                    onchange="toggleGroupDetails('create')"
+                                    {{ in_array($group->id, old("group_permissions.$client->id", [])) ? 'checked' : '' }}
+                                >
+                                <span>
+                                    <span class="block font-semibold text-slate-900">{{ $group->name }}</span>
+                                    <span class="block text-xs text-slate-500">
+                                        {{ $areaCount }} área(s) con activos asociados
+                                    </span>
+                                </span>
+                            </label>
+
+                            <div
+                                class="create-group-area-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                data-client-id="{{ $client->id }}"
+                                data-group-id="{{ $group->id }}"
+                            >
+                                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            Áreas permitidas dentro de la agrupación
+                                        </p>
                                         <p class="mt-1 text-xs text-slate-500">
-                                            Selecciona una o más agrupaciones dentro del cliente.
+                                            El administrador cliente solo verá reportes de estas áreas dentro de esta agrupación.
                                         </p>
                                     </div>
 
-                                    <div class="space-y-3">
-                                        @forelse(($groupsByClient[$client->id] ?? collect()) as $group)
-                                            @php
-                                                $groupElements = collect($group->elements ?? []);
-                                                $typesForGroup = $groupElements->isNotEmpty()
-                                                    ? $groupElements->pluck('elementType')->filter()->unique('id')->sortBy('name')->values()
-                                                    : ($elementTypesByClient[$client->id] ?? collect());
-                                                $typeCount = $typesForGroup->count();
-                                            @endphp
-
-                                            <div class="rounded-xl border border-slate-200 bg-white p-3" data-create-group-card data-client-id="{{ $client->id }}" data-group-id="{{ $group->id }}">
-                                                <label class="flex items-start gap-3 text-sm text-slate-700">
-                                                    <input
-                                                        type="checkbox"
-                                                        name="group_permissions[{{ $client->id }}][]"
-                                                        value="{{ $group->id }}"
-                                                        class="create-group-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                        data-client-id="{{ $client->id }}"
-                                                        data-group-id="{{ $group->id }}"
-                                                        onchange="toggleGroupDetails('create')"
-                                                        {{ in_array($group->id, old("group_permissions.$client->id", [])) ? 'checked' : '' }}
-                                                    >
-                                                    <span>
-                                                        <span class="block font-semibold text-slate-900">{{ $group->name }}</span>
-                                                        <span class="block text-xs text-slate-500">Agrupación para indicadores</span>
-                                                    </span>
-                                                </label>
-
-                                                <div
-                                                    class="create-group-detail-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
-                                                    data-client-id="{{ $client->id }}"
-                                                    data-group-id="{{ $group->id }}"
-                                                >
-                                                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                                        <div>
-                                                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                                Tipos de activo de la agrupación
-                                                            </p>
-                                                            <p class="mt-1 text-xs text-slate-500">
-                                                                Los tipos seleccionados conservan el mismo permiso técnico del usuario.
-                                                            </p>
-                                                        </div>
-
-                                                        @if($typeCount > 1)
-                                                            <div class="flex flex-wrap gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onclick="toggleAllElementTypesForGroup('create', {{ $client->id }}, {{ $group->id }}, true)"
-                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                                >
-                                                                    Seleccionar tipos
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onclick="toggleAllElementTypesForGroup('create', {{ $client->id }}, {{ $group->id }}, false)"
-                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                                >
-                                                                    Deseleccionar tipos
-                                                                </button>
-                                                            </div>
-                                                        @endif
-                                                    </div>
-
-                                                    <div class="space-y-3">
-                                                        @forelse($typesForGroup as $elementType)
-                                                            @php
-                                                                $elementsForType = $groupElements->filter(fn ($element) => optional($element->elementType)->id === $elementType->id);
-                                                                $areaCount = ($areasByClient[$client->id] ?? collect())->count();
-                                                            @endphp
-
-                                                            <div class="rounded-xl border border-slate-200 bg-white p-3">
-                                                                <label class="flex items-center gap-3 text-sm text-slate-700">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        name="element_type_permissions[{{ $client->id }}][]"
-                                                                        value="{{ $elementType->id }}"
-                                                                        class="create-element-type-checkbox create-group-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                                        data-client-id="{{ $client->id }}"
-                                                                        data-group-id="{{ $group->id }}"
-                                                                        data-element-type-id="{{ $elementType->id }}"
-                                                                        onchange="toggleAreaPermissionsByElementType('create')"
-                                                                        {{ in_array($elementType->id, old("element_type_permissions.$client->id", [])) ? 'checked' : '' }}
-                                                                    >
-                                                                    <span class="font-semibold text-slate-900">{{ $elementType->name }}</span>
-                                                                </label>
-
-                                                                @if($elementsForType->isNotEmpty())
-                                                                    <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                                                        <div class="mb-2 flex items-center justify-between gap-2">
-                                                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                                                Activos asociados
-                                                                            </p>
-
-                                                                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                                                                                {{ $elementsForType->count() }}
-                                                                            </span>
-                                                                        </div>
-
-                                                                        <div class="max-h-28 overflow-y-auto pr-1">
-                                                                            <div class="grid grid-cols-2 gap-1.5">
-                                                                                @foreach($elementsForType as $element)
-                                                                                    <span class="truncate rounded-full bg-white px-2 py-1 text-center text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                                                                                        {{ $element->name }}
-                                                                                    </span>
-                                                                                @endforeach
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-
-                                                                <div
-                                                                    class="create-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
-                                                                    data-client-id="{{ $client->id }}"
-                                                                    data-group-id="{{ $group->id }}"
-                                                                    data-element-type-id="{{ $elementType->id }}"
-                                                                >
-                                                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                                            Áreas permitidas
-                                                                        </p>
-
-                                                                        @if($areaCount > 1)
-                                                                            <div class="flex flex-wrap gap-2">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onclick="toggleAllAreasForGroupType('create', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, true)"
-                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                                                >
-                                                                                    Seleccionar áreas
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onclick="toggleAllAreasForGroupType('create', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, false)"
-                                                                                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                                                >
-                                                                                    Deseleccionar áreas
-                                                                                </button>
-                                                                            </div>
-                                                                        @endif
-                                                                    </div>
-
-                                                                    <div class="grid gap-2">
-                                                                        @forelse(($areasByClient[$client->id] ?? collect()) as $area)
-                                                                            <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
-                                                                                    value="{{ $area->id }}"
-                                                                                    class="create-area-checkbox create-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                                                    data-client-id="{{ $client->id }}"
-                                                                                    data-group-id="{{ $group->id }}"
-                                                                                    data-element-type-id="{{ $elementType->id }}"
-                                                                                    {{ in_array($area->id, old("area_permissions.$client->id.$elementType->id", [])) ? 'checked' : '' }}
-                                                                                >
-                                                                                <span>{{ $area->name }}</span>
-                                                                            </label>
-                                                                        @empty
-                                                                            <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
-                                                                        @endforelse
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        @empty
-                                                            <p class="text-sm text-slate-500">No hay tipos de activo disponibles para esta agrupación.</p>
-                                                        @endforelse
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        @empty
-                                            <p class="text-sm text-slate-500">No hay agrupaciones activas para este cliente.</p>
-                                        @endforelse
-                                    </div>
+                                    @if($areaCount > 1)
+                                        <div class="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onclick="toggleAllAreasForGroup('create', {{ $client->id }}, {{ $group->id }}, true)"
+                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                            >
+                                                Seleccionar áreas
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onclick="toggleAllAreasForGroup('create', {{ $client->id }}, {{ $group->id }}, false)"
+                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                                            >
+                                                Deseleccionar áreas
+                                            </button>
+                                        </div>
+                                    @endif
                                 </div>
-                            @endforeach
+
+                                <div class="grid gap-2">
+                                    @forelse($groupAreas as $area)
+                                        <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="group_area_permissions[{{ $client->id }}][{{ $group->id }}][]"
+                                                value="{{ $area->id }}"
+                                                class="create-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                                data-client-id="{{ $client->id }}"
+                                                data-group-id="{{ $group->id }}"
+                                                {{ in_array($area->id, old("group_area_permissions.$client->id.$group->id", [])) ? 'checked' : '' }}
+                                            >
+                                            <span>{{ $area->name }}</span>
+                                        </label>
+                                    @empty
+                                        <p class="text-sm text-slate-500">
+                                            Esta agrupación aún no tiene activos asociados a áreas.
+                                        </p>
+                                    @endforelse
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    @empty
+                        <p class="text-sm text-slate-500">No hay agrupaciones activas para este cliente.</p>
+                    @endforelse
+                </div>
+            </div>
+        @endforeach
+    </div>
+</div>
 
                     
                     @foreach(($activeFilters['client_ids'] ?? []) as $value)
@@ -532,49 +459,49 @@
             </td>
         @endif
 
-        <td class="px-5 py-3 text-sm text-slate-700">
-            @if($roleKey === 'inspector')
+<td class="px-5 py-3 text-sm text-slate-700">
+    @if(in_array($roleKey, ['admin_cliente', 'inspector', 'observador_cliente'], true))
+        @php
+            $groupsByClientForUser = $user->groups->groupBy('client_id');
+        @endphp
+
+        @if($groupsByClientForUser->isNotEmpty())
+            <div class="space-y-1">
+                @foreach($user->clients as $client)
+                    @php
+                        $groups = $groupsByClientForUser->get($client->id, collect());
+                    @endphp
+
+                    @if($groups->isNotEmpty())
+                        <div>
+                            <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
+                            {{ $groups->pluck('name')->implode(', ') }}
+                        </div>
+                    @endif
+                @endforeach
+            </div>
+        @else
+            —
+        @endif
+    @elseif(in_array($roleKey, ['observador'], true) && $specializedMap->isNotEmpty())
+        <div class="space-y-1">
+            @foreach($user->clients as $client)
                 @php
-                    $groupsByClientForUser = $user->groups->groupBy('client_id');
+                    $types = $specializedMap->get($client->id, collect());
                 @endphp
 
-                @if($groupsByClientForUser->isNotEmpty())
-                    <div class="space-y-1">
-                        @foreach($user->clients as $client)
-                            @php
-                                $groups = $groupsByClientForUser->get($client->id, collect());
-                            @endphp
-
-                            @if($groups->isNotEmpty())
-                                <div>
-                                    <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
-                                    {{ $groups->pluck('name')->implode(', ') }}
-                                </div>
-                            @endif
-                        @endforeach
+                @if($types->isNotEmpty())
+                    <div>
+                        <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
+                        {{ $types->pluck('name')->implode(', ') }}
                     </div>
-                @else
-                    —
                 @endif
-            @elseif(in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true) && $specializedMap->isNotEmpty())
-                <div class="space-y-1">
-                    @foreach($user->clients as $client)
-                        @php
-                            $types = $specializedMap->get($client->id, collect());
-                        @endphp
-
-                        @if($types->isNotEmpty())
-                            <div>
-                                <span class="font-semibold text-slate-900">{{ $client->name }}:</span>
-                                {{ $types->pluck('name')->implode(', ') }}
-                            </div>
-                        @endif
-                    @endforeach
-                </div>
-            @else
-                —
-            @endif
-        </td>
+            @endforeach
+        </div>
+    @else
+        —
+    @endif
+</td>
 
         <td class="whitespace-nowrap px-5 py-3 text-sm">
             @if($canManage)
@@ -624,6 +551,15 @@
                         'group_permissions' => $user->groups
                             ->groupBy('client_id')
                             ->map(fn ($groups) => $groups->pluck('id')->values()->toArray())
+                            ->toArray(),
+                        'group_area_permissions' => $user->allowedGroupAreas
+                            ->groupBy(fn ($item) => $item->pivot->client_id)
+                            ->map(function ($groupByClient) {
+                                return $groupByClient
+                                    ->groupBy(fn ($item) => $item->pivot->group_id)
+                                    ->map(fn ($groupByGroup) => $groupByGroup->pluck('id')->values()->toArray())
+                                    ->toArray();
+                            })
                             ->toArray(),
                         'action' => route('admin.managed-users.update', $user),
                         'is_self' => $isSelf,
@@ -855,21 +791,29 @@
                 <div class="mb-3">
                     <p class="text-sm font-semibold text-slate-900">{{ $client->name }}</p>
                     <p class="mt-1 text-xs text-slate-500">
-                        Selecciona una o más agrupaciones dentro del cliente.
+                        Selecciona una o más agrupaciones. Para administradores cliente, asigna también las áreas permitidas dentro de cada agrupación.
                     </p>
                 </div>
 
                 <div class="space-y-3">
                     @forelse(($groupsByClient[$client->id] ?? collect()) as $group)
                         @php
-                            $groupElements = collect($group->elements ?? []);
-                            $typesForGroup = $groupElements->isNotEmpty()
-                                ? $groupElements->pluck('elementType')->filter()->unique('id')->sortBy('name')->values()
-                                : ($elementTypesByClient[$client->id] ?? collect());
-                            $typeCount = $typesForGroup->count();
+                            $groupAreas = collect($group->elements ?? [])
+                                ->pluck('area')
+                                ->filter()
+                                ->unique('id')
+                                ->sortBy('name')
+                                ->values();
+
+                            $areaCount = $groupAreas->count();
                         @endphp
 
-                        <div class="rounded-xl border border-slate-200 bg-white p-3" data-edit-group-card data-client-id="{{ $client->id }}" data-group-id="{{ $group->id }}">
+                        <div
+                            class="rounded-xl border border-slate-200 bg-white p-3"
+                            data-edit-group-card
+                            data-client-id="{{ $client->id }}"
+                            data-group-id="{{ $group->id }}"
+                        >
                             <label class="flex items-start gap-3 text-sm text-slate-700">
                                 <input
                                     type="checkbox"
@@ -882,144 +826,64 @@
                                 >
                                 <span>
                                     <span class="block font-semibold text-slate-900">{{ $group->name }}</span>
-                                    <span class="block text-xs text-slate-500">Agrupación para indicadores</span>
+                                    <span class="block text-xs text-slate-500">
+                                        {{ $areaCount }} área(s) con activos asociados
+                                    </span>
                                 </span>
                             </label>
 
                             <div
-                                class="edit-group-detail-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                class="edit-group-area-block mt-4 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"
                                 data-client-id="{{ $client->id }}"
                                 data-group-id="{{ $group->id }}"
                             >
                                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                                     <div>
                                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            Tipos de activo de la agrupación
+                                            Áreas permitidas dentro de la agrupación
                                         </p>
                                         <p class="mt-1 text-xs text-slate-500">
-                                            Los tipos seleccionados conservan el mismo permiso técnico del usuario.
+                                            El administrador cliente solo verá reportes de estas áreas dentro de esta agrupación.
                                         </p>
                                     </div>
 
-                                    @if($typeCount > 1)
+                                    @if($areaCount > 1)
                                         <div class="flex flex-wrap gap-2">
                                             <button
                                                 type="button"
-                                                onclick="toggleAllElementTypesForGroup('edit', {{ $client->id }}, {{ $group->id }}, true)"
+                                                onclick="toggleAllAreasForGroup('edit', {{ $client->id }}, {{ $group->id }}, true)"
                                                 class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
                                             >
-                                                Seleccionar tipos
+                                                Seleccionar áreas
                                             </button>
                                             <button
                                                 type="button"
-                                                onclick="toggleAllElementTypesForGroup('edit', {{ $client->id }}, {{ $group->id }}, false)"
+                                                onclick="toggleAllAreasForGroup('edit', {{ $client->id }}, {{ $group->id }}, false)"
                                                 class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
                                             >
-                                                Deseleccionar tipos
+                                                Deseleccionar áreas
                                             </button>
                                         </div>
                                     @endif
                                 </div>
 
-                                <div class="space-y-3">
-                                    @forelse($typesForGroup as $elementType)
-                                        @php
-                                            $elementsForType = $groupElements->filter(fn ($element) => optional($element->elementType)->id === $elementType->id);
-                                            $areaCount = ($areasByClient[$client->id] ?? collect())->count();
-                                        @endphp
-
-                                        <div class="rounded-xl border border-slate-200 bg-white p-3">
-                                            <label class="flex items-center gap-3 text-sm text-slate-700">
-                                                <input
-                                                    type="checkbox"
-                                                    name="element_type_permissions[{{ $client->id }}][]"
-                                                    value="{{ $elementType->id }}"
-                                                    class="edit-element-type-checkbox edit-group-element-type-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                    data-client-id="{{ $client->id }}"
-                                                    data-group-id="{{ $group->id }}"
-                                                    data-element-type-id="{{ $elementType->id }}"
-                                                    onchange="toggleAreaPermissionsByElementType('edit')"
-                                                >
-                                                <span class="font-semibold text-slate-900">{{ $elementType->name }}</span>
-                                            </label>
-
-                                            @if($elementsForType->isNotEmpty())
-                                                <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                                    <div class="mb-2 flex items-center justify-between gap-2">
-                                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                            Activos asociados
-                                                        </p>
-
-                                                        <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                                                            {{ $elementsForType->count() }}
-                                                        </span>
-                                                    </div>
-
-                                                    <div class="max-h-28 overflow-y-auto pr-1">
-                                                        <div class="grid grid-cols-2 gap-1.5">
-                                                            @foreach($elementsForType as $element)
-                                                                <span class="truncate rounded-full bg-white px-2 py-1 text-center text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                                                                    {{ $element->name }}
-                                                                </span>
-                                                            @endforeach
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endif
-
-                                            <div
-                                                class="edit-area-permissions-block mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                <div class="grid gap-2">
+                                    @forelse($groupAreas as $area)
+                                        <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="group_area_permissions[{{ $client->id }}][{{ $group->id }}][]"
+                                                value="{{ $area->id }}"
+                                                class="edit-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
                                                 data-client-id="{{ $client->id }}"
                                                 data-group-id="{{ $group->id }}"
-                                                data-element-type-id="{{ $elementType->id }}"
                                             >
-                                                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                        Áreas permitidas
-                                                    </p>
-
-                                                    @if($areaCount > 1)
-                                                        <div class="flex flex-wrap gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onclick="toggleAllAreasForGroupType('edit', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, true)"
-                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                            >
-                                                                Seleccionar áreas
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onclick="toggleAllAreasForGroupType('edit', {{ $client->id }}, {{ $group->id }}, {{ $elementType->id }}, false)"
-                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
-                                                            >
-                                                                Deseleccionar áreas
-                                                            </button>
-                                                        </div>
-                                                    @endif
-                                                </div>
-
-                                                <div class="grid gap-2">
-                                                    @forelse(($areasByClient[$client->id] ?? collect()) as $area)
-                                                        <label class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                                                            <input
-                                                                type="checkbox"
-                                                                name="area_permissions[{{ $client->id }}][{{ $elementType->id }}][]"
-                                                                value="{{ $area->id }}"
-                                                                class="edit-area-checkbox edit-group-area-checkbox rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
-                                                                data-client-id="{{ $client->id }}"
-                                                                data-group-id="{{ $group->id }}"
-                                                                data-element-type-id="{{ $elementType->id }}"
-                                                            >
-                                                            <span>{{ $area->name }}</span>
-                                                        </label>
-                                                    @empty
-                                                        <p class="text-sm text-slate-500">No hay áreas para este cliente.</p>
-                                                    @endforelse
-                                                </div>
-                                            </div>
-                                        </div>
+                                            <span>{{ $area->name }}</span>
+                                        </label>
                                     @empty
-                                        <p class="text-sm text-slate-500">No hay tipos de activo disponibles para esta agrupación.</p>
+                                        <p class="text-sm text-slate-500">
+                                            Esta agrupación aún no tiene activos asociados a áreas.
+                                        </p>
                                     @endforelse
                                 </div>
                             </div>
@@ -1138,20 +1002,20 @@
         const option = select.options[select.selectedIndex];
         return option ? option.dataset.roleKey : '';
     }
-    function roleUsesSpecialization(roleKey) {
-        return ['admin_cliente', 'observador', 'observador_cliente'].includes(roleKey);
-    }
+function roleUsesSpecialization(roleKey) {
+    return ['observador', 'observador_cliente'].includes(roleKey);
+}
 
-    function roleUsesAreaPermissions(roleKey) {
-        return roleKey === 'admin_cliente';
-    }
+function roleUsesAreaPermissions(roleKey) {
+    return false;
+}
     function roleUsesGroupPermissions(roleKey) {
         return ['admin_cliente', 'inspector', 'observador_cliente'].includes(roleKey);
     }
 
-    function roleUsesGroupDetails(roleKey) {
-        return ['admin_cliente', 'observador_cliente'].includes(roleKey);
-    }
+function roleUsesGroupDetails(roleKey) {
+    return roleKey === 'admin_cliente';
+}
 
     function toggleSpecializedPermissions(prefix) {
         const wrapper = document.getElementById(`${prefix}_specialized_permissions_wrapper`);
@@ -1227,55 +1091,72 @@
         });
     }
 
-    function toggleGroupPermissions(prefix) {
-        const roleKey = getSelectedRoleKey(prefix);
-        const useGroups = roleUsesGroupPermissions(roleKey);
+function toggleGroupPermissions(prefix) {
+    const roleKey = getSelectedRoleKey(prefix);
+    const useGroups = roleUsesGroupPermissions(roleKey);
 
-        const selectedClientIds = Array.from(document.querySelectorAll(`.${prefix}-client-checkbox:checked`))
-            .map(cb => parseInt(cb.value));
+    const selectedClientIds = Array.from(document.querySelectorAll(`.${prefix}-client-checkbox:checked`))
+        .map(cb => parseInt(cb.value));
 
-        document.querySelectorAll(`.${prefix}-client-groups-block`).forEach(block => {
-            const clientId = parseInt(block.dataset.clientId);
-            const visible = useGroups && selectedClientIds.includes(clientId);
+    document.querySelectorAll(`.${prefix}-client-groups-block`).forEach(block => {
+        const clientId = parseInt(block.dataset.clientId);
+        const visible = useGroups && selectedClientIds.includes(clientId);
 
-            block.classList.toggle('hidden', !visible);
+        block.classList.toggle('hidden', !visible);
 
-            if (!visible) {
-                block.querySelectorAll(`.${prefix}-group-checkbox, .${prefix}-element-type-checkbox, .${prefix}-area-checkbox`).forEach(cb => {
-                    cb.checked = false;
-                });
-            }
-        });
+        if (!visible) {
+            block.querySelectorAll(`.${prefix}-group-checkbox, .${prefix}-group-area-checkbox`).forEach(cb => {
+                cb.checked = false;
+            });
+        }
+    });
 
-        toggleGroupDetails(prefix);
+    toggleGroupDetails(prefix);
+}
+
+function toggleGroupDetails(prefix) {
+    const roleKey = getSelectedRoleKey(prefix);
+    const showGroupAreas = roleUsesGroupDetails(roleKey);
+
+    document.querySelectorAll(`.${prefix}-group-area-block`).forEach(block => {
+        const clientId = parseInt(block.dataset.clientId);
+        const groupId = String(block.dataset.groupId);
+
+        const groupCheckbox = document.querySelector(
+            `.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`
+        );
+
+        const visible =
+            showGroupAreas &&
+            !!groupCheckbox &&
+            groupCheckbox.checked &&
+            !groupCheckbox.closest(`.${prefix}-client-groups-block`)?.classList.contains('hidden');
+
+        block.classList.toggle('hidden', !visible);
+
+        if (!visible) {
+            block.querySelectorAll(`.${prefix}-group-area-checkbox`).forEach(cb => {
+                cb.checked = false;
+            });
+        }
+    });
+}
+
+function toggleAllAreasForGroup(prefix, clientId, groupId, checked) {
+    const groupCheckbox = document.querySelector(
+        `.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`
+    );
+
+    if (!groupCheckbox || !groupCheckbox.checked) {
+        return;
     }
 
-    function toggleGroupDetails(prefix) {
-        const roleKey = getSelectedRoleKey(prefix);
-        const showGroupDetails = roleUsesGroupDetails(roleKey);
-
-        document.querySelectorAll(`.${prefix}-group-detail-block`).forEach(block => {
-            const clientId = parseInt(block.dataset.clientId);
-            const groupId = String(block.dataset.groupId);
-            const groupCheckbox = document.querySelector(`.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`);
-
-            const visible =
-                showGroupDetails &&
-                !!groupCheckbox &&
-                groupCheckbox.checked &&
-                !groupCheckbox.closest(`.${prefix}-client-groups-block`)?.classList.contains('hidden');
-
-            block.classList.toggle('hidden', !visible);
-
-            if (!visible) {
-                block.querySelectorAll(`.${prefix}-element-type-checkbox, .${prefix}-area-checkbox`).forEach(cb => {
-                    cb.checked = false;
-                });
-            }
-        });
-
-        toggleAreaPermissionsByElementType(prefix);
-    }
+    document.querySelectorAll(
+        `.${prefix}-group-area-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`
+    ).forEach(cb => {
+        cb.checked = checked;
+    });
+}
 
     function toggleAllElementTypesForGroup(prefix, clientId, groupId, checked) {
         const groupCheckbox = document.querySelector(`.${prefix}-group-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]`);
@@ -1381,6 +1262,10 @@ async function submitEditUserForm(event) {
     const form = document.getElementById('editUserForm');
 
     if (!form || form.dataset.submitting === '1') {
+        return false;
+    }
+
+    if (!validateAdminClienteGroupAreas('edit')) {
         return false;
     }
 
@@ -1506,6 +1391,37 @@ async function toggleUserStatus(button, url) {
     }
 }
 
+function validateAdminClienteGroupAreas(prefix) {
+    const roleKey = getSelectedRoleKey(prefix);
+
+    if (roleKey !== 'admin_cliente') {
+        return true;
+    }
+
+    const selectedGroups = Array.from(document.querySelectorAll(`.${prefix}-group-checkbox:checked`));
+
+    if (selectedGroups.length === 0) {
+        showCrudToast('Debes asignar al menos una agrupación para el administrador cliente.', 'error');
+        return false;
+    }
+
+    for (const groupCheckbox of selectedGroups) {
+        const clientId = groupCheckbox.dataset.clientId;
+        const groupId = groupCheckbox.dataset.groupId;
+
+        const selectedAreas = document.querySelectorAll(
+            `.${prefix}-group-area-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"]:checked`
+        );
+
+        if (selectedAreas.length === 0) {
+            showCrudToast('Debes asignar al menos un área por cada agrupación del administrador cliente.', 'error');
+            return false;
+        }
+    }
+
+    return true;
+}
+
  function openEditUserModal(user) {
     const editForm = document.getElementById('editUserForm');
     const editSubmitButton = editForm?.querySelector('button[type="submit"]');
@@ -1543,6 +1459,11 @@ async function toggleUserStatus(button, url) {
     });
 
     document.querySelectorAll('.edit-group-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+    });
+
+    document.querySelectorAll('.edit-group-area-checkbox').forEach(cb => {
         cb.checked = false;
         cb.disabled = false;
     });
@@ -1586,6 +1507,18 @@ async function toggleUserStatus(button, url) {
     toggleAreaPermissionsByElementType('edit');
     toggleGroupPermissions('edit');
     toggleGroupDetails('edit');
+
+    Object.entries(user.group_area_permissions || {}).forEach(([clientId, byGroup]) => {
+        Object.entries(byGroup || {}).forEach(([groupId, areaIds]) => {
+            (areaIds || []).forEach(areaId => {
+                document.querySelectorAll(
+                    `.edit-group-area-checkbox[data-client-id="${clientId}"][data-group-id="${groupId}"][value="${areaId}"]`
+                ).forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            });
+        });
+    });
 
     const modal = document.getElementById('editUserModal');
     const content = document.getElementById('editUserModalContent');
@@ -1656,7 +1589,7 @@ async function toggleUserStatus(button, url) {
             roleSelect.disabled = isSelf;
         }
 
-        document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox, .edit-area-checkbox, .edit-group-checkbox').forEach(cb => {
+        document.querySelectorAll('.edit-client-checkbox, .edit-element-type-checkbox, .edit-area-checkbox, .edit-group-checkbox, .edit-group-area-checkbox').forEach(cb => {
             cb.disabled = isSelf;
         });
     }
@@ -1854,6 +1787,10 @@ async function toggleUserStatus(button, url) {
         const form = document.getElementById('createUserForm');
 
         if (!form) {
+            return;
+        }
+
+        if (!validateAdminClienteGroupAreas('create')) {
             return;
         }
 
