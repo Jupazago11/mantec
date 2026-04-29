@@ -824,6 +824,40 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
     return !empty($names) ? implode(', ', $names) : '—';
 }
 
+private function getResponsablesByGroupAreaMap(int $clientId, int $groupId): \Illuminate\Support\Collection
+{
+    return User::query()
+        ->select([
+            'users.name',
+            'user_client_group_areas.area_id',
+        ])
+        ->join('roles', 'roles.id', '=', 'users.role_id')
+        ->join('client_user', 'client_user.user_id', '=', 'users.id')
+        ->join('group_user', 'group_user.user_id', '=', 'users.id')
+        ->join('groups', 'groups.id', '=', 'group_user.group_id')
+        ->join('user_client_group_areas', function ($join) {
+            $join->on('user_client_group_areas.user_id', '=', 'users.id')
+                ->on('user_client_group_areas.client_id', '=', 'client_user.client_id')
+                ->on('user_client_group_areas.group_id', '=', 'group_user.group_id');
+        })
+        ->where('roles.key', 'admin_cliente')
+        ->where('users.status', true)
+        ->where('client_user.client_id', $clientId)
+        ->where('group_user.group_id', $groupId)
+        ->where('groups.client_id', $clientId)
+        ->orderBy('users.name')
+        ->get()
+        ->groupBy(fn ($row) => (int) $row->area_id)
+        ->map(function ($rows) {
+            return $rows
+                ->pluck('name')
+                ->filter()
+                ->unique()
+                ->values()
+                ->implode(', ');
+        });
+}
+
 public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $request): \Illuminate\View\View
 {
     $user = auth()->user();
@@ -879,6 +913,10 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
     abort_unless($dateFrom && $dateTo, 422, 'Debes enviar date_from y date_to.');
     abort_unless($dateTo >= $dateFrom, 422, 'La fecha final no puede ser menor que la fecha inicial.');
 
+
+    $dateFromStart = \Carbon\Carbon::parse($dateFrom)->startOfDay();
+    $dateToEnd = \Carbon\Carbon::parse($dateTo)->endOfDay();
+
     $baseQuery = \App\Models\ReportDetail::query()
         ->with([
             'user:id,name',
@@ -887,15 +925,14 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             'component:id,name',
             'diagnostic:id,name',
             'condition:id,name,code,color',
-            'files:id,report_detail_id',
             'executionStatus:id,code,name',
         ])
+        ->withCount('files')
         ->where('status', true)
         ->whereHas('element', function ($elementQuery) use ($group) {
             $elementQuery->where('group_id', $group->id);
         })
-        ->whereDate('created_at', '>=', $dateFrom)
-        ->whereDate('created_at', '<=', $dateTo);
+        ->whereBetween('created_at', [$dateFromStart, $dateToEnd]);
 
     /*
      * Nueva regla ManTec:
@@ -912,6 +949,11 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
     $totalReportsGenerated = (clone $baseQuery)->count();
     $totalReportsFiltered = (clone $query)->count();
 
+    $responsablesByArea = $this->getResponsablesByGroupAreaMap(
+        (int) $group->client_id,
+        (int) $group->id
+    );
+
     $reports = $query
         ->orderByDesc('created_at')
         ->orderByDesc('id')
@@ -919,7 +961,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         ->withQueryString();
 
     $reports->setCollection(
-        $reports->getCollection()->map(function ($report) {
+        $reports->getCollection()->map(function ($report) use ($responsablesByArea) {
             $element = $report->element;
             $area = $element?->area;
             $component = $report->component;
@@ -943,7 +985,10 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             $report->condition_color = $condition?->color ?: '#e2e8f0';
 
             $report->inspector_name = $inspector?->name ?: '—';
-            $report->responsable_name = $this->resolveAdminClienteResponsables($report);
+            $report->responsable_name = $responsablesByArea->get(
+                (int) ($element?->area_id ?? 0),
+                '—'
+            );
 
             $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
 
@@ -961,7 +1006,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             }
 
             $report->report_date = optional($report->created_at)?->format('Y-m-d');
-            $report->has_evidence = $report->files->isNotEmpty();
+            $report->has_evidence = ((int) ($report->files_count ?? 0)) > 0;
 
             return $report;
         })
@@ -972,11 +1017,11 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
         ->isNotEmpty();
 
-    $optionsRows = (clone $baseQuery)
-        ->orderByDesc('created_at')
-        ->orderByDesc('id')
-        ->get()
-        ->map(function ($report) {
+        $optionsRows = (clone $baseQuery)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($report) use ($responsablesByArea) {
             $element = $report->element;
             $area = $element?->area;
             $component = $report->component;
@@ -999,7 +1044,10 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
                 'orden' => $report->orden,
                 'aviso' => $report->aviso,
                 'inspector_name' => $inspector?->name,
-                'responsable_name' => $this->resolveAdminClienteResponsables($report),
+                'responsable_name' => $responsablesByArea->get(
+                    (int) ($element?->area_id ?? 0),
+                    '—'
+                ),
                 'execution_status_name' => $executionStatus?->name,
                 'week' => $report->week,
             ];
@@ -1448,30 +1496,37 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             });
         }
 
-if ($request->filled('responsable_names')) {
-    $responsableNames = array_filter((array) $request->input('responsable_names', []));
+        if ($request->filled('responsable_names')) {
+            $responsableNames = array_filter((array) $request->input('responsable_names', []));
 
-    $query->where(function ($outerQuery) use ($responsableNames) {
-        foreach ($responsableNames as $responsableName) {
-            $outerQuery->orWhereExists(function ($subQuery) use ($responsableName) {
-                $subQuery->selectRaw('1')
-                    ->from('users')
-                    ->join('roles', 'roles.id', '=', 'users.role_id')
-                    ->join('client_user', 'client_user.user_id', '=', 'users.id')
-                    ->join('group_user', 'group_user.user_id', '=', 'users.id')
-                    ->join('groups', 'groups.id', '=', 'group_user.group_id')
-                    ->join('elements', 'elements.id', '=', 'report_details.element_id')
-                    ->join('areas', 'areas.id', '=', 'elements.area_id')
-                    ->whereColumn('client_user.client_id', 'areas.client_id')
-                    ->whereColumn('groups.client_id', 'client_user.client_id')
-                    ->whereColumn('group_user.group_id', 'elements.group_id')
-                    ->where('roles.key', 'admin_cliente')
-                    ->where('users.status', true)
-                    ->where('users.name', $responsableName);
+            $query->where(function ($outerQuery) use ($responsableNames) {
+                foreach ($responsableNames as $responsableName) {
+                    $outerQuery->orWhereExists(function ($subQuery) use ($responsableName) {
+                        $subQuery->selectRaw('1')
+                            ->from('users')
+                            ->join('roles', 'roles.id', '=', 'users.role_id')
+                            ->join('client_user', 'client_user.user_id', '=', 'users.id')
+                            ->join('group_user', 'group_user.user_id', '=', 'users.id')
+                            ->join('groups', 'groups.id', '=', 'group_user.group_id')
+                            ->join('user_client_group_areas', function ($join) {
+                                $join->on('user_client_group_areas.user_id', '=', 'users.id')
+                                    ->on('user_client_group_areas.client_id', '=', 'client_user.client_id')
+                                    ->on('user_client_group_areas.group_id', '=', 'group_user.group_id');
+                            })
+                            ->join('elements', 'elements.id', '=', 'report_details.element_id')
+                            ->join('areas', 'areas.id', '=', 'elements.area_id')
+                            ->whereColumn('client_user.client_id', 'areas.client_id')
+                            ->whereColumn('groups.client_id', 'client_user.client_id')
+                            ->whereColumn('group_user.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.area_id', 'elements.area_id')
+                            ->where('roles.key', 'admin_cliente')
+                            ->where('users.status', true)
+                            ->where('users.name', $responsableName);
+                    });
+                }
             });
         }
-    });
-}
 
         if ($request->filled('condition_names')) {
             $names = array_filter((array) $request->input('condition_names', []));
