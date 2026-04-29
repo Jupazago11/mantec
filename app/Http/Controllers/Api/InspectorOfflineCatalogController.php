@@ -19,6 +19,13 @@ class InspectorOfflineCatalogController extends Controller
     {
         $user = Auth::user();
 
+        if (($user->role?->key ?? null) !== 'inspector') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este usuario no tiene acceso al catálogo móvil de inspector.',
+            ], 403);
+        }
+
         $assignedClientIds = $user->clients()
             ->where('clients.status', true)
             ->pluck('clients.id')
@@ -52,39 +59,55 @@ class InspectorOfflineCatalogController extends Controller
             ], 422);
         }
 
-        $allowedElementTypes = $user->allowedElementTypesForClient($clientId)
-            ->where('element_types.status', true)
+        $assignedGroups = $user->groups()
+            ->where('groups.client_id', $clientId)
+            ->where('groups.status', true)
+            ->orderBy('groups.name')
             ->get([
-                'element_types.id',
-                'element_types.client_id',
-                'element_types.name',
-                'element_types.description',
-                'element_types.status',
+                'groups.id',
+                'groups.client_id',
+                'groups.name',
+                'groups.description',
+                'groups.auto_sync',
+                'groups.status',
             ]);
 
-        if ($allowedElementTypes->isEmpty()) {
+        if ($assignedGroups->count() === 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'El inspector no tiene tipos de activo permitidos para este cliente.',
+                'message' => 'El inspector no tiene una agrupación activa asignada.',
             ], 422);
         }
 
-        $allowedElementTypeIds = $allowedElementTypes
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+        if ($assignedGroups->count() > 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El inspector tiene múltiples agrupaciones activas asignadas. La app móvil requiere una única agrupación por inspector.',
+            ], 422);
+        }
+
+        $group = $assignedGroups->first();
 
         $elements = Element::query()
+            ->with([
+                'area:id,client_id,name,code,status',
+                'elementType:id,client_id,name,description,status',
+            ])
+            ->where('group_id', $group->id)
+            ->where('status', true)
             ->whereHas('area', function ($query) use ($clientId) {
                 $query->where('client_id', $clientId)
                     ->where('status', true);
             })
-            ->whereIn('element_type_id', $allowedElementTypeIds)
-            ->where('status', true)
+            ->whereHas('elementType', function ($query) use ($clientId) {
+                $query->where('client_id', $clientId)
+                    ->where('status', true);
+            })
             ->orderBy('name')
             ->get([
                 'id',
                 'area_id',
+                'group_id',
                 'element_type_id',
                 'name',
                 'code',
@@ -92,10 +115,44 @@ class InspectorOfflineCatalogController extends Controller
                 'status',
             ]);
 
+        if ($elements->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Catálogo offline cargado correctamente. La agrupación no tiene activos asociados.',
+                'client' => [
+                    'id' => (int) $client->id,
+                    'name' => (string) $client->name,
+                    'obs' => $client->obs,
+                    'status' => (bool) $client->status,
+                ],
+                'group' => [
+                    'id' => (int) $group->id,
+                    'client_id' => (int) $group->client_id,
+                    'name' => (string) $group->name,
+                    'description' => $group->description,
+                    'auto_sync' => (bool) $group->auto_sync,
+                    'status' => (bool) $group->status,
+                ],
+                'element_types' => [],
+                'areas' => [],
+                'conditions' => [],
+                'elements' => [],
+                'components' => [],
+                'diagnostics' => [],
+                'element_component_relations' => [],
+                'component_diagnostic_relations' => [],
+                'component_condition_relations' => [],
+            ]);
+        }
+
+        $areaIds = $elements->pluck('area_id')->unique()->values();
+        $elementTypeIds = $elements->pluck('element_type_id')->unique()->values();
+        $elementIds = $elements->pluck('id')->unique()->values();
+
         $areas = Area::query()
             ->where('client_id', $clientId)
             ->where('status', true)
-            ->whereIn('id', $elements->pluck('area_id')->unique()->values())
+            ->whereIn('id', $areaIds)
             ->orderBy('name')
             ->get([
                 'id',
@@ -105,9 +162,101 @@ class InspectorOfflineCatalogController extends Controller
                 'status',
             ]);
 
+        $elementTypes = DB::table('element_types')
+            ->where('client_id', $clientId)
+            ->where('status', true)
+            ->whereIn('id', $elementTypeIds)
+            ->orderBy('name')
+            ->get([
+                'id',
+                'client_id',
+                'name',
+                'description',
+                'status',
+            ]);
+
+        $elementComponentRelations = DB::table('element_components')
+            ->whereIn('element_id', $elementIds)
+            ->get([
+                'element_id',
+                'component_id',
+            ]);
+
+        $componentIds = $elementComponentRelations
+            ->pluck('component_id')
+            ->unique()
+            ->values();
+
+        $components = Component::query()
+            ->whereIn('id', $componentIds)
+            ->whereIn('element_type_id', $elementTypeIds)
+            ->where('status', true)
+            ->orderBy('element_type_id')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'client_id',
+                'name',
+                'code',
+                'element_type_id',
+                'is_required',
+                'is_default',
+                'status',
+            ]);
+
+        $validComponentIds = $components
+            ->pluck('id')
+            ->unique()
+            ->values();
+
+        $elementComponentRelations = $elementComponentRelations
+            ->whereIn('component_id', $validComponentIds)
+            ->values();
+
+        $diagnosticIds = DB::table('component_diagnostics')
+            ->whereIn('component_id', $validComponentIds)
+            ->pluck('diagnostic_id')
+            ->unique()
+            ->values();
+
+        $diagnostics = Diagnostic::query()
+            ->whereIn('id', $diagnosticIds)
+            ->whereIn('element_type_id', $elementTypeIds)
+            ->where('status', true)
+            ->orderBy('element_type_id')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'client_id',
+                'element_type_id',
+                'name',
+                'description',
+                'status',
+            ]);
+
+        $validDiagnosticIds = $diagnostics
+            ->pluck('id')
+            ->unique()
+            ->values();
+
+        $componentDiagnosticRelations = DB::table('component_diagnostics')
+            ->whereIn('component_id', $validComponentIds)
+            ->whereIn('diagnostic_id', $validDiagnosticIds)
+            ->get([
+                'component_id',
+                'diagnostic_id',
+            ]);
+
+        $conditionIds = DB::table('component_conditions')
+            ->whereIn('component_id', $validComponentIds)
+            ->pluck('condition_id')
+            ->unique()
+            ->values();
+
         $conditions = Condition::query()
             ->where('client_id', $clientId)
-            ->whereIn('element_type_id', $allowedElementTypeIds)
+            ->whereIn('element_type_id', $elementTypeIds)
+            ->whereIn('id', $conditionIds)
             ->where('status', true)
             ->orderBy('element_type_id')
             ->orderBy('severity')
@@ -124,61 +273,14 @@ class InspectorOfflineCatalogController extends Controller
                 'status',
             ]);
 
-        $components = Component::query()
-            ->whereIn('element_type_id', $allowedElementTypeIds)
-            ->where('status', true)
-            ->orderBy('name')
-            ->get([
-                'id',
-                'client_id',
-                'name',
-                'code',
-                'element_type_id',
-                'is_required',
-                'is_default',
-                'status',
-            ]);
-
-        $elementComponentRelations = DB::table('element_components')
-            ->whereIn('element_id', $elements->pluck('id'))
-            ->whereIn('component_id', $components->pluck('id'))
-            ->get([
-                'element_id',
-                'component_id',
-            ]);
-
-        $diagnosticIds = DB::table('component_diagnostics')
-            ->whereIn('component_id', $components->pluck('id'))
-            ->pluck('diagnostic_id')
+        $validConditionIds = $conditions
+            ->pluck('id')
             ->unique()
             ->values();
 
-        $diagnostics = Diagnostic::query()
-            ->whereIn('id', $diagnosticIds)
-            ->whereIn('element_type_id', $allowedElementTypeIds)
-            ->where('status', true)
-            ->orderBy('element_type_id')
-            ->orderBy('name')
-            ->get([
-                'id',
-                'client_id',
-                'element_type_id',
-                'name',
-                'description',
-                'status',
-            ]);
-
-        $componentDiagnosticRelations = DB::table('component_diagnostics')
-            ->whereIn('component_id', $components->pluck('id'))
-            ->whereIn('diagnostic_id', $diagnostics->pluck('id'))
-            ->get([
-                'component_id',
-                'diagnostic_id',
-            ]);
-
         $componentConditionRelations = DB::table('component_conditions')
-            ->whereIn('component_id', $components->pluck('id'))
-            ->whereIn('condition_id', $conditions->pluck('id'))
+            ->whereIn('component_id', $validComponentIds)
+            ->whereIn('condition_id', $validConditionIds)
             ->get([
                 'component_id',
                 'condition_id',
@@ -193,7 +295,15 @@ class InspectorOfflineCatalogController extends Controller
                 'obs' => $client->obs,
                 'status' => (bool) $client->status,
             ],
-            'element_types' => $allowedElementTypes->map(function ($item) {
+            'group' => [
+                'id' => (int) $group->id,
+                'client_id' => (int) $group->client_id,
+                'name' => (string) $group->name,
+                'description' => $group->description,
+                'auto_sync' => (bool) $group->auto_sync,
+                'status' => (bool) $group->status,
+            ],
+            'element_types' => $elementTypes->map(function ($item) {
                 return [
                     'id' => (int) $item->id,
                     'client_id' => (int) $item->client_id,
@@ -228,6 +338,7 @@ class InspectorOfflineCatalogController extends Controller
                 return [
                     'id' => (int) $item->id,
                     'area_id' => (int) $item->area_id,
+                    'group_id' => (int) $item->group_id,
                     'element_type_id' => (int) $item->element_type_id,
                     'name' => (string) $item->name,
                     'code' => (string) ($item->code ?? $item->name),
