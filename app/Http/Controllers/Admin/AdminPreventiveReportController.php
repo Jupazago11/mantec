@@ -692,7 +692,9 @@ class AdminPreventiveReportController extends Controller
         }
 
         $responsableNames = array_filter((array) $request->input('responsable_names', []));
-        if (!empty($responsableNames)) {
+        if ($request->filled('responsable_names')) {
+            $responsableNames = array_filter((array) $request->input('responsable_names', []));
+
             $query->where(function ($outerQuery) use ($responsableNames) {
                 foreach ($responsableNames as $responsableName) {
                     $outerQuery->orWhereExists(function ($subQuery) use ($responsableName) {
@@ -702,11 +704,18 @@ class AdminPreventiveReportController extends Controller
                             ->join('client_user', 'client_user.user_id', '=', 'users.id')
                             ->join('group_user', 'group_user.user_id', '=', 'users.id')
                             ->join('groups', 'groups.id', '=', 'group_user.group_id')
+                            ->join('user_client_group_areas', function ($join) {
+                                $join->on('user_client_group_areas.user_id', '=', 'users.id')
+                                    ->on('user_client_group_areas.client_id', '=', 'client_user.client_id')
+                                    ->on('user_client_group_areas.group_id', '=', 'group_user.group_id');
+                            })
                             ->join('elements', 'elements.id', '=', 'report_details.element_id')
                             ->join('areas', 'areas.id', '=', 'elements.area_id')
                             ->whereColumn('client_user.client_id', 'areas.client_id')
                             ->whereColumn('groups.client_id', 'client_user.client_id')
                             ->whereColumn('group_user.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.group_id', 'elements.group_id')
+                            ->whereColumn('user_client_group_areas.area_id', 'elements.area_id')
                             ->where('roles.key', 'admin_cliente')
                             ->where('users.status', true)
                             ->where('users.name', $responsableName);
@@ -773,8 +782,9 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
 {
     $clientId = $report->element?->area?->client_id;
     $groupId = $report->element?->group_id;
+    $areaId = $report->element?->area_id;
 
-    if (!$clientId || !$groupId) {
+    if (!$clientId || !$groupId || !$areaId) {
         return '—';
     }
 
@@ -796,6 +806,14 @@ private function resolveAdminClienteResponsables(ReportDetail $report): string
                 ->whereColumn('group_user.user_id', 'users.id')
                 ->where('group_user.group_id', $groupId)
                 ->where('groups.client_id', $clientId);
+        })
+        ->whereExists(function ($query) use ($clientId, $groupId, $areaId) {
+            $query->selectRaw('1')
+                ->from('user_client_group_areas')
+                ->whereColumn('user_client_group_areas.user_id', 'users.id')
+                ->where('user_client_group_areas.client_id', $clientId)
+                ->where('user_client_group_areas.group_id', $groupId)
+                ->where('user_client_group_areas.area_id', $areaId);
         })
         ->orderBy('users.name')
         ->pluck('users.name')
