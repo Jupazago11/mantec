@@ -954,6 +954,14 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         (int) $group->id
     );
 
+    /*
+    * IMPORTANTE:
+    * Esta consulta debe crearse ANTES de paginar.
+    * Si se clona después del paginate(), las opciones de los popovers pueden quedar
+    * limitadas a la página actual.
+    */
+    $optionsQuery = clone $query;
+
     $reports = $query
         ->orderByDesc('created_at')
         ->orderByDesc('id')
@@ -1017,18 +1025,18 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
         ->isNotEmpty();
 
-        $optionsRows = (clone $query)
-    ->orderByDesc('created_at')
-    ->orderByDesc('id')
-    ->get()
-    ->map(function ($report) use ($responsablesByArea) {
-        $element = $report->element;
-        $area = $element?->area;
-        $component = $report->component;
-        $diagnostic = $report->diagnostic;
-        $condition = $report->condition;
-        $inspector = $report->user;
-        $executionStatus = $report->executionStatus;
+    $optionsRows = $optionsQuery
+        ->orderByDesc('created_at')
+        ->orderByDesc('id')
+        ->get()
+        ->map(function ($report) use ($responsablesByArea) {
+            $element = $report->element;
+            $area = $element?->area;
+            $component = $report->component;
+            $diagnostic = $report->diagnostic;
+            $condition = $report->condition;
+            $inspector = $report->user;
+            $executionStatus = $report->executionStatus;
 
         return (object) [
             'element_name' => $element?->name,
@@ -1054,102 +1062,87 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
     });
 
     $filterOptions = [
-        'element_names' => $optionsRows
-            ->pluck('element_name')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'element_names' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('element_name'),
+        false
+    ),
 
-        'area_names' => $optionsRows
-            ->pluck('area_name')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'area_names' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('area_name'),
+        false
+    ),
 
-        'warehouse_codes' => $optionsRows
-            ->pluck('warehouse_code')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'warehouse_codes' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('warehouse_code'),
+        true
+    ),
 
-        'diagnostic_pairs' => $optionsRows
-            ->filter(fn ($row) => $row->component_id && $row->diagnostic_id)
-            ->map(fn ($row) => [
-                'value' => $row->component_id . '|' . $row->diagnostic_id,
-                'label' => $row->component_name . ' | ' . $row->diagnostic_name,
-            ])
-            ->unique('value')
-            ->sortBy('label')
-            ->values(),
+    'diagnostic_pairs' => $optionsRows
+        ->filter(fn ($row) => $row->component_id && $row->diagnostic_id)
+        ->map(fn ($row) => [
+            'value' => $row->component_id . '|' . $row->diagnostic_id,
+            'label' => $row->component_name . ' | ' . $row->diagnostic_name,
+        ])
+        ->unique('value')
+        ->sortBy('label')
+        ->values(),
 
-        'recommendation_values' => $optionsRows
-            ->pluck('recommendation')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'recommendation_values' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('recommendation'),
+        true
+    ),
 
-        'condition_codes' => $optionsRows
-            ->pluck('condition_code')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'condition_codes' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('condition_code'),
+        false
+    ),
 
-        'orden_values' => $optionsRows
-            ->pluck('orden')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'orden_values' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('orden'),
+        true
+    ),
 
-        'aviso_values' => $optionsRows
-            ->pluck('aviso')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'aviso_values' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('aviso'),
+        true
+    ),
 
-        'inspector_names' => $optionsRows
-            ->pluck('inspector_name')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+    'inspector_names' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('inspector_name'),
+        true
+    ),
 
-        'responsable_names' => $optionsRows
+    'responsable_names' => $this->buildFilterOptionsFromValues(
+        $optionsRows
             ->pluck('responsable_name')
-            ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
-            ->flatMap(fn ($value) => collect(explode(', ', $value)))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+            ->flatMap(function ($value) {
+                $value = trim((string) $value);
 
-        'condition_names' => $optionsRows
-            ->pluck('condition_name')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+                if ($value === '' || $value === '—') {
+                    return [''];
+                }
 
-        'execution_statuses' => $optionsRows
-            ->pluck('execution_status_name')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
+                return explode(', ', $value);
+            }),
+        true
+    ),
 
-        'weeks' => $optionsRows
-            ->pluck('week')
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values(),
-    ];
+    'condition_names' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('condition_name'),
+        false
+    ),
+
+    'execution_statuses' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('execution_status_name'),
+        true
+    ),
+
+    'weeks' => $this->buildFilterOptionsFromValues(
+        $optionsRows->pluck('week'),
+        false,
+        true
+    ),
+];
 
     $activeFilters = [
         'element_names' => (array) $request->input('element_names', []),
@@ -1445,9 +1438,19 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         }
 
         if ($request->filled('warehouse_codes')) {
-            $codes = array_filter((array) $request->input('warehouse_codes', []));
-            $query->whereHas('element', function ($elementQuery) use ($codes) {
-                $elementQuery->whereIn('warehouse_code', $codes);
+            [$codes, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('warehouse_codes', []));
+
+            $query->whereHas('element', function ($elementQuery) use ($codes, $wantsEmpty) {
+                $elementQuery->where(function ($q) use ($codes, $wantsEmpty) {
+                    if (!empty($codes)) {
+                        $q->orWhereIn('warehouse_code', $codes);
+                    }
+
+                    if ($wantsEmpty) {
+                        $q->orWhereNull('warehouse_code')
+                            ->orWhere('warehouse_code', '');
+                    }
+                });
             });
         }
 
@@ -1468,8 +1471,18 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         }
 
         if ($request->filled('recommendation_values')) {
-            $values = array_filter((array) $request->input('recommendation_values', []));
-            $query->whereIn('recommendation', $values);
+            [$values, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('recommendation_values', []));
+
+            $query->where(function ($q) use ($values, $wantsEmpty) {
+                if (!empty($values)) {
+                    $q->orWhereIn('recommendation', $values);
+                }
+
+                if ($wantsEmpty) {
+                    $q->orWhereNull('recommendation')
+                        ->orWhere('recommendation', '');
+                }
+            });
         }
 
         if ($request->filled('condition_codes')) {
@@ -1480,19 +1493,48 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         }
 
         if ($request->filled('orden_values')) {
-            $values = array_filter((array) $request->input('orden_values', []));
-            $query->whereIn('orden', $values);
+            [$values, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('orden_values', []));
+
+            $query->where(function ($q) use ($values, $wantsEmpty) {
+                if (!empty($values)) {
+                    $q->orWhereIn('orden', $values);
+                }
+
+                if ($wantsEmpty) {
+                    $q->orWhereNull('orden')
+                        ->orWhere('orden', '');
+                }
+            });
         }
 
         if ($request->filled('aviso_values')) {
-            $values = array_filter((array) $request->input('aviso_values', []));
-            $query->whereIn('aviso', $values);
+            [$values, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('aviso_values', []));
+
+            $query->where(function ($q) use ($values, $wantsEmpty) {
+                if (!empty($values)) {
+                    $q->orWhereIn('aviso', $values);
+                }
+
+                if ($wantsEmpty) {
+                    $q->orWhereNull('aviso')
+                        ->orWhere('aviso', '');
+                }
+            });
         }
 
         if ($request->filled('inspector_names')) {
-            $names = array_filter((array) $request->input('inspector_names', []));
-            $query->whereHas('user', function ($userQuery) use ($names) {
-                $userQuery->whereIn('name', $names);
+            [$names, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('inspector_names', []));
+
+            $query->where(function ($q) use ($names, $wantsEmpty) {
+                if (!empty($names)) {
+                    $q->orWhereHas('user', function ($userQuery) use ($names) {
+                        $userQuery->whereIn('name', $names);
+                    });
+                }
+
+                if ($wantsEmpty) {
+                    $q->orWhereNull('user_id');
+                }
             });
         }
 
@@ -1536,9 +1578,18 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         }
 
         if ($request->filled('execution_statuses')) {
-            $statuses = array_filter((array) $request->input('execution_statuses', []));
-            $query->whereHas('executionStatus', function ($statusQuery) use ($statuses) {
-                $statusQuery->whereIn('name', $statuses);
+            [$statuses, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('execution_statuses', []));
+
+            $query->where(function ($q) use ($statuses, $wantsEmpty) {
+                if (!empty($statuses)) {
+                    $q->orWhereHas('executionStatus', function ($statusQuery) use ($statuses) {
+                        $statusQuery->whereIn('name', $statuses);
+                    });
+                }
+
+                if ($wantsEmpty) {
+                    $q->orWhereNull('execution_status_id');
+                }
             });
         }
 
@@ -2023,5 +2074,59 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
     return $this->canAccessElementType($user, $clientId, $elementTypeId);
 }
 
+private function buildFilterOptionsFromValues(
+    \Illuminate\Support\Collection $values,
+    bool $includeEmpty = true,
+    bool $sortDesc = false
+): \Illuminate\Support\Collection {
+    $normalized = $values->map(function ($value) {
+        if ($value === null) {
+            return '';
+        }
+
+        return trim((string) $value);
+    });
+
+    $hasEmpty = $includeEmpty && $normalized->contains('');
+
+    $items = $normalized
+        ->filter(fn ($value) => $value !== '')
+        ->unique();
+
+    $items = $sortDesc ? $items->sortDesc() : $items->sort();
+
+    $options = $items
+        ->values()
+        ->map(fn ($value) => [
+            'value' => $value,
+            'label' => $value,
+        ]);
+
+    if ($hasEmpty) {
+        $options->prepend([
+            'value' => '__EMPTY__',
+            'label' => 'Sin valor',
+        ]);
+    }
+
+    return $options->values();
+}
+
+private function splitEmptyFilterValues(array $values): array
+{
+    $values = collect($values)
+        ->map(fn ($value) => trim((string) $value))
+        ->filter(fn ($value) => $value !== '')
+        ->values();
+
+    $wantsEmpty = $values->contains('__EMPTY__');
+
+    $realValues = $values
+        ->reject(fn ($value) => $value === '__EMPTY__')
+        ->values()
+        ->all();
+
+    return [$realValues, $wantsEmpty];
+}
 
 }
