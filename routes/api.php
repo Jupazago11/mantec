@@ -6,6 +6,7 @@ use App\Http\Controllers\Inspector\InspectorReportController;
 use App\Http\Controllers\Api\InspectorSyncController;
 use App\Http\Controllers\Api\InspectorSyncFileController;
 use App\Http\Controllers\Api\InspectorOfflineCatalogController;
+use App\Http\Controllers\Api\InspectorMeasurementThicknessController;
 
 Route::post('/login', [AuthApiController::class, 'login']);
 
@@ -13,6 +14,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthApiController::class, 'logout']);
 
     Route::prefix('inspector')->group(function () {
+
+        Route::prefix('measurements')->group(function () {
+            Route::get('/element-types', [InspectorMeasurementThicknessController::class, 'elementTypes']);
+            Route::get('/element-types/{elementType}/areas',[InspectorMeasurementThicknessController::class, 'areasByElementType']);
+            Route::get('/areas/{area}/element-types/{elementType}/elements',[InspectorMeasurementThicknessController::class, 'elementsByAreaAndElementType']);
+            Route::get('/elements/{element}/thickness',[InspectorMeasurementThicknessController::class, 'showThickness']);
+            Route::post('/elements/{element}/thickness/draft/sync',[InspectorMeasurementThicknessController::class, 'syncDraft']);
+        });
+
         Route::get('/offline-catalog', [InspectorOfflineCatalogController::class, 'show']);
 
         Route::get('/clients/{client}/areas', [InspectorReportController::class, 'getAreasByClient']);

@@ -7,10 +7,13 @@ use App\Models\Client;
 use App\Models\Element;
 use App\Models\Group;
 use App\Models\ReportDetail;
+use App\Models\SemaphoreBeltChange;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
@@ -30,17 +33,21 @@ class IndicatorController extends Controller
         $clients = $this->getScopedClients($user);
         $groups = $this->getScopedGroups($user, $clients->pluck('id')->all());
         $elementTypeOptions = $this->buildElementTypeOptions($groups);
+        $defaultScope = $this->resolveDefaultScope($user, $clients, $groups);
 
         return view('admin.indicators.index', [
             'clients' => $clients,
             'groups' => $groups,
             'elementTypeOptions' => $elementTypeOptions,
+            'defaultScope' => $defaultScope,
             'roleKey' => $roleKey,
             'isReadOnly' => in_array($roleKey, ['observador', 'observador_cliente'], true),
+            'canEditSemaphore' => $this->canEditSemaphore($roleKey),
             'defaultDateFrom' => now()->startOfYear()->toDateString(),
             'defaultDateTo' => now()->toDateString(),
             'dataRoute' => route('admin.indicators.data'),
             'semaphoreDataRoute' => route('admin.indicators.semaphore.data'),
+            'semaphoreBeltChangeUpdateRoute' => route('admin.indicators.semaphore.belt-change.update'),
         ]);
     }
 
@@ -99,6 +106,7 @@ class IndicatorController extends Controller
         }
 
         $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $elementIdsForGroups = $this->elementIdsForGroups($groupIds);
 
         $elementsQuery = Element::query()
             ->with([
@@ -107,7 +115,7 @@ class IndicatorController extends Controller
                 'group:id,name,client_id',
             ])
             ->where('status', true)
-            ->whereIn('group_id', $groupIds);
+            ->whereIn('id', $elementIdsForGroups);
 
         if (!empty($validated['element_type_id'])) {
             $elementsQuery->where('element_type_id', (int) $validated['element_type_id']);
@@ -131,11 +139,13 @@ class IndicatorController extends Controller
         if (!empty($elementIds) && !empty($weekPairs)) {
             $details = ReportDetail::query()
                 ->with([
+                    'user:id,name',
                     'element:id,name,group_id,element_type_id,area_id',
+                    'element.area:id,name',
                     'element.elementType:id,name',
                     'component:id,name',
                     'diagnostic:id,name',
-                    'condition:id,code,name,description,severity',
+                    'condition:id,code,name,description,severity,color',
                     'executionStatus:id,name',
                 ])
                 ->where('status', true)
@@ -188,7 +198,12 @@ class IndicatorController extends Controller
             ->sortBy('label')
             ->values();
 
+        $weeklyAssetCoverage = $this->buildWeeklyAssetCoverage($elements, $details, $weekPairs);
+
         $summaryByElementType = $this->buildSummaryByElementType($elements, $details);
+        $areaDistribution = $this->buildAreaDistribution($details);
+        $inspectorDistribution = $this->buildInspectorDistribution($details);
+        $attentionTrend = $this->buildAttentionTrend($details);
 
         $topElements = $details
             ->groupBy('element_id')
@@ -250,10 +265,12 @@ class IndicatorController extends Controller
                     'name' => $condition?->name ?: 'Sin condición',
                     'severity' => $condition?->severity,
                     'severity_label' => $this->severityLabel($condition?->severity),
+                    'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
+                    'order' => $this->semaphoreOrderFromSeverity($condition?->severity),
                     'total' => $items->count(),
                 ];
             })
-            ->sortByDesc('total')
+            ->sortBy(fn ($row) => $row['order'])
             ->take(10)
             ->values();
 
@@ -291,6 +308,15 @@ class IndicatorController extends Controller
                 'severity_distribution' => $severityDistribution,
                 'condition_distribution' => $conditionDistribution,
                 'reports_by_week' => $reportsByWeek,
+                'weekly_asset_coverage' => $weeklyAssetCoverage,
+                'summary_by_element_type' => $summaryByElementType,
+                'top_elements' => $topElements,
+                'top_components' => $topComponents,
+                'top_diagnostics' => $topDiagnostics,
+                'top_conditions' => $topConditions,
+                'area_distribution' => $areaDistribution,
+                'inspector_distribution' => $inspectorDistribution,
+                'attention_trend' => $attentionTrend,
             ],
             'tables' => [
                 'summary_by_element_type' => $summaryByElementType,
@@ -355,11 +381,12 @@ class IndicatorController extends Controller
     }
 
     $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+    $elementIdsForGroups = $this->elementIdsForGroups($groupIds);
 
     $elementTypeId = (int) $validated['element_type_id'];
 
     $elementTypeHasSemaphore = Element::query()
-        ->whereIn('group_id', $groupIds)
+        ->whereIn('id', $elementIdsForGroups)
         ->where('element_type_id', $elementTypeId)
         ->whereHas('elementType', fn ($query) => $query
             ->where('status', true)
@@ -381,7 +408,7 @@ class IndicatorController extends Controller
             'group:id,name,client_id',
         ])
         ->where('status', true)
-        ->whereIn('group_id', $groupIds)
+        ->whereIn('id', $elementIdsForGroups)
         ->where('element_type_id', $elementTypeId)
         ->whereHas('area', fn ($query) => $query->where('status', true))
         ->orderBy('name')
@@ -405,7 +432,7 @@ class IndicatorController extends Controller
                 'element:id,name,area_id,element_type_id,group_id',
                 'component:id,name,code',
                 'diagnostic:id,name',
-                'condition:id,code,name,severity,color',
+                'condition:id,code,name,description,severity,color',
             ])
             ->where('status', true)
             ->whereIn('element_id', $elementIds)
@@ -416,10 +443,19 @@ class IndicatorController extends Controller
 
     $detailsByElement = $details->groupBy('element_id');
 
+    $beltChangeOverrides = empty($elementIds) || !Schema::hasTable('semaphore_belt_changes')
+        ? collect()
+        : SemaphoreBeltChange::query()
+            ->whereIn('element_id', $elementIds)
+            ->where('year', (int) $validated['year'])
+            ->where('week', (int) $validated['week'])
+            ->get()
+            ->keyBy('element_id');
+
     $areas = $elements
         ->filter(fn ($element) => $element->area)
         ->groupBy(fn ($element) => $element->area->id)
-        ->map(function ($areaElements) use ($detailsByElement) {
+        ->map(function ($areaElements) use ($detailsByElement, $beltChangeOverrides) {
             $area = $areaElements->first()->area;
 
             return [
@@ -428,14 +464,15 @@ class IndicatorController extends Controller
                 'elements_count' => $areaElements->count(),
                 'rows' => $areaElements
                     ->sortBy('name')
-                    ->map(function (Element $element) use ($detailsByElement) {
+                    ->map(function (Element $element) use ($detailsByElement, $beltChangeOverrides) {
                         $elementDetails = $detailsByElement->get($element->id, collect());
+                        $beltChangeOverride = $beltChangeOverrides->get($element->id);
 
                         return [
                             'element_id' => $element->id,
                             'element_name' => $element->name,
                             'element_code' => $element->code,
-                            'change_belt' => $this->buildSemaphoreChangeBelt($elementDetails),
+                            'change_belt' => $this->buildSemaphoreChangeBelt($elementDetails, $beltChangeOverride),
                             'belt_status' => $this->buildSemaphoreBeltStatus($elementDetails),
                             'safety_condition' => $this->buildSemaphoreSafetyCondition($elementDetails),
                             'discharge' => $this->buildSemaphoreComponentColumn($elementDetails, ['descarga']),
@@ -460,6 +497,95 @@ class IndicatorController extends Controller
     ]);
 }
 
+    public function updateSemaphoreBeltChange(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            $this->canEditSemaphore($roleKey),
+            403,
+            'Rol no autorizado para editar el semÃ¡foro.'
+        );
+
+        $validated = $request->validate([
+            'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
+            'element_type_id' => ['required', 'integer', 'exists:element_types,id'],
+            'element_id' => ['required', 'integer', 'exists:elements,id'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'week' => ['required', 'integer', 'min:1', 'max:53'],
+            'is_belt_change' => ['required', 'boolean'],
+        ]);
+
+        if (!Schema::hasTable('semaphore_belt_changes')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Falta ejecutar la migraciÃ³n de cambios de banda del semÃ¡foro.',
+            ], 409);
+        }
+
+        $clients = $this->getScopedClients($user);
+        $clientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if (!empty($validated['client_id'])) {
+            $requestedClientId = (int) $validated['client_id'];
+
+            if (!in_array($requestedClientId, $clientIds, true)) {
+                abort(403, 'No tienes acceso a este cliente.');
+            }
+
+            $clientIds = [$requestedClientId];
+        }
+
+        $groups = $this->getScopedGroups($user, $clientIds);
+
+        if (!empty($validated['group_id'])) {
+            $requestedGroupId = (int) $validated['group_id'];
+
+            if (!$groups->pluck('id')->map(fn ($id) => (int) $id)->contains($requestedGroupId)) {
+                abort(403, 'No tienes acceso a esta agrupaciÃ³n.');
+            }
+
+            $groups = $groups->where('id', $requestedGroupId)->values();
+        }
+
+        $elementIdsForGroups = $this->elementIdsForGroups(
+            $groups->pluck('id')->map(fn ($id) => (int) $id)->all()
+        );
+
+        $element = Element::query()
+            ->with(['area:id,client_id,status', 'elementType:id,has_semaphore,status'])
+            ->where('id', (int) $validated['element_id'])
+            ->where('status', true)
+            ->whereIn('id', $elementIdsForGroups)
+            ->where('element_type_id', (int) $validated['element_type_id'])
+            ->whereHas('area', fn ($query) => $query->where('status', true))
+            ->whereHas('elementType', fn ($query) => $query
+                ->where('status', true)
+                ->where('has_semaphore', true)
+            )
+            ->firstOrFail();
+
+        $override = SemaphoreBeltChange::updateOrCreate(
+            [
+                'element_id' => $element->id,
+                'year' => (int) $validated['year'],
+                'week' => (int) $validated['week'],
+            ],
+            [
+                'is_belt_change' => (bool) $validated['is_belt_change'],
+                'updated_by' => $user->id,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cambio de banda actualizado correctamente.',
+            'cell' => $this->buildSemaphoreChangeBelt(collect(), $override),
+        ]);
+    }
+
     private function canAccessIndicators(?string $roleKey): bool
     {
         return in_array($roleKey, [
@@ -469,6 +595,16 @@ class IndicatorController extends Controller
             'admin_cliente',
             'observador',
             'observador_cliente',
+        ], true);
+    }
+
+    private function canEditSemaphore(?string $roleKey): bool
+    {
+        return in_array($roleKey, [
+            'superadmin',
+            'admin_global',
+            'admin',
+            'admin_cliente',
         ], true);
     }
 
@@ -512,6 +648,56 @@ class IndicatorController extends Controller
         return $query->get(['id', 'client_id', 'name', 'description', 'status']);
     }
 
+    private function resolveDefaultScope($user, Collection $clients, Collection $groups): array
+    {
+        $clientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if (empty($clientIds) || empty($groupIds)) {
+            return [
+                'client_id' => null,
+                'group_id' => null,
+                'element_type_id' => null,
+            ];
+        }
+
+        $topGroup = $groups
+            ->map(function ($group) {
+                $elementIds = $this->elementIdsForGroups([(int) $group->id]);
+
+                $reportsCount = empty($elementIds)
+                    ? 0
+                    : ReportDetail::query()
+                        ->where('status', true)
+                        ->whereIn('element_id', $elementIds)
+                        ->count();
+
+                return [
+                    'client_id' => (int) $group->client_id,
+                    'group_id' => (int) $group->id,
+                    'reports_count' => $reportsCount,
+                ];
+            })
+            ->sortByDesc('reports_count')
+            ->first();
+
+        if ($topGroup && $topGroup['reports_count'] > 0) {
+            return [
+                'client_id' => (int) $topGroup['client_id'],
+                'group_id' => (int) $topGroup['group_id'],
+                'element_type_id' => null,
+            ];
+        }
+
+        $fallbackGroup = $groups->first();
+
+        return [
+            'client_id' => $fallbackGroup ? (int) $fallbackGroup->client_id : (int) $clients->first()->id,
+            'group_id' => $fallbackGroup ? (int) $fallbackGroup->id : null,
+            'element_type_id' => null,
+        ];
+    }
+
     private function buildElementTypeOptions(Collection $groups): Collection
     {
         $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -526,7 +712,7 @@ class IndicatorController extends Controller
                 'elementType:id,name,has_semaphore',
             ])
             ->where('status', true)
-            ->whereIn('group_id', $groupIds)
+            ->whereIn('id', $this->elementIdsForGroups($groupIds))
             ->get(['id', 'group_id', 'element_type_id', 'status'])
             ->map(function (Element $element) {
                 return [
@@ -544,6 +730,81 @@ class IndicatorController extends Controller
                 ['group_id', 'asc'],
                 ['element_type_name', 'asc'],
             ])
+            ->values();
+    }
+
+    private function elementIdsForGroups(array $groupIds): array
+    {
+        $groupIds = collect($groupIds)
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($groupIds->isEmpty()) {
+            return [];
+        }
+
+        $ids = collect();
+
+        if (Schema::hasColumn('elements', 'group_id')) {
+            $ids = $ids->merge(
+                Element::query()
+                    ->whereIn('group_id', $groupIds)
+                    ->pluck('id')
+            );
+        }
+
+        foreach ($groupIds as $groupId) {
+            $ids = $ids->merge($this->resolveElementIdsFromGroupPivot((int) $groupId));
+        }
+
+        return $ids
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function resolveElementIdsFromGroupPivot(int $groupId): Collection
+    {
+        $pivotCandidates = [
+            ['table' => 'group_elements', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_element', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_group', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_groups', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_assets', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_asset', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activos', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activo', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+        ];
+
+        $ids = collect();
+
+        foreach ($pivotCandidates as $candidate) {
+            $table = $candidate['table'];
+            $groupColumn = $candidate['group_column'];
+            $elementColumn = $candidate['element_column'];
+
+            if (
+                Schema::hasTable($table) &&
+                Schema::hasColumn($table, $groupColumn) &&
+                Schema::hasColumn($table, $elementColumn)
+            ) {
+                $ids = $ids->merge(
+                    DB::table($table)
+                        ->where($groupColumn, $groupId)
+                        ->whereNotNull($elementColumn)
+                        ->pluck($elementColumn)
+                );
+            }
+        }
+
+        return $ids
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
             ->values();
     }
 
@@ -604,9 +865,11 @@ class IndicatorController extends Controller
             ->map(fn ($items, $severity) => [
                 'label' => $this->severityLabel($severity),
                 'severity' => is_numeric($severity) ? (int) $severity : null,
+                'color' => $this->indicatorColorFromSeverity($severity),
+                'order' => $this->semaphoreOrderFromSeverity(is_numeric($severity) ? (int) $severity : null),
                 'total' => $items->count(),
             ])
-            ->sortBy(fn ($row) => $row['severity'] ?? 999)
+            ->sortBy(fn ($row) => $row['order'])
             ->values();
     }
 
@@ -636,10 +899,12 @@ class IndicatorController extends Controller
                     'condition' => $condition?->name ?: 'Sin condición',
                     'severity' => $condition?->severity,
                     'severity_label' => $this->severityLabel($condition?->severity),
+                    'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
+                    'order' => $this->semaphoreOrderFromSeverity($condition?->severity),
                     'total' => $items->count(),
                 ];
             })
-            ->sortByDesc('total')
+            ->sortBy(fn ($row) => $row['order'])
             ->values();
     }
 
@@ -674,14 +939,119 @@ class IndicatorController extends Controller
             ->values();
     }
 
-    private function buildSemaphoreChangeBelt(Collection $details): array
+    private function buildWeeklyAssetCoverage(Collection $elements, Collection $details, array $weekPairs): Collection
+    {
+        $totalElements = $elements->count();
+
+        return collect($weekPairs)
+            ->map(function ($pair) use ($details, $totalElements) {
+                $weekDetails = $details
+                    ->where('year', $pair['year'])
+                    ->where('week', $pair['week']);
+
+                $inspected = $weekDetails
+                    ->pluck('element_id')
+                    ->filter()
+                    ->unique()
+                    ->count();
+
+                return [
+                    'label' => 'S' . str_pad((string) $pair['week'], 2, '0', STR_PAD_LEFT) . ' / ' . $pair['year'],
+                    'inspected' => $inspected,
+                    'not_inspected' => max($totalElements - $inspected, 0),
+                    'coverage' => $totalElements > 0 ? round(($inspected / $totalElements) * 100, 1) : 0,
+                    'reports' => $this->countPreventiveReports($weekDetails),
+                    'attention' => $this->countAttentionLike($weekDetails),
+                ];
+            })
+            ->values();
+    }
+
+    private function buildAreaDistribution(Collection $details): Collection
+    {
+        return $details
+            ->groupBy(fn ($detail) => $detail->element?->area_id ?: 'none')
+            ->map(function ($items) {
+                $first = $items->first();
+
+                return [
+                    'label' => $first?->element?->area?->name ?: 'Sin área',
+                    'total' => $items->count(),
+                    'attention' => $this->countAttentionLike($items),
+                    'inspected' => $items->pluck('element_id')->unique()->count(),
+                ];
+            })
+            ->sortByDesc('total')
+            ->take(10)
+            ->values();
+    }
+
+    private function buildInspectorDistribution(Collection $details): Collection
+    {
+        return $details
+            ->groupBy(fn ($detail) => $detail->user_id ?: 'none')
+            ->map(function ($items) {
+                $first = $items->first();
+
+                return [
+                    'label' => $first?->user?->name ?: 'Sin inspector',
+                    'total' => $this->countPreventiveReports($items),
+                    'findings' => $items->count(),
+                    'attention' => $this->countAttentionLike($items),
+                ];
+            })
+            ->sortByDesc('findings')
+            ->take(10)
+            ->values();
+    }
+
+    private function buildAttentionTrend(Collection $details): Collection
+    {
+        return $details
+            ->groupBy(fn ($detail) => "{$detail->year}-" . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT))
+            ->map(function ($items, $key) {
+                $attention = $this->countAttentionLike($items);
+
+                return [
+                    'label' => 'S' . substr($key, -2) . ' / ' . substr($key, 0, 4),
+                    'attention' => $attention,
+                    'normal' => max($items->count() - $attention, 0),
+                ];
+            })
+            ->sortBy('label')
+            ->values();
+    }
+
+    private function buildSemaphoreChangeBelt(Collection $details, ?SemaphoreBeltChange $override = null): array
 {
-    $hasChange = $details->contains(fn ($detail) => (bool) $detail->is_belt_change);
+    $latestInspectorBeltChange = $details
+        ->filter(fn ($detail) => $detail->is_belt_change !== null)
+        ->sortByDesc(fn ($detail) => optional($detail->updated_at ?? $detail->created_at)->timestamp ?? 0)
+        ->first();
+
+    $hasFreshInspectorReport = $override !== null
+        && $latestInspectorBeltChange !== null
+        && optional($latestInspectorBeltChange->updated_at ?? $latestInspectorBeltChange->created_at)->gt($override->updated_at);
+
+    $hasOverride = $override !== null && !$hasFreshInspectorReport;
+    $hasChange = $hasOverride
+        ? (bool) $override->is_belt_change
+        : ($latestInspectorBeltChange !== null
+            ? (bool) $latestInspectorBeltChange->is_belt_change
+            : $details->contains(fn ($detail) => (bool) $detail->is_belt_change));
 
     return [
         'label' => $hasChange ? 'SI' : 'NO',
         'level' => $hasChange ? 'warning' : 'neutral',
-        'detail' => $hasChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.',
+        'detail' => $hasFreshInspectorReport
+            ? 'Valor tomado de un reporte preventivo posterior al ajuste manual.'
+            : ($hasOverride
+                ? 'Valor ajustado desde el semÃ¡foro.'
+                : ($hasChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.')),
+        'value' => $hasChange,
+        'has_override' => $hasOverride,
+        'color' => $hasChange ? '#fb923c' : '#38bdf8',
+        'order' => $hasChange ? 10 : 20,
     ];
 }
 
@@ -690,7 +1060,7 @@ private function buildSemaphoreBeltStatus(Collection $details): array
     $condition = $details
         ->pluck('condition')
         ->filter()
-        ->sortByDesc(fn ($condition) => (int) ($condition->severity ?? 0))
+        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
         ->first();
 
     if (!$condition) {
@@ -705,6 +1075,9 @@ private function buildSemaphoreBeltStatus(Collection $details): array
         'label' => $this->conditionDisplayLabel($condition),
         'level' => $this->semaphoreLevelFromSeverity($condition->severity),
         'detail' => $condition->description ?: $condition->name,
+        'color' => $condition->color,
+        'severity' => $condition->severity,
+        'order' => $this->semaphoreOrderFromSeverity($condition->severity),
     ];
 }
 
@@ -731,13 +1104,16 @@ private function buildSemaphoreSafetyCondition(Collection $details): array
     $condition = $safetyDetails
         ->pluck('condition')
         ->filter()
-        ->sortByDesc(fn ($condition) => (int) ($condition->severity ?? 0))
+        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
         ->first();
 
     return [
         'label' => $this->conditionDisplayLabel($condition),
         'level' => $this->semaphoreLevelFromSeverity($condition?->severity),
         'detail' => $condition?->description ?: $condition?->name,
+        'color' => $condition?->color,
+        'severity' => $condition?->severity,
+        'order' => $this->semaphoreOrderFromSeverity($condition?->severity),
     ];
 }
 
@@ -769,7 +1145,7 @@ private function buildSemaphoreComponentColumn(Collection $details, array $needl
     $condition = $matchedDetails
         ->pluck('condition')
         ->filter()
-        ->sortByDesc(fn ($condition) => (int) ($condition->severity ?? 0))
+        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
         ->first();
 
     if (!$condition) {
@@ -784,6 +1160,9 @@ private function buildSemaphoreComponentColumn(Collection $details, array $needl
         'label' => $this->conditionDisplayLabel($condition),
         'level' => $this->semaphoreLevelFromSeverity($condition->severity),
         'detail' => $condition->description ?: $condition->name,
+        'color' => $condition->color,
+        'severity' => $condition->severity,
+        'order' => $this->semaphoreOrderFromSeverity($condition->severity),
     ];
 }
 
@@ -819,6 +1198,36 @@ private function semaphoreLevelFromSeverity($severity): string
         2 => 'medium',
         3 => 'low',
         default => 'neutral',
+    };
+}
+
+    private function semaphoreOrderFromSeverity($severity): int
+{
+    if ($severity === null) {
+        return 900;
+    }
+
+    return match ((int) $severity) {
+        1 => 10,
+        2 => 20,
+        3 => 30,
+        0 => 40,
+        default => 100 + (int) $severity,
+    };
+}
+
+private function indicatorColorFromSeverity($severity): string
+{
+    if ($severity === null || $severity === 'sin_criticidad') {
+        return '#8b5cf6';
+    }
+
+    return match ((int) $severity) {
+        0 => '#34d399',
+        1 => '#f87171',
+        2 => '#fbbf24',
+        3 => '#60a5fa',
+        default => '#8b5cf6',
     };
 }
 

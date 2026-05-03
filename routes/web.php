@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/admin/indicadores', [IndicatorController::class, 'index'])->name('admin.indicators.index');
     Route::get('/admin/indicadores/semaforo/data', [IndicatorController::class, 'semaphoreData'])->name('admin.indicators.semaphore.data');
+    Route::patch('/admin/indicadores/semaforo/cambio-banda', [IndicatorController::class, 'updateSemaphoreBeltChange'])->name('admin.indicators.semaphore.belt-change.update');
     Route::get('/admin/indicadores/data', [IndicatorController::class, 'data'])->name('admin.indicators.data');
 
     /*
@@ -381,6 +382,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports', [InspectorReportController::class, 'index'])->name('reports.index');
         Route::post('/reports', [InspectorReportController::class, 'store'])->name('reports.store');
 
+        Route::get('/clients/{client}/groups', [InspectorReportController::class, 'getGroupsByClient'])->name('clients.groups');
+        Route::get('/groups/{group}/areas', [InspectorReportController::class, 'getAreasByGroup'])->name('groups.areas');
+        Route::get('/groups/{group}/areas/{area}/elements', [InspectorReportController::class, 'getElementsByGroupArea'])->name('groups.areas.elements');
         Route::get('/clients/{client}/areas', [InspectorReportController::class, 'getAreasByClient'])->name('clients.areas');
         Route::get('/areas/{area}/elements', [InspectorReportController::class, 'getElementsByArea'])->name('areas.elements');
         Route::get('/elements/{element}/components', [InspectorReportController::class, 'getComponentsByElement'])->name('elements.components');

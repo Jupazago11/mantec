@@ -9,7 +9,11 @@ use App\Models\Component;
 use App\Models\Condition;
 use App\Models\Diagnostic;
 use App\Models\Element;
+use App\Models\ClientElementTypeModule;
+use App\Models\SystemModule;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -88,32 +92,10 @@ class InspectorOfflineCatalogController extends Controller
 
         $group = $assignedGroups->first();
 
-        $elements = Element::query()
-            ->with([
-                'area:id,client_id,name,code,status',
-                'elementType:id,client_id,name,description,status',
-            ])
-            ->where('group_id', $group->id)
-            ->where('status', true)
-            ->whereHas('area', function ($query) use ($clientId) {
-                $query->where('client_id', $clientId)
-                    ->where('status', true);
-            })
-            ->whereHas('elementType', function ($query) use ($clientId) {
-                $query->where('client_id', $clientId)
-                    ->where('status', true);
-            })
-            ->orderBy('name')
-            ->get([
-                'id',
-                'area_id',
-                'group_id',
-                'element_type_id',
-                'name',
-                'code',
-                'warehouse_code',
-                'status',
-            ]);
+        $elements = $this->resolveElementsForInspectorGroup(
+            clientId: $clientId,
+            groupId: (int) $group->id
+        );
 
         if ($elements->isEmpty()) {
             return response()->json([
@@ -142,6 +124,7 @@ class InspectorOfflineCatalogController extends Controller
                 'element_component_relations' => [],
                 'component_diagnostic_relations' => [],
                 'component_condition_relations' => [],
+                'measurement_element_types' => [],
             ]);
         }
 
@@ -286,6 +269,36 @@ class InspectorOfflineCatalogController extends Controller
                 'condition_id',
             ]);
 
+        $measurementModuleId = $this->resolveMeasurementModuleId();
+
+        $measurementElementTypes = collect();
+
+        if ($measurementModuleId) {
+            $measurementElementTypes = ClientElementTypeModule::query()
+                ->with('elementType:id,client_id,name,description,status')
+                ->where('client_id', $clientId)
+                ->where('system_module_id', $measurementModuleId)
+                ->where('module_enabled', true)
+                ->where('creation_enabled', true)
+                ->where('status', true)
+                ->whereIn('element_type_id', $elementTypeIds)
+                ->get()
+                ->filter(fn ($config) => $config->elementType !== null)
+                ->map(function ($config) {
+                    return [
+                        'element_type_id' => (int) $config->element_type_id,
+                        'client_id' => (int) $config->client_id,
+                        'name' => (string) $config->elementType->name,
+                        'description' => $config->elementType->description,
+                        'module_enabled' => (bool) $config->module_enabled,
+                        'creation_enabled' => (bool) $config->creation_enabled,
+                        'status' => (bool) $config->status,
+                    ];
+                })
+                ->sortBy('name')
+                ->values();
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Catálogo offline cargado correctamente.',
@@ -368,24 +381,177 @@ class InspectorOfflineCatalogController extends Controller
                     'status' => (bool) $item->status,
                 ];
             })->values(),
-            'element_component_relations' => $elementComponentRelations->map(function ($item) {
-                return [
-                    'element_id' => (int) $item->element_id,
-                    'component_id' => (int) $item->component_id,
-                ];
-            })->values(),
-            'component_diagnostic_relations' => $componentDiagnosticRelations->map(function ($item) {
-                return [
-                    'component_id' => (int) $item->component_id,
-                    'diagnostic_id' => (int) $item->diagnostic_id,
-                ];
-            })->values(),
-            'component_condition_relations' => $componentConditionRelations->map(function ($item) {
-                return [
-                    'component_id' => (int) $item->component_id,
-                    'condition_id' => (int) $item->condition_id,
-                ];
-            })->values(),
+            'element_component_relations' => $elementComponentRelations
+                ->filter(function ($item) {
+                    return is_object($item)
+                        && isset($item->element_id)
+                        && isset($item->component_id)
+                        && is_numeric($item->element_id)
+                        && is_numeric($item->component_id);
+                })
+                ->map(function ($item) {
+                    return [
+                        'element_id' => (int) $item->element_id,
+                        'component_id' => (int) $item->component_id,
+                    ];
+                })
+                ->values(),
+            'component_diagnostic_relations' => $componentDiagnosticRelations
+                ->filter(function ($item) {
+                    return is_object($item)
+                        && isset($item->component_id)
+                        && isset($item->diagnostic_id)
+                        && is_numeric($item->component_id)
+                        && is_numeric($item->diagnostic_id);
+                })
+                ->map(function ($item) {
+                    return [
+                        'component_id' => (int) $item->component_id,
+                        'diagnostic_id' => (int) $item->diagnostic_id,
+                    ];
+                })
+                ->values(),
+            'component_condition_relations' => $componentConditionRelations
+                ->filter(function ($item) {
+                    return is_object($item)
+                        && isset($item->component_id)
+                        && isset($item->condition_id)
+                        && is_numeric($item->component_id)
+                        && is_numeric($item->condition_id);
+                })
+                ->map(function ($item) {
+                    return [
+                        'component_id' => (int) $item->component_id,
+                        'condition_id' => (int) $item->condition_id,
+                    ];
+                })
+                ->values(),
+            'measurement_element_types' => $measurementElementTypes,
         ]);
+    }
+
+    private function resolveMeasurementModuleId(): ?int
+    {
+        $query = SystemModule::query();
+
+        $query->where(function ($q) {
+            if (Schema::hasColumn('system_modules', 'key')) {
+                $q->orWhere('key', 'measurements');
+            }
+
+            if (Schema::hasColumn('system_modules', 'slug')) {
+                $q->orWhere('slug', 'measurements');
+            }
+
+            if (Schema::hasColumn('system_modules', 'name')) {
+                $q->orWhere('name', 'like', '%Mediciones%')
+                ->orWhere('name', 'like', '%Measurements%');
+            }
+        });
+
+        return $query->value('id');
+    }
+
+    private function resolveElementsForInspectorGroup(int $clientId, int $groupId)
+    {
+        $pivotElementIds = $this->resolveElementIdsFromGroupPivot($groupId);
+
+        return Element::query()
+            ->with([
+                'area:id,client_id,name,code,status',
+                'elementType:id,client_id,name,description,status',
+            ])
+            ->where('status', true)
+            ->whereHas('area', function (Builder $query) use ($clientId) {
+                $query->where('client_id', $clientId)
+                    ->where('status', true);
+            })
+            ->whereHas('elementType', function (Builder $query) use ($clientId) {
+                $query->where('client_id', $clientId)
+                    ->where('status', true);
+            })
+            ->where(function (Builder $query) use ($groupId, $pivotElementIds) {
+                /*
+                * Soporta ambos modelos:
+                *
+                * 1. Modelo directo:
+                *    elements.group_id = groups.id
+                *
+                * 2. Modelo por relación/pivote:
+                *    group_elements / element_group / equivalente.
+                *
+                * Esto evita romper reportes preventivos cuando la agrupación
+                * no depende únicamente de elements.group_id.
+                */
+                if (Schema::hasColumn('elements', 'group_id')) {
+                    $query->where('group_id', $groupId);
+                }
+
+                if ($pivotElementIds->isNotEmpty()) {
+                    if (Schema::hasColumn('elements', 'group_id')) {
+                        $query->orWhereIn('id', $pivotElementIds);
+                    } else {
+                        $query->whereIn('id', $pivotElementIds);
+                    }
+                }
+            })
+            ->orderBy('area_id')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'area_id',
+                'group_id',
+                'element_type_id',
+                'name',
+                'code',
+                'warehouse_code',
+                'status',
+            ]);
+    }
+
+    private function resolveElementIdsFromGroupPivot(int $groupId)
+    {
+        /*
+        * Candidatos defensivos. Solo se usa la tabla que exista realmente.
+        * Esto permite mantener compatibilidad si el proyecto cambió de
+        * elements.group_id a una relación independiente agrupación-activo.
+        */
+        $pivotCandidates = [
+            ['table' => 'group_elements', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_element', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_group', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_groups', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_assets', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_asset', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activos', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activo', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+        ];
+
+        $ids = collect();
+
+        foreach ($pivotCandidates as $candidate) {
+            $table = $candidate['table'];
+            $groupColumn = $candidate['group_column'];
+            $elementColumn = $candidate['element_column'];
+
+            if (
+                Schema::hasTable($table) &&
+                Schema::hasColumn($table, $groupColumn) &&
+                Schema::hasColumn($table, $elementColumn)
+            ) {
+                $ids = $ids->merge(
+                    DB::table($table)
+                        ->where($groupColumn, $groupId)
+                        ->whereNotNull($elementColumn)
+                        ->pluck($elementColumn)
+                );
+            }
+        }
+
+        return $ids
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 }

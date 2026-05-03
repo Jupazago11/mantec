@@ -49,47 +49,41 @@
 
                     <div class="grid gap-5 md:grid-cols-2">
 
-                        @if($assignedClient)
-                            <div>
-                                <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
+                            <input
+                                type="text"
+                                value="{{ $assignedClient?->name ?? 'Sin cliente asignado' }}"
+                                disabled
+                                class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700"
+                            >
+                            <input type="hidden" name="client_id" id="client_id" value="{{ $selectedClientId }}">
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Agrupación</label>
+                            @if($assignedGroups->count() === 1)
                                 <input
                                     type="text"
-                                    value="{{ $assignedClient->name }}"
+                                    value="{{ $assignedGroups->first()->name }}"
                                     disabled
                                     class="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700"
                                 >
-                                <input type="hidden" name="client_id" id="client_id" value="{{ $selectedClientId }}">
-                            </div>
-                        @else
-                            <div>
-                                <label class="mb-2 block text-sm font-medium text-slate-700">Cliente</label>
+                                <input type="hidden" name="group_id" id="group_id" value="{{ $selectedGroupId }}">
+                            @else
                                 <select
-                                    name="client_id"
-                                    id="client_id"
+                                    name="group_id"
+                                    id="group_id"
                                     class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                                 >
-                                    <option value="">Seleccione un cliente</option>
-                                    @foreach($assignedClients as $client)
-                                        <option value="{{ $client->id }}" @selected($selectedClientId == $client->id)>
-                                            {{ $client->name }}
+                                    <option value="">Seleccione una agrupación</option>
+                                    @foreach($assignedGroups as $group)
+                                        <option value="{{ $group->id }}" @selected($selectedGroupId == $group->id)>
+                                            {{ $group->name }}
                                         </option>
                                     @endforeach
                                 </select>
-                            </div>
-                        @endif
-
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Especialidades permitidas</label>
-                            <div
-                                id="specialty_box"
-                                class="min-h-[50px] w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                            >
-                                @if($selectedClientId)
-                                    {{ $allowedElementTypesForSelectedClient->pluck('name')->implode(', ') ?: 'Sin especialidad asignada.' }}
-                                @else
-                                    Selecciona un cliente.
-                                @endif
-                            </div>
+                            @endif
                         </div>
 
                         <div>
@@ -291,40 +285,52 @@
 
 <script>
 const clientSelect = document.getElementById('client_id');
+const groupSelect = document.getElementById('group_id');
 const areaSelect = document.getElementById('area_id');
 const elementSelect = document.getElementById('element_id');
 const componentSelect = document.getElementById('component_id');
 const diagnosticSelect = document.getElementById('diagnostic_id');
 const conditionSelect = document.getElementById('condition_id');
-const specialtyBox = document.getElementById('specialty_box');
 const beltChangeWrapper = document.getElementById('belt-change-wrapper');
 
-const specialtiesByClient = @json($specialtiesByClient);
 const selectedAreaId = @json($selectedAreaId);
 const selectedElementId = @json($selectedElementId);
+const elementComponentsCache = new Map();
 
 function resetSelect(select, placeholder) {
     if (!select) return;
     select.innerHTML = `<option value="">${placeholder}</option>`;
 }
 
-function updateSpecialtyBox() {
-    const clientId = clientSelect ? clientSelect.value : '';
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
 
-    if (!clientId) {
-        if (specialtyBox) {
-            specialtyBox.innerHTML = 'Selecciona un cliente.';
-        }
-        return;
+async function fetchComponentsForElement(elementId) {
+    const key = String(elementId);
+
+    if (elementComponentsCache.has(key)) {
+        return elementComponentsCache.get(key);
     }
 
-    const specialties = specialtiesByClient[clientId] || [];
+    const response = await fetch(`/inspector/elements/${elementId}/components`, {
+        headers: { 'Accept': 'application/json' }
+    });
 
-    if (specialtyBox) {
-        specialtyBox.innerHTML = specialties.length
-            ? specialties.join(', ')
-            : 'Sin especialidad asignada.';
+    if (!response.ok) {
+        elementComponentsCache.set(key, null);
+        return null;
     }
+
+    const components = await response.json();
+    elementComponentsCache.set(key, components);
+
+    return components;
 }
 
 function updateBeltChangeVisibility() {
@@ -372,12 +378,12 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
         `;
     }
 
-    if (!clientSelect || !clientSelect.value) {
+    if (!groupSelect || !groupSelect.value) {
         return;
     }
 
     try {
-        const response = await fetch(`/inspector/clients/${clientSelect.value}/areas`, {
+        const response = await fetch(`/inspector/groups/${groupSelect.value}/areas`, {
             headers: { 'Accept': 'application/json' }
         });
 
@@ -388,7 +394,7 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
         const areas = await response.json();
 
         areas.forEach(area => {
-            areaSelect.innerHTML += `<option value="${area.id}">${area.name}</option>`;
+            areaSelect.innerHTML += `<option value="${area.id}">${escapeHtml(area.name)}</option>`;
         });
 
         if (
@@ -410,12 +416,12 @@ async function loadElements(preserveElementId = null) {
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
-    if (!areaSelect || !areaSelect.value) {
+    if (!groupSelect || !groupSelect.value || !areaSelect || !areaSelect.value) {
         return;
     }
 
     try {
-        const response = await fetch(`/inspector/areas/${areaSelect.value}/elements`, {
+        const response = await fetch(`/inspector/groups/${groupSelect.value}/areas/${areaSelect.value}/elements`, {
             headers: { 'Accept': 'application/json' }
         });
 
@@ -426,7 +432,7 @@ async function loadElements(preserveElementId = null) {
         const elements = await response.json();
 
         elements.forEach(element => {
-            elementSelect.innerHTML += `<option value="${element.id}">${element.name}</option>`;
+            elementSelect.innerHTML += `<option value="${element.id}">${escapeHtml(element.name)}</option>`;
         });
 
         if (
@@ -452,18 +458,14 @@ async function loadComponents() {
     }
 
     try {
-        const response = await fetch(`/inspector/elements/${elementSelect.value}/components`, {
-            headers: { 'Accept': 'application/json' }
-        });
+        const components = await fetchComponentsForElement(elementSelect.value);
 
-        if (!response.ok) {
-            throw new Error(`Error cargando componentes: ${response.status}`);
+        if (components === null) {
+            throw new Error('No tienes acceso a este activo.');
         }
 
-        const components = await response.json();
-
         components.forEach(component => {
-            componentSelect.innerHTML += `<option value="${component.id}">${component.name}</option>`;
+            componentSelect.innerHTML += `<option value="${component.id}">${escapeHtml(component.name)}</option>`;
         });
 
         await loadPending();
@@ -576,15 +578,16 @@ async function loadPending() {
     }
 }
 
-if (clientSelect && clientSelect.tagName === 'SELECT') {
-    clientSelect.addEventListener('change', async () => {
-        updateSpecialtyBox();
+if (groupSelect) {
+    groupSelect.addEventListener('change', async () => {
+        elementComponentsCache.clear();
         await loadAreas();
     });
 }
 
 if (areaSelect) {
     areaSelect.addEventListener('change', async () => {
+        elementComponentsCache.clear();
         await loadElements();
     });
 }
@@ -608,10 +611,9 @@ if (diagnosticSelect) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    updateSpecialtyBox();
     updateBeltChangeVisibility();
 
-    if (clientSelect && clientSelect.value) {
+    if (groupSelect && groupSelect.value) {
         await loadAreas(selectedAreaId, selectedElementId);
     }
 });

@@ -10,11 +10,13 @@ use App\Models\Component;
 use App\Models\Condition;
 use App\Models\Diagnostic;
 use App\Models\Element;
+use App\Models\Group;
 use App\Models\ReportDetail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +28,7 @@ class InspectorReportController extends Controller
     public function index(): View
     {
         $user = Auth::user();
+        $isInspector = ($user->role?->key ?? null) === 'inspector';
 
         $allowedClientIds = $user->clients()
             ->where('clients.status', true)
@@ -37,67 +40,102 @@ class InspectorReportController extends Controller
             ->get()
             ->groupBy(fn ($item) => $item->pivot->client_id);
 
-        $assignedClients = Client::whereIn('id', $specializedElementTypes->keys())
+        $clientIdsForForm = $isInspector
+            ? $allowedClientIds
+            : $specializedElementTypes->keys();
+
+        $assignedClients = Client::whereIn('id', $clientIdsForForm)
             ->where('status', true)
             ->orderBy('name')
             ->get();
 
-        $assignedClient = $assignedClients->count() === 1 ? $assignedClients->first() : null;
-
         $selectedClientId = null;
+        $selectedGroupId = null;
         $selectedAreaId = null;
         $selectedElementId = null;
 
+        $assignedGroups = collect();
         $areas = collect();
         $elements = collect();
         $conditions = collect();
         $allowedElementTypesForSelectedClient = collect();
 
-        if ($assignedClient) {
-            $selectedClientId = $assignedClient->id;
-        } else {
-            $sessionClientId = (int) session('inspector_last_client_id');
+        $sessionClientId = (int) old('client_id', session('inspector_last_client_id'));
 
-            if ($sessionClientId && $assignedClients->pluck('id')->contains($sessionClientId)) {
-                $selectedClientId = $sessionClientId;
-            }
+        if ($sessionClientId && $assignedClients->pluck('id')->contains($sessionClientId)) {
+            $selectedClientId = $sessionClientId;
+        } elseif ($assignedClients->isNotEmpty()) {
+            $selectedClientId = (int) $assignedClients->first()->id;
         }
+
+        $assignedClient = $selectedClientId
+            ? $assignedClients->firstWhere('id', $selectedClientId)
+            : null;
 
         if ($selectedClientId) {
             $allowedElementTypesForSelectedClient = $specializedElementTypes->get($selectedClientId, collect());
 
-            $areas = $this->allowedAreasQuery($user, $selectedClientId)
-                ->with('client')
-                ->orderBy('name')
-                ->get();
+            if ($isInspector) {
+                $assignedGroups = $this->inspectorGroupsForClientQuery($user, $selectedClientId)
+                    ->get(['groups.id', 'groups.client_id', 'groups.name', 'groups.description']);
 
-            $sessionAreaId = (int) session('inspector_last_area_id');
+                $sessionGroupId = (int) old('group_id', session('inspector_last_group_id'));
 
-            if ($sessionAreaId && $areas->pluck('id')->contains($sessionAreaId)) {
-                $selectedAreaId = $sessionAreaId;
-            }
+                if ($sessionGroupId && $assignedGroups->pluck('id')->contains($sessionGroupId)) {
+                    $selectedGroupId = $sessionGroupId;
+                } elseif ($assignedGroups->count() === 1) {
+                    $selectedGroupId = (int) $assignedGroups->first()->id;
+                }
 
-            if ($selectedAreaId) {
-                $allowedElementTypeIds = $this->allowedElementTypeIdsForClient($user, $selectedClientId);
+                if ($selectedGroupId) {
+                    $areas = $this->areasForInspectorGroupQuery($selectedClientId, $selectedGroupId)
+                        ->with('client')
+                        ->orderBy('name')
+                        ->get();
 
-                $elements = Element::with('elementType')
-                    ->where('area_id', $selectedAreaId)
-                    ->where('status', true)
-                    ->whereIn('element_type_id', $allowedElementTypeIds)
+                    $sessionAreaId = (int) old('area_id', session('inspector_last_area_id'));
+
+                    if ($sessionAreaId && $areas->pluck('id')->contains($sessionAreaId)) {
+                        $selectedAreaId = $sessionAreaId;
+                    }
+
+                    if ($selectedAreaId) {
+                        $elements = $this->elementsForInspectorGroupAreaQuery($selectedGroupId, $selectedAreaId)
+                            ->get();
+
+                        $sessionElementId = (int) old('element_id', session('inspector_last_element_id'));
+
+                        if ($sessionElementId && $elements->pluck('id')->contains($sessionElementId)) {
+                            $selectedElementId = $sessionElementId;
+                        }
+                    }
+                }
+            } else {
+                $areas = $this->allowedAreasQuery($user, $selectedClientId)
+                    ->with('client')
                     ->orderBy('name')
                     ->get();
 
-                $sessionElementId = (int) session('inspector_last_element_id');
+                $sessionAreaId = (int) old('area_id', session('inspector_last_area_id'));
 
-                if ($sessionElementId && $elements->pluck('id')->contains($sessionElementId)) {
-                    $selectedElementId = $sessionElementId;
+                if ($sessionAreaId && $areas->pluck('id')->contains($sessionAreaId)) {
+                    $selectedAreaId = $sessionAreaId;
                 }
 
-                if ($selectedElementId) {
-                    $selectedElement = $elements->firstWhere('id', $selectedElementId);
+                if ($selectedAreaId) {
+                    $allowedElementTypeIds = $this->allowedElementTypeIdsForClient($user, $selectedClientId);
 
-                    if ($selectedElement) {
-                        $conditions = collect();
+                    $elements = Element::with('elementType')
+                        ->where('area_id', $selectedAreaId)
+                        ->where('status', true)
+                        ->whereIn('element_type_id', $allowedElementTypeIds)
+                        ->orderBy('name')
+                        ->get();
+
+                    $sessionElementId = (int) old('element_id', session('inspector_last_element_id'));
+
+                    if ($sessionElementId && $elements->pluck('id')->contains($sessionElementId)) {
+                        $selectedElementId = $sessionElementId;
                     }
                 }
             }
@@ -138,6 +176,7 @@ class InspectorReportController extends Controller
         return view('inspector.reports.index', compact(
             'assignedClients',
             'assignedClient',
+            'assignedGroups',
             'areas',
             'elements',
             'conditions',
@@ -146,9 +185,59 @@ class InspectorReportController extends Controller
             'specialtiesByClient',
             'allowedElementTypesForSelectedClient',
             'selectedClientId',
+            'selectedGroupId',
             'selectedAreaId',
             'selectedElementId'
         ));
+    }
+
+    public function getGroupsByClient(Client $client): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userCanAccessClient($user, $client->id), 403);
+
+        $groups = $this->inspectorGroupsForClientQuery($user, $client->id)
+            ->get(['groups.id', 'groups.client_id', 'groups.name', 'groups.description']);
+
+        return response()->json($groups);
+    }
+
+    public function getAreasByGroup(Group $group): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userCanAccessGroup($user, $group), 403);
+
+        $areas = $this->areasForInspectorGroupQuery((int) $group->client_id, (int) $group->id)
+            ->orderBy('name')
+            ->get(['id', 'client_id', 'name', 'code']);
+
+        return response()->json($areas);
+    }
+
+    public function getElementsByGroupArea(Group $group, Area $area): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_unless($this->userCanAccessGroup($user, $group), 403);
+        abort_unless((int) $area->client_id === (int) $group->client_id, 403);
+
+        $elements = $this->elementsForInspectorGroupAreaQuery((int) $group->id, (int) $area->id)
+            ->get()
+            ->map(function ($element) {
+                return [
+                    'id' => $element->id,
+                    'name' => $element->name,
+                    'code' => $element->code,
+                    'group_id' => $element->group_id,
+                    'element_type_id' => $element->element_type_id,
+                    'element_type_name' => optional($element->elementType)->name,
+                ];
+            })
+            ->values();
+
+        return response()->json($elements);
     }
 
     public function getAreasByClient(Client $client): JsonResponse
@@ -497,6 +586,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
     {
         $validated = $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
+            'group_id' => ['required', 'exists:groups,id'],
             'area_id' => ['required', 'exists:areas,id'],
             'element_id' => ['required', 'exists:elements,id'],
             'component_id' => ['required', 'exists:components,id'],
@@ -516,6 +606,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         $user = Auth::user();
 
         $client = Client::findOrFail($validated['client_id']);
+        $group = Group::findOrFail($validated['group_id']);
         $area = Area::findOrFail($validated['area_id']);
         $element = Element::findOrFail($validated['element_id']);
         $component = Component::findOrFail($validated['component_id']);
@@ -523,10 +614,22 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         $condition = Condition::findOrFail($validated['condition_id']);
 
         abort_unless(
-            $this->userHasClientAccess($user, $client->id),
+            $this->userCanAccessClient($user, $client->id),
             403,
             'No tienes acceso a este cliente.'
         );
+
+        if (!$this->userCanAccessGroup($user, $group)) {
+            return back()
+                ->withErrors(['group_id' => 'La agrupación no está asignada a tu usuario.'])
+                ->withInput();
+        }
+
+        if ((int) $group->client_id !== (int) $client->id) {
+            return back()
+                ->withErrors(['group_id' => 'La agrupación no pertenece al cliente seleccionado.'])
+                ->withInput();
+        }
 
         if ((int) $area->client_id !== (int) $client->id) {
             return back()
@@ -537,6 +640,12 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         if ((int) $element->area_id !== (int) $area->id) {
             return back()
                 ->withErrors(['element_id' => 'El activo no pertenece al área seleccionada.'])
+                ->withInput();
+        }
+
+        if (!$this->elementBelongsToGroup($element, (int) $group->id)) {
+            return back()
+                ->withErrors(['element_id' => 'El activo no pertenece a la agrupación seleccionada.'])
                 ->withInput();
         }
 
@@ -628,7 +737,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 $this->storeAttachments($existingReport, $request->file('attachments'), $user->id);
             }
 
-            $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
+            $this->storeLastSelectionInSession($client->id, $group->id, $area->id, $element->id);
 
             return redirect()
                 ->route('inspector.reports.index')
@@ -658,7 +767,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             $this->storeAttachments($reportDetail, $request->file('attachments'), $user->id);
         }
 
-        $this->storeLastSelectionInSession($client->id, $area->id, $element->id);
+        $this->storeLastSelectionInSession($client->id, $group->id, $area->id, $element->id);
 
         return redirect()
             ->route('inspector.reports.index')
@@ -712,10 +821,11 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         }
     }
 
-    private function storeLastSelectionInSession(int $clientId, int $areaId, int $elementId): void
+    private function storeLastSelectionInSession(int $clientId, int $groupId, int $areaId, int $elementId): void
     {
         session([
             'inspector_last_client_id' => $clientId,
+            'inspector_last_group_id' => $groupId,
             'inspector_last_area_id' => $areaId,
             'inspector_last_element_id' => $elementId,
         ]);
@@ -725,6 +835,131 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
     {
         return $user->clients()->where('clients.id', $clientId)->exists()
             && $user->allowedElementTypesForClient($clientId)->exists();
+    }
+
+    private function userCanAccessClient($user, int $clientId): bool
+    {
+        if (($user->role?->key ?? null) === 'inspector') {
+            return $user->clients()
+                ->where('clients.id', $clientId)
+                ->where('clients.status', true)
+                ->exists();
+        }
+
+        return $this->userHasClientAccess($user, $clientId);
+    }
+
+    private function userCanAccessGroup($user, Group $group): bool
+    {
+        return $this->userCanAccessClient($user, (int) $group->client_id)
+            && $user->groups()
+                ->where('groups.id', $group->id)
+                ->where('groups.client_id', $group->client_id)
+                ->where('groups.status', true)
+                ->exists();
+    }
+
+    private function inspectorGroupsForClientQuery($user, int $clientId)
+    {
+        return $user->groups()
+            ->where('groups.client_id', $clientId)
+            ->where('groups.status', true)
+            ->orderBy('groups.name');
+    }
+
+    private function areasForInspectorGroupQuery(int $clientId, int $groupId)
+    {
+        $elementIds = $this->elementIdsForGroup($groupId);
+
+        return Area::query()
+            ->where('client_id', $clientId)
+            ->where('status', true)
+            ->whereHas('elements', function ($query) use ($elementIds) {
+                $query->where('status', true)
+                    ->whereIn('id', $elementIds);
+            });
+    }
+
+    private function elementsForInspectorGroupAreaQuery(int $groupId, int $areaId)
+    {
+        $elementIds = $this->elementIdsForGroup($groupId);
+
+        return Element::with('elementType')
+            ->whereIn('id', $elementIds)
+            ->where('area_id', $areaId)
+            ->where('status', true)
+            ->orderBy('name');
+    }
+
+    private function elementBelongsToGroup(Element $element, int $groupId): bool
+    {
+        if (Schema::hasColumn('elements', 'group_id') && (int) $element->group_id === $groupId) {
+            return true;
+        }
+
+        return $this->resolveElementIdsFromGroupPivot($groupId)
+            ->contains((int) $element->id);
+    }
+
+    private function elementIdsForGroup(int $groupId)
+    {
+        $ids = collect();
+
+        if (Schema::hasColumn('elements', 'group_id')) {
+            $ids = $ids->merge(
+                Element::query()
+                    ->where('group_id', $groupId)
+                    ->pluck('id')
+            );
+        }
+
+        return $ids
+            ->merge($this->resolveElementIdsFromGroupPivot($groupId))
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+    }
+
+    private function resolveElementIdsFromGroupPivot(int $groupId)
+    {
+        $pivotCandidates = [
+            ['table' => 'group_elements', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_element', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_group', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'element_groups', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_assets', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'group_asset', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activos', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+            ['table' => 'agrupacion_activo', 'group_column' => 'group_id', 'element_column' => 'element_id'],
+        ];
+
+        $ids = collect();
+
+        foreach ($pivotCandidates as $candidate) {
+            $table = $candidate['table'];
+            $groupColumn = $candidate['group_column'];
+            $elementColumn = $candidate['element_column'];
+
+            if (
+                Schema::hasTable($table) &&
+                Schema::hasColumn($table, $groupColumn) &&
+                Schema::hasColumn($table, $elementColumn)
+            ) {
+                $ids = $ids->merge(
+                    DB::table($table)
+                        ->where($groupColumn, $groupId)
+                        ->whereNotNull($elementColumn)
+                        ->pluck($elementColumn)
+                );
+            }
+        }
+
+        return $ids
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 
     private function allowedElementTypeIdsForClient($user, int $clientId): array
@@ -759,10 +994,6 @@ private function userCanAccessElement($user, Element $element): bool
     $roleKey = $user->role->key ?? null;
 
     if ($roleKey === 'inspector') {
-        if (!$element->group_id) {
-            return false;
-        }
-
         $hasClientAccess = $user->clients()
             ->where('clients.id', $element->area->client_id)
             ->where('clients.status', true)
@@ -773,10 +1004,10 @@ private function userCanAccessElement($user, Element $element): bool
         }
 
         return $user->groups()
-            ->where('groups.id', $element->group_id)
             ->where('groups.client_id', $element->area->client_id)
             ->where('groups.status', true)
-            ->exists();
+            ->get()
+            ->contains(fn ($group) => $this->elementBelongsToGroup($element, (int) $group->id));
     }
 
     return $this->userHasClientAccess($user, $element->area->client_id)
