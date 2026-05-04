@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\SystemModules;
 
 use App\Http\Controllers\Controller;
 use App\Models\BandEvent;
+use App\Models\BandEventEvidence;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class BandEventReportController extends Controller
             ->firstOrFail();
 
         $validated = $this->validateEventByType($request, $bandEvent->type, $bandEvent);
+        $validated = $this->normalizeEventDataForType($validated, $bandEvent->type);
 
         DB::transaction(function () use ($bandEvent, $validated) {
             $bandEvent->update(array_merge($validated, [
@@ -123,11 +125,12 @@ class BandEventReportController extends Controller
                 'width' => ['required', 'numeric', 'min:0'],
                 'length' => ['required', 'numeric', 'min:0'],
                 'roll_count' => ['required', 'integer', 'min:1'],
+                'vulcanization_type' => ['required', 'in:mechanical,vulcanized_external,vulcanized_local'],
 
-                'temperature' => ['required', 'numeric', 'min:0'],
-                'pressure' => ['required', 'numeric', 'min:0'],
-                'time' => ['required', 'numeric', 'min:0'],
-                'cooling_time' => ['required', 'numeric', 'min:0'],
+                'temperature' => ['required_if:vulcanization_type,vulcanized_local', 'nullable', 'numeric', 'min:0'],
+                'pressure' => ['required_if:vulcanization_type,vulcanized_local', 'nullable', 'numeric', 'min:0'],
+                'time' => ['required_if:vulcanization_type,vulcanized_local', 'nullable', 'numeric', 'min:0'],
+                'cooling_time' => ['required_if:vulcanization_type,vulcanized_local', 'nullable', 'numeric', 'min:0'],
 
                 'motor_current' => ['required', 'numeric', 'min:0'],
                 'alignment' => ['required', 'string', 'max:255'],
@@ -179,9 +182,27 @@ class BandEventReportController extends Controller
         abort(422, 'Tipo de evento inválido.');
     }
 
+    private function normalizeEventDataForType(array $data, string $type): array
+    {
+        if ($type !== 'band') {
+            $data['vulcanization_type'] = null;
+            return $data;
+        }
+
+        if (($data['vulcanization_type'] ?? null) !== 'vulcanized_local') {
+            $data['temperature'] = null;
+            $data['pressure'] = null;
+            $data['time'] = null;
+            $data['cooling_time'] = null;
+        }
+
+        return $data;
+    }
+
     private function bandEventPayload(int $elementId): array
     {
         $latestReport = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $elementId)
             ->where('status', true)
             ->orderByDesc('report_date')
@@ -189,6 +210,7 @@ class BandEventReportController extends Controller
             ->first();
 
         $activeBand = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $elementId)
             ->where('type', 'band')
             ->where('status', true)
@@ -197,6 +219,7 @@ class BandEventReportController extends Controller
             ->first();
 
         $bands = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $elementId)
             ->where('type', 'band')
             ->where('status', true)
@@ -205,6 +228,7 @@ class BandEventReportController extends Controller
             ->get();
 
         $children = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $elementId)
             ->whereIn('type', ['vulcanization', 'section_change'])
             ->where('status', true)
@@ -251,6 +275,7 @@ class BandEventReportController extends Controller
             'width' => $event->width,
             'length' => $event->length,
             'roll_count' => $event->roll_count,
+            'vulcanization_type' => $event->vulcanization_type,
 
             'temperature' => $event->temperature,
             'pressure' => $event->pressure,
@@ -274,6 +299,22 @@ class BandEventReportController extends Controller
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
             'status' => (bool) $event->status,
+            'evidences' => $event->evidences
+                ->map(fn (BandEventEvidence $evidence) => $this->serializeBandEvidence($evidence))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function serializeBandEvidence(BandEventEvidence $evidence): array
+    {
+        return [
+            'id' => $evidence->id,
+            'file_type' => $evidence->file_type,
+            'file_name' => $evidence->file_name,
+            'mime_type' => $evidence->mime_type,
+            'size_bytes' => $evidence->size_bytes,
+            'url' => route('band-events.evidence.open', $evidence),
         ];
     }
 }

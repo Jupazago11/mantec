@@ -10,9 +10,6 @@
                 <h2 class="text-3xl font-bold tracking-tight text-slate-900">
                     Dashboard de reportes por agrupación
                 </h2>
-                <p class="mt-2 text-slate-600">
-                    Selecciona un rango de fechas y accede a las agrupaciones disponibles según tu perfil.
-                </p>
             </div>
 
             @if($isReadOnly)

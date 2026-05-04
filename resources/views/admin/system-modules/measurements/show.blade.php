@@ -62,10 +62,23 @@
                 bandCreate: @js(route('band-events.draft.create', $element->id)),
                 bandUpdate: @js(route('band-events.draft.update', $element->id)),
                 bandPublish: @js(route('band-events.draft.publish', $element->id)),
+                bandEvidenceUpload: @js(route('band-events.draft-evidence.upload', $element->id)),
+                bandDraftEvidenceDeleteTemplate: @js(route('band-events.draft-evidence.destroy', [
+                    'element' => $element->id,
+                    'evidence' => '__EVIDENCE__',
+                ])),
 
                 bandReportUpdateTemplate: @js(route('band-events.reports.update', [
                     'element' => $element->id,
                     'event' => '__EVENT__',
+                ])),
+                bandReportEvidenceUploadTemplate: @js(route('band-events.reports.evidence.upload', [
+                    'element' => $element->id,
+                    'event' => '__EVENT__',
+                ])),
+                bandReportEvidenceDeleteTemplate: @js(route('band-events.reports.evidence.destroy', [
+                    'element' => $element->id,
+                    'evidence' => '__EVIDENCE__',
                 ])),
                 bandReportDeleteTemplate: @js(route('band-events.reports.destroy', [
                     'element' => $element->id,
@@ -392,7 +405,7 @@
                             title="Registrar vulcanizado"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
                         >
-                            <i data-lucide="wrench" class="h-5 w-5"></i>
+                            <i data-lucide="scissors" class="h-5 w-5"></i>
                         </button>
 
                         <button
@@ -402,7 +415,7 @@
                             title="Registrar cambio de tramo"
                             class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
                         >
-                            <i data-lucide="scissors-line-dashed" class="h-5 w-5"></i>
+                            <i data-lucide="ruler" class="h-5 w-5"></i>
                         </button>
                     </div>
                 </div>
@@ -419,6 +432,7 @@
         >
             <div
                 x-show="bandHistoryModalOpen"
+                x-ref="bandHistoryPanel"
                 class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
                 @click.outside="if (!bandEditModalOpen) closeBandHistoryModal()"
             >
@@ -437,18 +451,20 @@
                                 type="button"
                                 x-show="selectedBandHistory"
                                 @click="openBandEditModal(selectedBandHistory)"
-                                class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                                title="Editar banda"
+                                class="inline-flex h-10 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900"
                             >
-                                Editar banda
+                                <i data-lucide="pencil" class="h-4 w-4"></i>
                             </button>
 
                             <button
                                 type="button"
                                 x-show="selectedBandHistory"
                                 @click="deleteBandHistoricalEvent(selectedBandHistory)"
-                                class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                                title="Eliminar banda"
+                                class="inline-flex h-10 w-10 items-center justify-center text-red-500 transition hover:text-red-700"
                             >
-                                Eliminar banda
+                                <i data-lucide="trash-2" class="h-4 w-4"></i>
                             </button>
 
                             <button
@@ -496,6 +512,13 @@
                                             <p class="mt-1 text-xs text-slate-500">
                                                 Rollos: <span x-text="band.roll_count ?? '—'"></span>
                                             </p>
+                                            <p
+                                                x-show="bandEvidenceCount(band) > 0"
+                                                x-cloak
+                                                class="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                            >
+                                                <span x-text="bandEvidenceCount(band) + ' archivo(s)'"></span>
+                                            </p>
                                         </button>
                                     </template>
                                 </div>
@@ -533,6 +556,13 @@
                                                             x-text="selectedBandHistory?.report_date ? ' - ' + formatDate(selectedBandHistory.report_date) : ''"
                                                         ></span>
                                                     </th>
+                                                </tr>
+
+                                                <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tipo de banda</th>
+                                                    <td colspan="3"
+                                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
+                                                        x-text="bandVulcanizationTypeLabel(selectedBandHistory?.vulcanization_type)"></td>
                                                 </tr>
 
                                                 <tr class="bg-white">
@@ -586,8 +616,15 @@
                                         </table>
                                     </div>
 
-                                    <div class="grid gap-4 xl:grid-cols-2">
-                                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <div
+                                        class="grid gap-4"
+                                        :class="bandEventShowsVulcanization(selectedBandHistory) ? 'xl:grid-cols-2' : 'xl:grid-cols-1'"
+                                    >
+                                        <div
+                                            x-show="bandEventShowsVulcanization(selectedBandHistory)"
+                                            x-cloak
+                                            class="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                                        >
                                             <table class="w-full border-collapse text-sm">
                                                 <tbody>
                                                     <tr class="bg-[#4f79bd] text-white">
@@ -657,6 +694,7 @@
                                             </table>
                                         </div>
                                     </div>
+
                                 </div>
 
                                 {{-- HIJOS --}}
@@ -686,15 +724,21 @@
                                                                         class="ml-2 normal-case font-semibold"
                                                                         x-text="child.report_date ? formatDate(child.report_date) : '—'"
                                                                     ></span>
+                                                                    <span
+                                                                        x-show="bandEvidenceCount(child) > 0"
+                                                                        x-cloak
+                                                                        class="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold normal-case text-emerald-700"
+                                                                    >
+                                                                        <span x-text="bandEvidenceCount(child) + ' archivo(s)'"></span>
+                                                                    </span>
                                                                 </div>
 
                                                                 <div class="flex gap-2">
                                                                     <button
                                                                         type="button"
-                                                                        x-show="child.type === 'section_change'"
                                                                         @click.stop="openBandChildViewModal(child)"
                                                                         title="Ver detalle"
-                                                                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                                                                        class="inline-flex h-8 w-8 items-center justify-center text-slate-500 transition hover:text-slate-900"
                                                                     >
                                                                         <i data-lucide="eye" class="h-4 w-4"></i>
                                                                     </button>
@@ -702,17 +746,19 @@
                                                                     <button
                                                                         type="button"
                                                                         @click.stop="openBandEditModal(child)"
-                                                                        class="rounded-lg bg-[#d94d33] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b83f29]"
+                                                                        title="Editar"
+                                                                        class="inline-flex h-8 w-8 items-center justify-center text-slate-500 transition hover:text-slate-900"
                                                                     >
-                                                                        Editar
+                                                                        <i data-lucide="pencil" class="h-4 w-4"></i>
                                                                     </button>
 
                                                                     <button
                                                                         type="button"
                                                                         @click.stop="deleteBandHistoricalEvent(child)"
-                                                                        class="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                                                                        title="Eliminar"
+                                                                        class="inline-flex h-8 w-8 items-center justify-center text-red-500 transition hover:text-red-700"
                                                                     >
-                                                                        Eliminar
+                                                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -768,6 +814,7 @@
                                                     </tr>
                                                 </tbody>
                                             </table>
+
                                         </div>
                                     </template>
                                 </div>
@@ -779,7 +826,7 @@
         </div>
 
         
-{{-- Modal ver detalle - Evento hijo cambio de tramo --}}
+{{-- Modal ver detalle - Evento hijo --}}
 <div
     x-cloak
     x-show="bandChildViewModalOpen"
@@ -799,7 +846,7 @@
                 <div>
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="inline-flex items-center rounded-full bg-[#d94d33]/10 px-3 py-1 text-xs font-semibold text-[#d94d33]">
-                            Cambio de tramo
+                            <span x-text="bandEventTypeLabel(selectedBandChildView?.type || 'section_change')"></span>
                         </span>
 
                         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -807,6 +854,8 @@
                         </span>
 
                         <span
+                            x-show="selectedBandChildView?.type === 'section_change'"
+                            x-cloak
                             class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                             :class="selectedBandChildView?.same_reference ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
                         >
@@ -841,9 +890,18 @@
         <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-5">
             <template x-if="selectedBandChildView">
                 <div class="space-y-5">
-                    <div class="grid gap-5 xl:grid-cols-3">
+                    <div
+                        class="grid gap-5"
+                        :class="bandEventShowsVulcanization(selectedBandChildView)
+                            ? 'xl:grid-cols-3'
+                            : (selectedBandChildView?.type === 'section_change' ? 'xl:grid-cols-2' : 'xl:grid-cols-1')"
+                    >
                         {{-- Vulcanizado --}}
-                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div
+                            x-show="bandEventShowsVulcanization(selectedBandChildView)"
+                            x-cloak
+                            class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        >
                             <table class="w-full border-collapse text-sm">
                                 <tbody>
                                     <tr class="bg-[#4f79bd] text-white">
@@ -959,7 +1017,11 @@
                         </div>
 
                         {{-- Cambio de tramo --}}
-                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div
+                            x-show="selectedBandChildView?.type === 'section_change'"
+                            x-cloak
+                            class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        >
                             <table class="w-full border-collapse text-sm">
                                 <tbody>
                                     <tr class="bg-[#4f79bd] text-white">
@@ -1065,6 +1127,50 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <div
+                        x-show="bandEvidenceCount(selectedBandChildView) > 0"
+                        x-cloak
+                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                    Fotos y videos
+                                </h4>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    <span x-text="bandEvidenceCount(selectedBandChildView) + ' archivo(s)'"></span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 flex gap-3 overflow-x-auto pb-1">
+                            <template x-for="(evidence, index) in bandEvidenceItems(selectedBandChildView)" :key="'band-child-detail-evidence-' + evidence.id">
+                                <button
+                                    type="button"
+                                    @click="openBandMediaViewer(bandEvidenceItems(selectedBandChildView), index)"
+                                    class="relative h-24 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-900"
+                                    :title="evidence.file_name || bandEvidenceFileLabel(evidence)"
+                                >
+                                    <template x-if="evidence.file_type === 'video'">
+                                        <video muted playsinline preload="metadata" class="h-full w-full object-cover">
+                                            <source :src="evidence.url" :type="evidence.mime_type || 'video/mp4'">
+                                        </video>
+                                    </template>
+
+                                    <template x-if="evidence.file_type !== 'video'">
+                                        <img
+                                            :src="evidence.url"
+                                            :alt="evidence.file_name || 'Evidencia'"
+                                            class="h-full w-full object-cover"
+                                        >
+                                    </template>
+
+                                    <span class="absolute bottom-1 left-1 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white" x-text="bandEvidenceFileLabel(evidence)"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
                 </div>
             </template>
         </div>
@@ -1161,47 +1267,12 @@
             <template x-if="bandEditForm">
                 <div class="space-y-5">
 
-                    {{-- Selector de banda padre para eventos hijos --}}
-                    <template x-if="bandEditForm.type !== 'band'">
-                        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                            <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                                Banda asociada
-                            </h4>
-
-                            <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                        Banda actual
-                                    </div>
-                                    <div
-                                        class="mt-2 text-sm font-semibold text-slate-800"
-                                        x-text="bandOptionLabel(bandEventBands.find(band => String(band.id) === String(bandEditForm?.parent_id)) || null)"
-                                    ></div>
-                                </div>
-
-                                <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                        Seleccionar banda padre
-                                    </label>
-
-                                    <select
-                                        x-model="bandEditForm.parent_id"
-                                        @change="onSectionParentChanged(bandEditForm)"
-                                        class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
-                                    >
-                                        <option value="">Seleccionar banda</option>
-                                        <template x-for="band in bandEventBands" :key="'band-edit-parent-option-' + band.id">
-                                            <option :value="band.id" x-text="bandOptionLabel(band)"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
                     {{-- Cambio de banda padre --}}
                     <template x-if="bandEditForm.type === 'band'">
-                        <div class="grid gap-5 xl:grid-cols-3">
+                        <div
+                            class="grid gap-5"
+                            :class="bandDraftRequiresVulcanization(bandEditForm) ? 'xl:grid-cols-3' : 'xl:grid-cols-2'"
+                        >
                             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                                 <table class="w-full border-collapse text-sm">
                                     <tbody>
@@ -1209,6 +1280,24 @@
                                             <th colspan="2" class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">
                                                 Referencia de la banda
                                             </th>
+                                        </tr>
+
+                                        <tr>
+                                            <th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">
+                                                Tipo de banda
+                                            </th>
+                                            <td class="border border-slate-300 bg-slate-100 px-3 py-2">
+                                                <select
+                                                    x-model="bandEditForm.vulcanization_type"
+                                                    @change="setBandVulcanizationType(bandEditForm.vulcanization_type, bandEditForm)"
+                                                    class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"
+                                                >
+                                                    <option value="">Seleccionar</option>
+                                                    <template x-for="option in bandVulcanizationTypeOptions()" :key="'edit-band-vulcanization-type-' + option.value">
+                                                        <option :value="option.value" x-text="option.label.replace('¿', '').replace('?', '')"></option>
+                                                    </template>
+                                                </select>
+                                            </td>
                                         </tr>
 
                                         <tr>
@@ -1325,7 +1414,11 @@
                                 </table>
                             </div>
 
-                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div
+                                x-show="bandDraftRequiresVulcanization(bandEditForm)"
+                                x-cloak
+                                class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                            >
                                 <table class="w-full border-collapse text-sm">
                                     <tbody>
                                         <tr class="bg-[#4f79bd] text-white">
@@ -1515,8 +1608,11 @@
                                             <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                 <textarea
                                                     x-model="bandEditForm.observation"
-                                                    rows="8"
-                                                    class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                                    rows="1"
+                                                    x-init="$nextTick(() => autosizeTextarea($el))"
+                                                    @input="autosizeTextarea($el)"
+                                                    data-band-edit-observation
+                                                    class="w-full min-h-[44px] max-h-40 resize-none overflow-y-auto bg-transparent text-sm font-semibold text-slate-900 outline-none"
                                                 ></textarea>
                                             </td>
                                         </tr>
@@ -1789,8 +1885,11 @@
                                             <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                 <textarea
                                                     x-model="bandEditForm.observation"
-                                                    rows="5"
-                                                    class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                                    rows="1"
+                                                    x-init="$nextTick(() => autosizeTextarea($el))"
+                                                    @input="autosizeTextarea($el)"
+                                                    data-band-edit-observation
+                                                    class="w-full min-h-[44px] max-h-40 resize-none overflow-y-auto bg-transparent text-sm font-semibold text-slate-900 outline-none"
                                                 ></textarea>
                                             </td>
                                         </tr>
@@ -1815,8 +1914,11 @@
                                         <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                             <textarea
                                                 x-model="bandEditForm.observation"
-                                                rows="5"
-                                                class="w-full resize-none bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                                                rows="1"
+                                                x-init="$nextTick(() => autosizeTextarea($el))"
+                                                @input="autosizeTextarea($el)"
+                                                data-band-edit-observation
+                                                class="w-full min-h-[44px] max-h-40 resize-none overflow-y-auto bg-transparent text-sm font-semibold text-slate-900 outline-none"
                                             ></textarea>
                                         </td>
                                     </tr>
@@ -1824,6 +1926,82 @@
                             </table>
                         </div>
                     </template>
+
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                    Fotos y videos
+                                </h4>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    Material adjunto de este reporte oficial.
+                                </p>
+                            </div>
+
+                            <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]">
+                                <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+                                Subir evidencia
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                                    class="hidden"
+                                    @change="uploadBandReportEvidence($event)"
+                                >
+                            </label>
+                        </div>
+
+                        <div
+                            x-show="bandEvidenceCount(bandEditForm) > 0"
+                            x-cloak
+                            class="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
+                        >
+                            <template x-for="(evidence, index) in bandEvidenceItems(bandEditForm)" :key="'band-edit-evidence-' + evidence.id">
+                                <div class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                    <button
+                                        type="button"
+                                        @click="openBandMediaViewer(bandEvidenceItems(bandEditForm), index)"
+                                        class="block aspect-square w-full bg-slate-900"
+                                        :title="evidence.file_name || bandEvidenceFileLabel(evidence)"
+                                    >
+                                        <template x-if="evidence.file_type === 'video'">
+                                            <video muted playsinline preload="metadata" class="h-full w-full object-cover">
+                                                <source :src="evidence.url" :type="evidence.mime_type || 'video/mp4'">
+                                            </video>
+                                        </template>
+
+                                        <template x-if="evidence.file_type !== 'video'">
+                                            <img
+                                                :src="evidence.url"
+                                                :alt="evidence.file_name || 'Evidencia'"
+                                                class="h-full w-full object-cover"
+                                            >
+                                        </template>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click.stop="deleteBandReportEvidence(evidence)"
+                                        title="Eliminar evidencia"
+                                        class="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-red-600 shadow transition hover:bg-red-50"
+                                    >
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </button>
+
+                                    <div class="absolute bottom-0 left-0 right-0 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-white">
+                                        <span x-text="bandEvidenceFileLabel(evidence)"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div
+                            x-show="bandEvidenceCount(bandEditForm) === 0"
+                            class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm font-semibold text-slate-500"
+                        >
+                            Este reporte oficial todavía no tiene fotos ni videos.
+                        </div>
+                    </div>
                 </div>
             </template>
         </div>
@@ -2195,6 +2373,7 @@
     >
         <div
             x-show="bandStateHistoryModalOpen"
+            x-ref="bandStateHistoryPanel"
             class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             @click.outside="if (!bandStateEditModalOpen) closeBandStateHistoryModal()"
         >
@@ -2212,18 +2391,20 @@
                             type="button"
                             x-show="selectedBandStateHistoryReport"
                             @click="openBandStateEditModal()"
-                            class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                            title="Editar reporte"
+                            class="inline-flex h-10 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900"
                         >
-                            Editar
+                            <i data-lucide="pencil" class="h-4 w-4"></i>
                         </button>
 
                         <button
                             type="button"
                             x-show="selectedBandStateHistoryReport"
                             @click="deleteBandStateHistoricalReport()"
-                            class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                            title="Eliminar reporte"
+                            class="inline-flex h-10 w-10 items-center justify-center text-red-500 transition hover:text-red-700"
                         >
-                            Eliminar
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
                         </button>
 
                         <button
@@ -2530,8 +2711,14 @@
 >
     <div
         x-show="bandWizardOpen"
-        x-transition
-        class="flex h-[90vh] w-full max-w-[1350px] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 shadow-2xl"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+        x-transition:leave-end="opacity-0 scale-95 translate-y-2"
+        class="flex w-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50 shadow-2xl transition-all duration-300 ease-out"
+        :class="bandWizardPanelClass()"
         @click.outside="closeBandWizard()"
     >
         {{-- Header compacto --}}
@@ -2560,17 +2747,19 @@
                         type="button"
                         @click="saveBandDraft()"
                         :disabled="loading || !bandDraft"
-                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-70"
+                        title="Guardar borrador"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-70"
                     >
-                        Guardar borrador
+                        <i data-lucide="save" class="h-4 w-4"></i>
                     </button>
 
                     <button
                         type="button"
                         @click="closeBandWizard()"
-                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        title="Cerrar"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
                     >
-                        Cerrar
+                        <i data-lucide="x" class="h-4 w-4"></i>
                     </button>
                 </div>
             </div>
@@ -2582,7 +2771,7 @@
                 <template x-for="step in compactBandSteps()" :key="'compact-band-step-' + step.id">
                     <button
                         type="button"
-                        @click="bandWizardStep = step.id"
+                        @click="goToBandStep(step.id)"
                         class="rounded-xl px-3 py-2 text-left text-sm transition"
                         :class="bandWizardStep === step.id
                             ? 'bg-white text-slate-900'
@@ -2609,7 +2798,11 @@
         </div>
 
         {{-- Body --}}
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div
+            x-ref="bandWizardBody"
+            class="overflow-y-auto px-6 py-5 transition-all duration-300 ease-out"
+            :class="bandWizardBodyClass()"
+        >
             <div
                 x-show="bandErrors.length > 0"
                 x-cloak
@@ -2631,6 +2824,36 @@
                         <p class="mt-1 text-sm text-slate-500">
                             Registra la información técnica de la nueva banda. No se muestran opciones de vulcanizado ni tramo para evitar confusión.
                         </p>
+                        <div class="mt-5">
+                            <div class="flex items-center justify-between gap-3">
+                                <h5 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Tipo de banda</h5>
+                                <span class="text-xs font-semibold text-[#d94d33]">Obligatorio</span>
+                            </div>
+
+                            <div class="mt-3 grid gap-3 lg:grid-cols-3">
+                                <template x-for="option in bandVulcanizationTypeOptions()" :key="'band-vulcanization-type-' + option.value">
+                                    <label
+                                        class="flex cursor-pointer items-start gap-3 rounded-2xl border bg-white p-4 transition"
+                                        :class="bandDraft?.vulcanization_type === option.value
+                                            ? 'border-[#d94d33] ring-2 ring-[#d94d33]/20'
+                                            : 'border-slate-200 hover:border-slate-300'"
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="band_vulcanization_type"
+                                            :value="option.value"
+                                            x-model="bandDraft.vulcanization_type"
+                                            @change="setBandVulcanizationType(option.value)"
+                                            class="mt-1 h-4 w-4 border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                                        >
+                                        <span>
+                                            <span class="block text-sm font-semibold text-slate-900" x-text="option.label"></span>
+                                            <span class="mt-1 block text-xs text-slate-500" x-text="option.description"></span>
+                                        </span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
                     </div>
                 </template>
 
@@ -2673,7 +2896,10 @@
 
                     <div class="mt-5 space-y-5">
                         <template x-if="bandType === 'band'">
-                            <div class="grid gap-5 xl:grid-cols-3">
+                            <div
+                                class="grid gap-5"
+                                :class="bandDraftRequiresVulcanization() ? 'xl:grid-cols-3' : 'xl:grid-cols-2'"
+                            >
                                 <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                                     <table class="w-full border-collapse text-sm">
                                         <tbody>
@@ -2692,7 +2918,11 @@
                                     </table>
                                 </div>
 
-                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                <div
+                                    x-show="bandDraftRequiresVulcanization()"
+                                    x-cloak
+                                    class="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                                >
                                     <table class="w-full border-collapse text-sm">
                                         <tbody>
                                             <tr class="bg-[#4f79bd] text-white">
@@ -2885,9 +3115,75 @@
                                         <th class="border border-slate-300 px-3 py-2 text-center text-xs font-bold uppercase">Evidencia</th>
                                     </tr>
                                     <tr>
-                                        <td class="border border-slate-300 bg-slate-100 px-3 py-6 text-center">
-                                            <p class="text-sm font-semibold text-slate-800">Fotos y videos</p>
-                                            <p class="mt-1 text-xs text-slate-500">Pendiente carga en R2.</p>
+                                        <td class="border border-slate-300 bg-slate-100 px-3 py-4">
+                                            <label class="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center transition hover:bg-slate-50">
+                                                <i data-lucide="upload-cloud" class="h-5 w-5 text-slate-500"></i>
+                                                <span class="mt-2 text-sm font-semibold text-slate-800">Subir fotos o videos</span>
+                                                <span class="mt-1 text-xs text-slate-500">JPG, PNG, WEBP, MP4, MOV o WEBM</span>
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                                                    class="hidden"
+                                                    @change="uploadBandDraftEvidence($event)"
+                                                >
+                                            </label>
+
+                                            <div
+                                                x-show="bandEvidenceCount(bandDraft) > 0"
+                                                x-cloak
+                                                class="mt-3 grid grid-cols-3 gap-2"
+                                            >
+                                                <template x-for="(evidence, index) in bandEvidenceItems(bandDraft)" :key="'band-draft-evidence-' + evidence.id">
+                                                    <div class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                                        <button
+                                                            type="button"
+                                                            @click="openBandMediaViewer(bandEvidenceItems(bandDraft), index)"
+                                                            class="block aspect-square w-full bg-slate-900"
+                                                            :title="evidence.file_name || bandEvidenceFileLabel(evidence)"
+                                                        >
+                                                            <template x-if="evidence.file_type === 'video'">
+                                                                <video
+                                                                    muted
+                                                                    playsinline
+                                                                    preload="metadata"
+                                                                    class="h-full w-full object-cover"
+                                                                >
+                                                                    <source :src="evidence.url" :type="evidence.mime_type || 'video/mp4'">
+                                                                </video>
+                                                            </template>
+
+                                                            <template x-if="evidence.file_type !== 'video'">
+                                                                <img
+                                                                    :src="evidence.url"
+                                                                    :alt="evidence.file_name || 'Evidencia'"
+                                                                    class="h-full w-full object-cover"
+                                                                >
+                                                            </template>
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            @click.stop="deleteBandDraftEvidence(evidence)"
+                                                            title="Eliminar evidencia"
+                                                            class="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-red-600 shadow transition hover:bg-red-50"
+                                                        >
+                                                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                                        </button>
+
+                                                        <div class="absolute bottom-0 left-0 right-0 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase text-white">
+                                                            <span x-text="bandEvidenceFileLabel(evidence)"></span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+
+                                            <p
+                                                x-show="bandEvidenceCount(bandDraft) === 0"
+                                                class="mt-3 text-center text-xs text-slate-500"
+                                            >
+                                                Este borrador todavía no tiene material adjunto.
+                                            </p>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -2935,15 +3231,6 @@
                 </button>
 
                 <div class="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        @click="saveBandDraft()"
-                        :disabled="loading || !bandDraft"
-                        class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
-                    >
-                        Guardar borrador
-                    </button>
-
                     <button
                         type="button"
                         x-show="bandWizardStep < bandWizardTotalSteps()"
@@ -3050,7 +3337,10 @@
                     Medición de espesores y dureza
                 </div>
 
-                <div class="overflow-x-auto">
+                <div
+                    x-ref="thicknessDraftCovers"
+                    class="overflow-x-auto transition-all duration-300 ease-out"
+                >
                     <table class="min-w-[1120px] w-full table-fixed border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-100 text-slate-700">
@@ -3161,6 +3451,7 @@
     >
         <div
             x-show="historyModalOpen"
+            x-ref="thicknessHistoryPanel"
             class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             @click.outside="if (!historyEditModalOpen) closeHistoryModal()"
         >
@@ -3198,18 +3489,20 @@
                             type="button"
                             x-show="selectedHistoryReport"
                             @click="openHistoryEditModal()"
-                            class="rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
+                            title="Editar reporte"
+                            class="inline-flex h-11 w-11 items-center justify-center text-slate-500 transition hover:text-slate-900"
                         >
-                            Editar
+                            <i data-lucide="pencil" class="h-5 w-5"></i>
                         </button>
 
                         <button
                             type="button"
                             x-show="selectedHistoryReport"
                             @click="deleteThicknessHistoricalReport()"
-                            class="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                            title="Eliminar reporte"
+                            class="inline-flex h-11 w-11 items-center justify-center text-red-500 transition hover:text-red-700"
                         >
-                            Eliminar
+                            <i data-lucide="trash-2" class="h-5 w-5"></i>
                         </button>
 
                         <button
@@ -3542,7 +3835,10 @@
                     Medición de espesores y dureza
                 </div>
 
-                <div class="overflow-x-auto">
+                <div
+                    x-ref="thicknessHistoryEditCovers"
+                    class="overflow-x-auto transition-all duration-300 ease-out"
+                >
                     <table class="min-w-[1120px] w-full table-fixed border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-100 text-slate-700">
@@ -3731,6 +4027,71 @@
             </div>
         </div>
     </div>
+    <div
+        x-cloak
+        x-show="bandMediaViewerOpen"
+        x-transition.opacity
+        class="fixed inset-0 z-[12000] flex items-center justify-center bg-black/90 px-4 py-6"
+        @keydown.escape.window="closeBandMediaViewer()"
+        @keydown.arrow-left.window="if (bandMediaViewerOpen) prevBandMedia()"
+        @keydown.arrow-right.window="if (bandMediaViewerOpen) nextBandMedia()"
+    >
+        <button
+            type="button"
+            @click="closeBandMediaViewer()"
+            class="absolute right-4 top-4 z-20 rounded-xl bg-[#d94d33] px-4 py-2 text-sm font-semibold text-white shadow hover:bg-[#b83f29]"
+        >
+            Cerrar
+        </button>
+
+        <button
+            type="button"
+            x-show="bandMediaViewerItems.length > 1"
+            @click="prevBandMedia()"
+            class="absolute left-4 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow transition hover:bg-white"
+            aria-label="Anterior"
+        >
+            <i data-lucide="chevron-left" class="h-6 w-6"></i>
+        </button>
+
+        <div class="flex max-h-[92vh] max-w-[92vw] items-center justify-center">
+            <template x-if="currentBandMediaItem()?.file_type === 'video'">
+                <video
+                    :key="currentBandMediaItem()?.url"
+                    controls
+                    autoplay
+                    class="max-h-[92vh] max-w-[92vw] bg-black object-contain"
+                >
+                    <source :src="currentBandMediaItem()?.url" :type="currentBandMediaItem()?.mime_type || 'video/mp4'">
+                    Tu navegador no soporta reproducción de video.
+                </video>
+            </template>
+
+            <template x-if="currentBandMediaItem()?.file_type !== 'video'">
+                <img
+                    :key="currentBandMediaItem()?.url"
+                    :src="currentBandMediaItem()?.url"
+                    :alt="currentBandMediaItem()?.file_name || 'Evidencia'"
+                    class="max-h-[92vh] max-w-[92vw] object-contain"
+                >
+            </template>
+        </div>
+
+        <button
+            type="button"
+            x-show="bandMediaViewerItems.length > 1"
+            @click="nextBandMedia()"
+            class="absolute right-4 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow transition hover:bg-white"
+            aria-label="Siguiente"
+        >
+            <i data-lucide="chevron-right" class="h-6 w-6"></i>
+        </button>
+
+        <div
+            class="absolute bottom-4 left-1/2 max-w-[80vw] -translate-x-1/2 rounded-xl bg-black/60 px-4 py-2 text-center text-xs font-semibold text-white"
+            x-text="(bandMediaViewerIndex + 1) + ' / ' + bandMediaViewerItems.length + ' · ' + (currentBandMediaItem()?.file_name || bandEvidenceFileLabel(currentBandMediaItem()))"
+        ></div>
+    </div>
 </div>
 <script>
 function showCrudToast(message, type = 'success') {
@@ -3851,6 +4212,10 @@ function measurementThicknessModule(config) {
         bandChildViewModalOpen: false,
         selectedBandChildView: null,
 
+        bandMediaViewerOpen: false,
+        bandMediaViewerItems: [],
+        bandMediaViewerIndex: 0,
+
         bandDraft: {
             id: null,
             element_id: config.elementId,
@@ -3866,6 +4231,7 @@ function measurementThicknessModule(config) {
             width: '',
             length: '',
             roll_count: '',
+            vulcanization_type: '',
 
             // VULCANIZADO
             temperature: '',
@@ -3893,6 +4259,7 @@ function measurementThicknessModule(config) {
             // COMUNES
             observation: '',
             report_date: config.today,
+            evidences: [],
         },
 
         // ======================
@@ -3914,6 +4281,7 @@ function measurementThicknessModule(config) {
                 width: '',
                 length: '',
                 roll_count: '',
+                vulcanization_type: '',
 
                 // VULCANIZADO
                 temperature: '',
@@ -3941,6 +4309,7 @@ function measurementThicknessModule(config) {
                 // COMUNES
                 observation: '',
                 report_date: config.today,
+                evidences: [],
             };
         },
 
@@ -3985,6 +4354,136 @@ function measurementThicknessModule(config) {
             }
 
             return [fallback];
+        },
+
+        normalizedThicknessDraft(rawDraft = {}) {
+            return {
+                ...this.emptyThicknessDraft(),
+                ...(rawDraft || {}),
+                lines: Array.isArray(rawDraft?.lines) && rawDraft.lines.length
+                    ? rawDraft.lines.map((line, index) => ({
+                        ...this.emptyThicknessLine(index + 1),
+                        ...(line || {}),
+                        cover_number: line?.cover_number ?? (index + 1),
+                    }))
+                    : [this.emptyThicknessLine(1)],
+            };
+        },
+
+        animateThicknessCoversHeight(container, updateCallback, timeoutKey) {
+            if (!container) {
+                updateCallback();
+                return;
+            }
+
+            window.clearTimeout(this[timeoutKey]);
+
+            const startHeight = container.getBoundingClientRect().height;
+            container.style.height = `${startHeight}px`;
+            container.style.overflow = 'hidden';
+            container.style.transition = 'height 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+            updateCallback();
+
+            this.$nextTick(() => {
+                container.style.transition = 'none';
+                container.style.height = 'auto';
+
+                const targetHeight = container.scrollHeight;
+
+                container.style.height = `${startHeight}px`;
+                container.offsetHeight;
+                container.style.transition = 'height 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+                requestAnimationFrame(() => {
+                    container.style.height = `${targetHeight}px`;
+                });
+
+                this[timeoutKey] = window.setTimeout(() => {
+                    container.style.height = '';
+                    container.style.overflow = '';
+                    container.style.transition = '';
+                }, 310);
+            });
+        },
+
+        animateHistoryPanelResize(refName, updateCallback, timeoutKey) {
+            const panel = this.$refs?.[refName];
+
+            if (!panel) {
+                updateCallback();
+                return;
+            }
+
+            window.clearTimeout(this[timeoutKey]);
+
+            const startRect = panel.getBoundingClientRect();
+
+            if (!startRect.width || !startRect.height) {
+                updateCallback();
+                return;
+            }
+
+            panel.style.width = `${startRect.width}px`;
+            panel.style.height = `${startRect.height}px`;
+            panel.style.overflow = 'hidden';
+            panel.style.transition = 'width 280ms cubic-bezier(0.22, 1, 0.36, 1), height 300ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+            updateCallback();
+
+            this.$nextTick(() => {
+                panel.style.transition = 'none';
+                panel.style.width = '';
+                panel.style.height = 'auto';
+
+                const targetRect = panel.getBoundingClientRect();
+
+                panel.style.width = `${startRect.width}px`;
+                panel.style.height = `${startRect.height}px`;
+                panel.offsetHeight;
+                panel.style.transition = 'width 280ms cubic-bezier(0.22, 1, 0.36, 1), height 300ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+                requestAnimationFrame(() => {
+                    panel.style.width = `${targetRect.width}px`;
+                    panel.style.height = `${targetRect.height}px`;
+                });
+
+                this[timeoutKey] = window.setTimeout(() => {
+                    panel.style.width = '';
+                    panel.style.height = '';
+                    panel.style.overflow = '';
+                    panel.style.transition = '';
+                }, 340);
+            });
+        },
+
+        applyThicknessDraftWithCoverAnimation(rawDraft = {}) {
+            const nextDraft = this.normalizedThicknessDraft(rawDraft);
+
+            this.animateThicknessCoversHeight(
+                this.$refs?.thicknessDraftCovers,
+                () => {
+                    this.draft = nextDraft;
+                },
+                '__thicknessCoversHeightTimeout',
+            );
+        },
+
+        applyHistoryEditCoversWithAnimation(nextLines = []) {
+            this.animateThicknessCoversHeight(
+                this.$refs?.thicknessHistoryEditCovers,
+                () => {
+                    this.historyEditForm.lines = nextLines;
+                },
+                '__thicknessHistoryEditCoversHeightTimeout',
+            );
+        },
+
+        autosizeTextarea(element) {
+            if (!element) return;
+
+            element.style.height = 'auto';
+            element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
         },
 
         displayValue(value) {
@@ -4140,17 +4639,7 @@ function measurementThicknessModule(config) {
                     return false;
                 }
 
-                this.draft = {
-                    ...this.emptyThicknessDraft(),
-                    ...(data.draft || {}),
-                    lines: Array.isArray(data.draft?.lines) && data.draft.lines.length
-                        ? data.draft.lines.map((line, index) => ({
-                            ...this.emptyThicknessLine(index + 1),
-                            ...(line || {}),
-                            cover_number: line?.cover_number ?? (index + 1),
-                        }))
-                        : [this.emptyThicknessLine(1)],
-                };
+                this.draft = this.normalizedThicknessDraft(data.draft || {});
 
                 this.showCrudToast('Borrador creado correctamente.');
                 return true;
@@ -4188,17 +4677,7 @@ function measurementThicknessModule(config) {
                     return false;
                 }
 
-                this.draft = {
-                    ...this.emptyThicknessDraft(),
-                    ...(data.draft || {}),
-                    lines: Array.isArray(data.draft?.lines) && data.draft.lines.length
-                        ? data.draft.lines.map((line, index) => ({
-                            ...this.emptyThicknessLine(index + 1),
-                            ...(line || {}),
-                            cover_number: line?.cover_number ?? (index + 1),
-                        }))
-                        : [this.emptyThicknessLine(1)],
-                };
+                this.draft = this.normalizedThicknessDraft(data.draft || {});
 
                 this.showCrudToast('Borrador guardado correctamente.');
                 return true;
@@ -4235,17 +4714,7 @@ function measurementThicknessModule(config) {
                     return false;
                 }
 
-                this.draft = {
-                    ...this.emptyThicknessDraft(),
-                    ...(data.draft || {}),
-                    lines: Array.isArray(data.draft?.lines) && data.draft.lines.length
-                        ? data.draft.lines.map((line, index) => ({
-                            ...this.emptyThicknessLine(index + 1),
-                            ...(line || {}),
-                            cover_number: line?.cover_number ?? (index + 1),
-                        }))
-                        : [this.emptyThicknessLine(1)],
-                };
+                this.applyThicknessDraftWithCoverAnimation(data.draft || {});
 
                 this.showCrudToast('Cubierta agregada correctamente.');
                 return true;
@@ -4279,17 +4748,7 @@ function measurementThicknessModule(config) {
                     return false;
                 }
 
-                this.draft = {
-                    ...this.emptyThicknessDraft(),
-                    ...(data.draft || {}),
-                    lines: Array.isArray(data.draft?.lines) && data.draft.lines.length
-                        ? data.draft.lines.map((line, index) => ({
-                            ...this.emptyThicknessLine(index + 1),
-                            ...(line || {}),
-                            cover_number: line?.cover_number ?? (index + 1),
-                        }))
-                        : [this.emptyThicknessLine(1)],
-                };
+                this.applyThicknessDraftWithCoverAnimation(data.draft || {});
 
                 this.showCrudToast('Cubierta eliminada correctamente.');
                 return true;
@@ -4517,7 +4976,7 @@ function measurementThicknessModule(config) {
 
         openHistoryModal() {
             this.historyModalOpen = true;
-            this.historySidebarOpen = true;
+            this.historySidebarOpen = false;
 
             const reports = Array.isArray(this.historicalReports)
                 ? [...this.historicalReports].sort((a, b) => {
@@ -4571,7 +5030,13 @@ function measurementThicknessModule(config) {
                 }
 
                 if (data.report) {
-                    this.selectedHistoryReport = data.report;
+                    this.animateHistoryPanelResize(
+                        'thicknessHistoryPanel',
+                        () => {
+                            this.selectedHistoryReport = data.report;
+                        },
+                        '__thicknessHistoryPanelResizeTimeout',
+                    );
                 }
             } catch (error) {
                 if (!hadPreviousSelection) {
@@ -4615,10 +5080,10 @@ function measurementThicknessModule(config) {
                 ? this.historyEditForm.lines
                 : [];
 
-            this.historyEditForm.lines = [
+            this.applyHistoryEditCoversWithAnimation([
                 ...lines,
                 this.emptyThicknessLine(lines.length + 1),
-            ];
+            ]);
         },
 
         removeHistoryEditCover(coverNumber) {
@@ -4631,12 +5096,14 @@ function measurementThicknessModule(config) {
                 return;
             }
 
-            this.historyEditForm.lines = lines
+            const nextLines = lines
                 .filter(line => Number(line.cover_number) !== Number(coverNumber))
                 .map((line, index) => ({
                     ...line,
                     cover_number: index + 1,
                 }));
+
+            this.applyHistoryEditCoversWithAnimation(nextLines);
         },
 
         async updateThicknessHistoricalReport() {
@@ -5105,7 +5572,13 @@ function measurementThicknessModule(config) {
                     return false;
                 }
 
-                this.selectedBandStateHistoryReport = data.report;
+                this.animateHistoryPanelResize(
+                    'bandStateHistoryPanel',
+                    () => {
+                        this.selectedBandStateHistoryReport = data.report;
+                    },
+                    '__bandStateHistoryPanelResizeTimeout',
+                );
                 this.refreshLucide();
 
                 return true;
@@ -5298,12 +5771,123 @@ function measurementThicknessModule(config) {
             }[this.bandType] || 'Cambio de banda';
         },
 
+        bandWizardPanelClass() {
+            const base = 'max-h-[calc(100vh-2rem)]';
+
+            if (this.bandType === 'vulcanization') {
+                return `${base} max-w-3xl`;
+            }
+
+            if (this.bandType === 'band' || this.bandType === 'section_change') {
+                return `${base} max-w-6xl`;
+            }
+
+            return `${base} max-w-4xl`;
+        },
+
+        bandWizardBodyClass() {
+            if (this.bandWizardStep === 1) {
+                return 'max-h-[calc(100vh-15rem)]';
+            }
+
+            if (this.bandWizardStep === 2 && this.bandType === 'vulcanization') {
+                return 'max-h-[calc(100vh-15rem)]';
+            }
+
+            return 'max-h-[calc(100vh-13rem)]';
+        },
+
         bandEventTypeLabel(type) {
             return {
                 band: 'Cambio de banda',
                 vulcanization: 'Vulcanizado',
                 section_change: 'Cambio de tramo',
             }[type] || 'Evento';
+        },
+
+        bandVulcanizationTypeOptions() {
+            return [
+                {
+                    value: 'mechanical',
+                    label: '¿Banda sin fin con empalme mecánico?',
+                    description: 'No solicita parámetros de vulcanizado.',
+                },
+                {
+                    value: 'vulcanized_external',
+                    label: '¿Banda sin fin con empalme vulcanizado externo?',
+                    description: 'El vulcanizado se registra como externo.',
+                },
+                {
+                    value: 'vulcanized_local',
+                    label: '¿Banda sin fin con empalme vulcanizado local?',
+                    description: 'Solicita la tabla de vulcanizado en el paso 2.',
+                },
+            ];
+        },
+
+        bandVulcanizationTypeLabel(value = null) {
+            const found = this.bandVulcanizationTypeOptions()
+                .find(option => option.value === value);
+
+            return found ? found.label.replace('¿', '').replace('?', '') : '—';
+        },
+
+        bandEventHasVulcanizationData(event = null) {
+            return [
+                event?.temperature,
+                event?.pressure,
+                event?.time,
+                event?.cooling_time,
+            ].some(value => value !== null && value !== undefined && value !== '');
+        },
+
+        normalizedBandVulcanizationType(event = null) {
+            if (!event || event.type !== 'band') {
+                return event?.vulcanization_type || '';
+            }
+
+            return event.vulcanization_type
+                || (this.bandEventHasVulcanizationData(event) ? 'vulcanized_local' : '');
+        },
+
+        bandEventShowsVulcanization(event = null) {
+            if (!event) return false;
+
+            if (event.type === 'band') {
+                return this.normalizedBandVulcanizationType(event) === 'vulcanized_local';
+            }
+
+            return ['vulcanization', 'section_change'].includes(event.type)
+                && this.bandEventHasVulcanizationData(event);
+        },
+
+        bandDraftRequiresVulcanization(form = null) {
+            const target = form || this.bandDraft;
+            return target?.type === 'band' && this.normalizedBandVulcanizationType(target) === 'vulcanized_local';
+        },
+
+        bandDraftHasRequiredVulcanizationType(form = null) {
+            const target = form || this.bandDraft;
+            return target?.type !== 'band' || !!target?.vulcanization_type;
+        },
+
+        clearBandVulcanizationFields(form = null) {
+            const target = form || this.bandDraft;
+            if (!target || target.type !== 'band' || this.bandDraftRequiresVulcanization(target)) return;
+
+            target.temperature = '';
+            target.pressure = '';
+            target.time = '';
+            target.cooling_time = '';
+        },
+
+        setBandVulcanizationType(value, form = null) {
+            const target = form || this.bandDraft;
+            if (!target) return;
+
+            target.vulcanization_type = value;
+            this.clearBandVulcanizationFields(target);
+            this.resetBandErrors();
         },
 
         latestBandChangeReport() {
@@ -5411,7 +5995,13 @@ function measurementThicknessModule(config) {
                 return;
             }
 
-            this.selectedBandHistory = band;
+            this.animateHistoryPanelResize(
+                'bandHistoryPanel',
+                () => {
+                    this.selectedBandHistory = band;
+                },
+                '__bandHistoryPanelResizeTimeout',
+            );
         },
 
         openBandEditModal(event) {
@@ -5428,6 +6018,7 @@ function measurementThicknessModule(config) {
                     ? null
                     : (event.parent_id || this.selectedBandHistory?.id || this.bandEventActiveBand?.id || null),
                 type: event.type || 'band',
+                vulcanization_type: this.normalizedBandVulcanizationType(event),
                 report_date: event.report_date || config.today,
                 same_reference: !!event.same_reference,
             };
@@ -5441,6 +6032,11 @@ function measurementThicknessModule(config) {
             }
 
             this.bandEditModalOpen = true;
+            this.$nextTick(() => {
+                document
+                    .querySelectorAll('[data-band-edit-observation]')
+                    .forEach(element => this.autosizeTextarea(element));
+            });
             this.refreshLucide();
         },
 
@@ -5455,6 +6051,7 @@ function measurementThicknessModule(config) {
                 return false;
             }
 
+            this.clearBandVulcanizationFields(this.bandEditForm);
             this.loading = true;
             this.bandEditErrors = [];
 
@@ -5587,6 +6184,330 @@ function measurementThicknessModule(config) {
             }
         },
 
+        async uploadBandDraftEvidence(event) {
+            const input = event?.target;
+            const files = Array.from(input?.files || []);
+
+            if (!files.length) {
+                return false;
+            }
+
+            this.loading = true;
+            this.resetBandErrors();
+
+            const formData = new FormData();
+            formData.append('type', this.bandType || this.bandDraft?.type || 'band');
+            files.forEach(file => formData.append('attachments[]', file));
+
+            try {
+                const response = await fetch(config.routes.bandEvidenceUpload, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandErrors = this.normalizeErrors(data, 'No fue posible cargar la evidencia.');
+                    this.showCrudToast(this.bandErrors[0] || 'No fue posible cargar la evidencia.', 'error');
+                    return false;
+                }
+
+                this.bandDraft = {
+                    ...this.bandDraft,
+                    evidences: Array.isArray(data.evidences) ? data.evidences : [],
+                };
+
+                this.showCrudToast(data.message || 'Evidencia cargada correctamente.');
+                return true;
+            } catch (error) {
+                this.bandErrors = ['Ocurrió un error de red al cargar la evidencia.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
+                return false;
+            } finally {
+                if (input) {
+                    input.value = '';
+                }
+
+                this.loading = false;
+                this.refreshLucide();
+            }
+        },
+
+        async deleteBandDraftEvidence(evidence) {
+            if (!evidence?.id) {
+                return false;
+            }
+
+            this.loading = true;
+            this.resetBandErrors();
+
+            const url = config.routes.bandDraftEvidenceDeleteTemplate.replace('__EVIDENCE__', evidence.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandErrors = this.normalizeErrors(data, 'No fue posible eliminar la evidencia.');
+                    this.showCrudToast(this.bandErrors[0] || 'No fue posible eliminar la evidencia.', 'error');
+                    return false;
+                }
+
+                this.bandDraft = {
+                    ...this.bandDraft,
+                    evidences: Array.isArray(data.evidences) ? data.evidences : [],
+                };
+
+                this.showCrudToast(data.message || 'Evidencia eliminada correctamente.');
+                return true;
+            } catch (error) {
+                this.bandErrors = ['Ocurrió un error de red al eliminar la evidencia.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
+                return false;
+            } finally {
+                this.loading = false;
+                this.refreshLucide();
+            }
+        },
+
+        async uploadBandReportEvidence(event) {
+            const input = event?.target;
+            const files = Array.from(input?.files || []);
+
+            if (!files.length || !this.bandEditForm?.id) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandEditErrors = [];
+
+            const formData = new FormData();
+            files.forEach(file => formData.append('attachments[]', file));
+
+            const url = config.routes.bandReportEvidenceUploadTemplate.replace('__EVENT__', this.bandEditForm.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandEditErrors = this.normalizeErrors(data, 'No fue posible cargar la evidencia.');
+                    this.showCrudToast(this.bandEditErrors[0] || 'No fue posible cargar la evidencia.', 'error');
+                    return false;
+                }
+
+                this.applyBandReportEvidenceUpdate(data.event_id || this.bandEditForm.id, data.evidences || []);
+                this.showCrudToast(data.message || 'Evidencia cargada correctamente.');
+                return true;
+            } catch (error) {
+                this.bandEditErrors = ['Ocurrió un error de red al cargar la evidencia.'];
+                this.showCrudToast(this.bandEditErrors[0], 'error');
+                return false;
+            } finally {
+                if (input) {
+                    input.value = '';
+                }
+
+                this.loading = false;
+                this.refreshLucide();
+            }
+        },
+
+        async deleteBandReportEvidence(evidence) {
+            if (!evidence?.id || !this.bandEditForm?.id) {
+                return false;
+            }
+
+            const confirmed = window.confirm('¿Eliminar esta evidencia del reporte oficial? Esta acción no se puede deshacer.');
+
+            if (!confirmed) {
+                return false;
+            }
+
+            this.loading = true;
+            this.bandEditErrors = [];
+
+            const url = config.routes.bandReportEvidenceDeleteTemplate.replace('__EVIDENCE__', evidence.id);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': this.csrf(),
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await this.parseJsonResponse(response);
+
+                if (!response.ok || data.success === false) {
+                    this.bandEditErrors = this.normalizeErrors(data, 'No fue posible eliminar la evidencia.');
+                    this.showCrudToast(this.bandEditErrors[0] || 'No fue posible eliminar la evidencia.', 'error');
+                    return false;
+                }
+
+                this.applyBandReportEvidenceUpdate(data.event_id || this.bandEditForm.id, data.evidences || []);
+                this.showCrudToast(data.message || 'Evidencia eliminada correctamente.');
+                return true;
+            } catch (error) {
+                this.bandEditErrors = ['Ocurrió un error de red al eliminar la evidencia.'];
+                this.showCrudToast(this.bandEditErrors[0], 'error');
+                return false;
+            } finally {
+                this.loading = false;
+                this.refreshLucide();
+            }
+        },
+
+        applyBandReportEvidenceUpdate(eventId, evidences = []) {
+            const normalized = Array.isArray(evidences) ? evidences : [];
+
+            if (this.bandEditForm && String(this.bandEditForm.id) === String(eventId)) {
+                this.bandEditForm = {
+                    ...this.bandEditForm,
+                    evidences: normalized,
+                };
+            }
+
+            this.bandHistoricalTree = this.bandHistoricalTree.map(band => {
+                if (String(band.id) === String(eventId)) {
+                    return {
+                        ...band,
+                        evidences: normalized,
+                    };
+                }
+
+                return {
+                    ...band,
+                    children: Array.isArray(band.children)
+                        ? band.children.map(child => String(child.id) === String(eventId)
+                            ? { ...child, evidences: normalized }
+                            : child)
+                        : [],
+                };
+            });
+
+            if (this.selectedBandHistory?.id) {
+                const selected = this.bandHistoricalTree.find(band => String(band.id) === String(this.selectedBandHistory.id));
+                this.selectedBandHistory = selected || this.selectedBandHistory;
+            }
+
+            if (this.bandEventActiveBand && String(this.bandEventActiveBand.id) === String(eventId)) {
+                this.bandEventActiveBand = {
+                    ...this.bandEventActiveBand,
+                    evidences: normalized,
+                };
+            }
+
+            if (this.bandEventLatestReport && String(this.bandEventLatestReport.id) === String(eventId)) {
+                this.bandEventLatestReport = {
+                    ...this.bandEventLatestReport,
+                    evidences: normalized,
+                };
+            }
+        },
+
+        bandEvidenceItems(source) {
+            return Array.isArray(source?.evidences) ? source.evidences : [];
+        },
+
+        bandEvidenceCount(source) {
+            return this.bandEvidenceItems(source).length;
+        },
+
+        bandEvidenceFileLabel(evidence) {
+            return evidence?.file_type === 'video' ? 'Video' : 'Imagen';
+        },
+
+        openBandMediaViewer(items = [], index = 0) {
+            const normalized = Array.isArray(items)
+                ? items.filter(item => item && item.url)
+                : [];
+
+            if (!normalized.length) {
+                return;
+            }
+
+            this.bandMediaViewerItems = normalized;
+            this.bandMediaViewerIndex = Math.max(0, Math.min(index, normalized.length - 1));
+            this.bandMediaViewerOpen = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(() => this.refreshLucide());
+        },
+
+        openBandEventMediaViewer(event, index = 0) {
+            if (!event) {
+                return;
+            }
+
+            const items = this.bandEvidenceItems(event);
+
+            if (!items.length && event.id) {
+                const parent = this.bandHistoricalTree.find(band => String(band.id) === String(event.id));
+
+                if (parent) {
+                    this.openBandMediaViewer(this.bandEvidenceItems(parent), index);
+                    return;
+                }
+
+                for (const band of this.bandHistoricalTree) {
+                    const child = Array.isArray(band.children)
+                        ? band.children.find(item => String(item.id) === String(event.id))
+                        : null;
+
+                    if (child) {
+                        this.openBandMediaViewer(this.bandEvidenceItems(child), index);
+                        return;
+                    }
+                }
+            }
+
+            this.openBandMediaViewer(items, index);
+        },
+
+        closeBandMediaViewer() {
+            this.bandMediaViewerOpen = false;
+            this.bandMediaViewerItems = [];
+            this.bandMediaViewerIndex = 0;
+            document.body.classList.remove('overflow-hidden');
+        },
+
+        currentBandMediaItem() {
+            return this.bandMediaViewerItems[this.bandMediaViewerIndex] || null;
+        },
+
+        prevBandMedia() {
+            if (!this.bandMediaViewerItems.length) return;
+
+            this.bandMediaViewerIndex = (this.bandMediaViewerIndex - 1 + this.bandMediaViewerItems.length) % this.bandMediaViewerItems.length;
+        },
+
+        nextBandMedia() {
+            if (!this.bandMediaViewerItems.length) return;
+
+            this.bandMediaViewerIndex = (this.bandMediaViewerIndex + 1) % this.bandMediaViewerItems.length;
+        },
+
         syncBandLatestStateAfterPublish(report = null) {
             if (!report) return;
 
@@ -5652,21 +6573,33 @@ function measurementThicknessModule(config) {
                 width: item.width ?? '',
                 length: item.length ?? '',
                 roll_count: item.roll_count ?? '',
+                vulcanization_type: this.normalizedBandVulcanizationType(item),
                 report_date: item.report_date ?? null,
                 published_at: item.published_at ?? null,
                 observation: item.observation ?? '',
+                evidences: Array.isArray(item.evidences) ? item.evidences : [],
             };
         },
 
         normalizeBandEvent(item = {}) {
+            const normalizedType = this.normalizedBandVulcanizationType(item);
+
             return {
                 ...this.emptyBandDraft(item.type || 'band'),
                 ...item,
+                vulcanization_type: normalizedType,
+                evidences: Array.isArray(item.evidences) ? item.evidences : [],
                 children: Array.isArray(item.children)
-                    ? this.sortBandChildrenAsc(item.children.map(child => ({
-                        ...this.emptyBandDraft(child.type || 'band'),
-                        ...child,
-                    })))
+                    ? this.sortBandChildrenAsc(item.children.map(child => {
+                        const childNormalizedType = this.normalizedBandVulcanizationType(child);
+
+                        return {
+                            ...this.emptyBandDraft(child.type || 'band'),
+                            ...child,
+                            vulcanization_type: childNormalizedType,
+                            evidences: Array.isArray(child.evidences) ? child.evidences : [],
+                        };
+                    }))
                     : [],
             };
         },
@@ -5702,16 +6635,92 @@ function measurementThicknessModule(config) {
 
         nextBandStep() {
             if (this.bandWizardStep < this.bandWizardTotalSteps()) {
-                this.bandWizardStep += 1;
-                this.refreshLucide();
+                this.goToBandStep(this.bandWizardStep + 1);
             }
         },
 
         prevBandStep() {
             if (this.bandWizardStep > 1) {
-                this.bandWizardStep -= 1;
-                this.refreshLucide();
+                this.goToBandStep(this.bandWizardStep - 1);
             }
+        },
+
+        goToBandStep(step) {
+            const target = Number(step);
+
+            if (!target || target === this.bandWizardStep) {
+                return;
+            }
+
+            if (target < 1 || target > this.bandWizardTotalSteps()) {
+                return;
+            }
+
+            if (
+                this.bandType === 'band'
+                && this.bandWizardStep === 1
+                && target > 1
+                && !this.bandDraftHasRequiredVulcanizationType()
+            ) {
+                this.bandErrors = ['Debes seleccionar el tipo de banda antes de continuar.'];
+                this.showCrudToast(this.bandErrors[0], 'error');
+                return;
+            }
+
+            const body = this.$refs?.bandWizardBody;
+
+            if (!body) {
+                this.bandWizardStep = target;
+                this.refreshLucide();
+                return;
+            }
+
+            window.clearTimeout(this.__bandWizardHeightTimeout);
+
+            const startHeight = body.getBoundingClientRect().height;
+            body.style.height = `${startHeight}px`;
+            body.style.overflow = 'hidden';
+            body.style.transition = 'height 260ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+            this.bandWizardStep = target;
+
+            this.$nextTick(() => {
+                this.refreshLucide();
+
+                body.style.transition = 'none';
+                body.style.height = 'auto';
+
+                const targetHeight = Math.min(
+                    body.scrollHeight,
+                    this.bandWizardBodyMaxHeightForStep(target)
+                );
+
+                body.style.height = `${startHeight}px`;
+                body.offsetHeight;
+                body.style.transition = 'height 260ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+                requestAnimationFrame(() => {
+                    body.style.height = `${targetHeight}px`;
+                });
+
+                this.__bandWizardHeightTimeout = window.setTimeout(() => {
+                    body.style.height = '';
+                    body.style.overflow = '';
+                    body.style.transition = '';
+                }, 290);
+            });
+        },
+
+        bandWizardBodyMaxHeightForStep(step = this.bandWizardStep) {
+            const rootFontSize = Number.parseFloat(
+                window.getComputedStyle(document.documentElement).fontSize
+            ) || 16;
+
+            const remOffset = (step === 1 || (step === 2 && this.bandType === 'vulcanization'))
+                ? 15
+                : 13;
+
+            return Math.max(220, window.innerHeight - (rootFontSize * remOffset));
         },
 
         // ======================
@@ -6094,6 +7103,9 @@ function measurementThicknessModule(config) {
                     title: 'Resumen general',
                     items: [
                         { label: 'Tipo', value: this.bandEventTypeLabel(this.bandType) },
+                        ...(this.bandType === 'band'
+                            ? [{ label: 'Tipo de banda', value: this.bandVulcanizationTypeLabel(this.bandDraft?.vulcanization_type) }]
+                            : []),
                         { label: 'Fecha', value: this.bandDraftDateLabel() },
                         { label: 'Banda padre', value: this.bandParentLabel() },
                     ],
@@ -6108,11 +7120,13 @@ function measurementThicknessModule(config) {
                 });
             }
 
-            blocks.push({
-                key: 'vulcanization',
-                title: 'Parámetros de vulcanizado',
-                items: this.bandDraftVulcanizationSummary(),
-            });
+            if (this.bandType !== 'band' || this.bandDraftRequiresVulcanization()) {
+                blocks.push({
+                    key: 'vulcanization',
+                    title: 'Parámetros de vulcanizado',
+                    items: this.bandDraftVulcanizationSummary(),
+                });
+            }
 
             if (this.bandType === 'band' || this.bandType === 'section_change') {
                 blocks.push({
@@ -6155,11 +7169,17 @@ function measurementThicknessModule(config) {
             }
 
             if (child.type === 'section_change') {
+                const vulcanizationItems = this.bandEventShowsVulcanization(child)
+                    ? [
+                        { label: 'Temperatura', value: this.displayValue(child.temperature) },
+                        { label: 'Presión', value: this.displayValue(child.pressure) },
+                        { label: 'Tiempo', value: this.displayValue(child.time) },
+                        { label: 'Enfriamiento', value: this.displayValue(child.cooling_time) },
+                    ]
+                    : [];
+
                 return [
-                    { label: 'Temperatura', value: this.displayValue(child.temperature) },
-                    { label: 'Presión', value: this.displayValue(child.pressure) },
-                    { label: 'Tiempo', value: this.displayValue(child.time) },
-                    { label: 'Enfriamiento', value: this.displayValue(child.cooling_time) },
+                    ...vulcanizationItems,
                     { label: 'Marca tramo', value: child.section_brand || '—' },
                     { label: 'Espesor tramo', value: this.displayValue(child.section_thickness) },
                     { label: 'Lonas tramo', value: this.displayValue(child.section_plies) },
@@ -6288,6 +7308,7 @@ function measurementThicknessModule(config) {
             if (!this.selectedBandHistory) return [];
 
             return [
+                { label: 'Tipo de banda', value: this.bandVulcanizationTypeLabel(this.selectedBandHistory.vulcanization_type) },
                 { label: 'Marca', value: this.selectedBandHistory.brand || '—' },
                 { label: 'Espesor total', value: this.displayValue(this.selectedBandHistory.total_thickness) },
                 { label: 'Cubierta superior', value: this.displayValue(this.selectedBandHistory.top_cover_thickness) },
@@ -6313,7 +7334,7 @@ function measurementThicknessModule(config) {
         },
 
         selectedHistoryBandVulcanizationItems() {
-            if (!this.selectedBandHistory) return [];
+            if (!this.bandEventShowsVulcanization(this.selectedBandHistory)) return [];
 
             return [
                 { label: 'Temperatura', value: this.displayValue(this.selectedBandHistory.temperature) },
@@ -6462,6 +7483,7 @@ function measurementThicknessModule(config) {
                 ...(draft || {}),
                 type,
                 report_date: draft?.report_date || config.today,
+                evidences: Array.isArray(draft?.evidences) ? draft.evidences : [],
             };
 
             this.syncBandDraftDefaults();
@@ -6543,6 +7565,7 @@ function measurementThicknessModule(config) {
 
         async saveBandDraft() {
             this.syncBandDraftDefaults();
+            this.clearBandVulcanizationFields(this.bandDraft);
             this.loading = true;
             this.resetBandErrors();
 
@@ -6605,6 +7628,7 @@ function measurementThicknessModule(config) {
 
         async publishBandDraft() {
             this.syncBandDraftDefaults();
+            this.clearBandVulcanizationFields(this.bandDraft);
             this.loading = true;
             this.resetBandErrors();
 

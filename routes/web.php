@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
+use App\Http\Controllers\Admin\SystemModules\BandEventEvidenceController;
 use App\Http\Controllers\Admin\SystemModules\BandEventReportController;
 /*
 Route::get('/', function () {
@@ -268,6 +269,33 @@ Route::middleware('auth')->group(function () {
         Route::post('/{element}/draft/publish', [\App\Http\Controllers\Admin\SystemModules\BandEventDraftController::class, 'publish'])
             ->whereNumber('element')
             ->name('band-events.draft.publish');
+
+        Route::post('/{element}/draft/evidence', [BandEventEvidenceController::class, 'uploadDraft'])
+            ->whereNumber('element')
+            ->name('band-events.draft-evidence.upload');
+
+        Route::delete('/{element}/draft/evidence/{evidence}', [BandEventEvidenceController::class, 'destroyDraft'])
+            ->whereNumber('element')
+            ->whereNumber('evidence')
+            ->name('band-events.draft-evidence.destroy');
+
+        Route::get('/draft/evidence/{evidence}/open', [BandEventEvidenceController::class, 'openDraft'])
+            ->whereNumber('evidence')
+            ->name('band-events.draft-evidence.open');
+
+        Route::get('/evidence/{evidence}/open', [BandEventEvidenceController::class, 'open'])
+            ->whereNumber('evidence')
+            ->name('band-events.evidence.open');
+
+        Route::post('/{element}/reports/{event}/evidence', [BandEventEvidenceController::class, 'uploadReport'])
+            ->whereNumber('element')
+            ->whereNumber('event')
+            ->name('band-events.reports.evidence.upload');
+
+        Route::delete('/{element}/reports/evidence/{evidence}', [BandEventEvidenceController::class, 'destroyReport'])
+            ->whereNumber('element')
+            ->whereNumber('evidence')
+            ->name('band-events.reports.evidence.destroy');
 
         Route::put('/{element}/reports/{event}', [BandEventReportController::class, 'update'])
             ->whereNumber('element')

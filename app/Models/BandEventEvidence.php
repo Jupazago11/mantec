@@ -12,12 +12,16 @@ class BandEventEvidence extends Model
         'band_event_id',
 
         // Archivo
+        'disk',
         'file_path',
         'file_type', // image / video
         'file_name',
+        'mime_type',
+        'size_bytes',
+        'sort_order',
 
         // Control
-        'uploaded_by',
+        'created_by',
     ];
 
     /*

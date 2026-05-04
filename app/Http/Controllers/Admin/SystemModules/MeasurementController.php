@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BandStateDraft;
 use App\Models\BandStateReport;
 use App\Models\BandEvent;
+use App\Models\BandEventEvidence;
 use App\Models\ClientElementTypeModule;
 use App\Models\Element;
 use App\Models\MeasurementThicknessDraft;
@@ -332,6 +333,7 @@ class MeasurementController extends Controller
             ->get();
 
         $bandEventLatestReport = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $measurementElement->id)
             ->where('status', true)
             ->orderByDesc('report_date')
@@ -340,6 +342,7 @@ class MeasurementController extends Controller
             ->first();
 
         $bandEventActiveBand = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $measurementElement->id)
             ->where('type', 'band')
             ->where('status', true)
@@ -349,6 +352,7 @@ class MeasurementController extends Controller
             ->first();
 
         $bandEventBands = BandEvent::query()
+            ->with('evidences')
             ->where('element_id', $measurementElement->id)
             ->where('type', 'band')
             ->where('status', true)
@@ -360,6 +364,7 @@ class MeasurementController extends Controller
         $bandEventHistoricalTree = BandEvent::query()
             ->with(['children' => function ($query) {
                 $query->where('status', true)
+                    ->with('evidences')
                     ->orderBy('report_date')
                     ->orderBy('published_at')
                     ->orderBy('id');
@@ -1495,6 +1500,7 @@ class MeasurementController extends Controller
             'width' => $event->width,
             'length' => $event->length,
             'roll_count' => $event->roll_count,
+            'vulcanization_type' => $event->vulcanization_type,
 
             // VULCANIZADO
             'temperature' => $event->temperature,
@@ -1524,6 +1530,10 @@ class MeasurementController extends Controller
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
             'status' => (bool) $event->status,
+            'evidences' => $event->evidences
+                ->map(fn (BandEventEvidence $evidence) => $this->serializeBandEvidence($evidence))
+                ->values()
+                ->all(),
         ];
     }
 
@@ -1537,9 +1547,22 @@ class MeasurementController extends Controller
             'width' => $event->width,
             'length' => $event->length,
             'roll_count' => $event->roll_count,
+            'vulcanization_type' => $event->vulcanization_type,
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
             'observation' => $event->observation,
+        ];
+    }
+
+    protected function serializeBandEvidence(BandEventEvidence $evidence): array
+    {
+        return [
+            'id' => $evidence->id,
+            'file_type' => $evidence->file_type,
+            'file_name' => $evidence->file_name,
+            'mime_type' => $evidence->mime_type,
+            'size_bytes' => $evidence->size_bytes,
+            'url' => route('band-events.evidence.open', $evidence),
         ];
     }
 

@@ -23,6 +23,7 @@ class BandEvent extends Model
         'width',
         'length',
         'roll_count',
+        'vulcanization_type',
 
         // VULCANIZADO
         'temperature',
@@ -54,11 +55,13 @@ class BandEvent extends Model
         // CONTROL
         'created_by',
         'updated_by',
+        'published_at',
         'status',
     ];
 
     protected $casts = [
         'report_date' => 'date',
+        'published_at' => 'datetime',
         'status' => 'boolean',
     ];
 
@@ -89,6 +92,8 @@ class BandEvent extends Model
     // Evidencias
     public function evidences()
     {
-        return $this->hasMany(BandEventEvidence::class);
+        return $this->hasMany(BandEventEvidence::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 }

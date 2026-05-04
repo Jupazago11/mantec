@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BandEvent;
 use App\Models\BandEventDraft;
+use App\Models\BandEventDraftEvidence;
+use App\Models\BandEventEvidence;
 use App\Models\ClientElementTypeModule;
 use App\Models\Element;
 use App\Models\SystemModule;
@@ -34,9 +36,11 @@ class BandEventDraftController extends Controller
             ]
         );
 
+        $draft->load('evidences');
+
         return response()->json([
             'success' => true,
-            'draft' => $draft
+            'draft' => $this->serializeBandDraft($draft),
         ]);
     }
 
@@ -55,15 +59,18 @@ class BandEventDraftController extends Controller
             ->firstOrFail();
 
         $data = $this->validateDraftByType($request);
+        $data = $this->normalizeDraftDataForType($data, $type);
 
         $draft->update(array_merge($data, [
             'updated_by' => auth()->id()
         ]));
 
+        $draft = $draft->fresh()->load('evidences');
+
         return response()->json([
             'success' => true,
             'message' => 'Borrador guardado correctamente.',
-            'draft' => $draft->fresh()
+            'draft' => $this->serializeBandDraft($draft),
         ]);
     }
 
@@ -94,7 +101,7 @@ class BandEventDraftController extends Controller
             'updated_by' => auth()->id(),
         ]));
 
-        $draft = $draft->fresh();
+        $draft = $draft->fresh()->load('evidences');
 
         // 2. Validar contra el draft ya actualizado
         $this->validatePublishDraftData($draft, $type);
@@ -128,6 +135,7 @@ class BandEventDraftController extends Controller
             'width' => $draft->width,
             'length' => $draft->length,
             'roll_count' => $draft->roll_count,
+            'vulcanization_type' => $draft->vulcanization_type,
 
             'temperature' => $draft->temperature,
             'pressure' => $draft->pressure,
@@ -154,6 +162,21 @@ class BandEventDraftController extends Controller
             'status' => true,
         ]);
 
+        foreach ($draft->evidences as $index => $evidence) {
+            $event->evidences()->create([
+                'disk' => $evidence->disk ?: 'r2',
+                'file_path' => $evidence->file_path,
+                'file_type' => $evidence->file_type,
+                'file_name' => $evidence->file_name,
+                'mime_type' => $evidence->mime_type,
+                'size_bytes' => $evidence->size_bytes,
+                'sort_order' => $evidence->sort_order ?? $index,
+                'created_by' => $evidence->created_by ?: auth()->id(),
+            ]);
+        }
+
+        $event->load('evidences');
+
         $draft->delete();
 
         return response()->json(array_merge([
@@ -166,12 +189,14 @@ class BandEventDraftController extends Controller
     private function bandEventPayload($elementId): array
     {
         $latestReport = BandEvent::where('element_id', $elementId)
+            ->with('evidences')
             ->where('status', true)
             ->orderByDesc('report_date')
             ->orderByDesc('id')
             ->first();
 
         $activeBand = BandEvent::where('element_id', $elementId)
+            ->with('evidences')
             ->where('type', 'band')
             ->where('status', true)
             ->orderByDesc('report_date')
@@ -179,6 +204,7 @@ class BandEventDraftController extends Controller
             ->first();
 
         $bands = BandEvent::where('element_id', $elementId)
+            ->with('evidences')
             ->where('type', 'band')
             ->where('status', true)
             ->orderByDesc('report_date')
@@ -186,6 +212,7 @@ class BandEventDraftController extends Controller
             ->get();
 
         $children = BandEvent::where('element_id', $elementId)
+            ->with('evidences')
             ->whereIn('type', ['vulcanization', 'section_change'])
             ->where('status', true)
             ->orderBy('report_date')
@@ -231,6 +258,7 @@ class BandEventDraftController extends Controller
             'width' => $event->width,
             'length' => $event->length,
             'roll_count' => $event->roll_count,
+            'vulcanization_type' => $event->vulcanization_type,
 
             'temperature' => $event->temperature,
             'pressure' => $event->pressure,
@@ -254,6 +282,74 @@ class BandEventDraftController extends Controller
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
             'status' => (bool) $event->status,
+            'evidences' => $event->evidences
+                ->map(fn (BandEventEvidence $evidence) => $this->serializeBandEvidence($evidence))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function serializeBandDraft(BandEventDraft $draft): array
+    {
+        return [
+            'id' => $draft->id,
+            'element_id' => $draft->element_id,
+            'parent_id' => $draft->parent_id,
+            'type' => $draft->type,
+            'brand' => $draft->brand,
+            'total_thickness' => $draft->total_thickness,
+            'top_cover_thickness' => $draft->top_cover_thickness,
+            'bottom_cover_thickness' => $draft->bottom_cover_thickness,
+            'plies' => $draft->plies,
+            'width' => $draft->width,
+            'length' => $draft->length,
+            'roll_count' => $draft->roll_count,
+            'vulcanization_type' => $draft->vulcanization_type,
+            'temperature' => $draft->temperature,
+            'pressure' => $draft->pressure,
+            'time' => $draft->time,
+            'cooling_time' => $draft->cooling_time,
+            'motor_current' => $draft->motor_current,
+            'alignment' => $draft->alignment,
+            'material_accumulation' => $draft->material_accumulation,
+            'guard' => $draft->guard,
+            'idler_condition' => $draft->idler_condition,
+            'section_brand' => $draft->section_brand,
+            'section_thickness' => $draft->section_thickness,
+            'section_plies' => $draft->section_plies,
+            'section_length' => $draft->section_length,
+            'section_width' => $draft->section_width,
+            'same_reference' => (bool) $draft->same_reference,
+            'observation' => $draft->observation,
+            'report_date' => optional($draft->report_date)?->format('Y-m-d'),
+            'evidences' => $draft->evidences
+                ->map(fn (BandEventDraftEvidence $evidence) => $this->serializeDraftEvidence($evidence))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function serializeDraftEvidence(BandEventDraftEvidence $evidence): array
+    {
+        return [
+            'id' => $evidence->id,
+            'file_type' => $evidence->file_type,
+            'file_name' => $evidence->file_name,
+            'mime_type' => $evidence->mime_type,
+            'size_bytes' => $evidence->size_bytes,
+            'url' => route('band-events.draft-evidence.open', $evidence),
+        ];
+    }
+
+    private function serializeBandEvidence(BandEventEvidence $evidence): array
+    {
+        return [
+            'id' => $evidence->id,
+            'file_type' => $evidence->file_type,
+            'file_name' => $evidence->file_name,
+            'mime_type' => $evidence->mime_type,
+            'size_bytes' => $evidence->size_bytes,
+            'url' => route('band-events.evidence.open', $evidence),
         ];
     }
 
@@ -273,6 +369,7 @@ class BandEventDraftController extends Controller
             'width' => 'nullable|numeric|min:0',
             'length' => 'nullable|numeric|min:0',
             'roll_count' => 'nullable|integer|min:1',
+            'vulcanization_type' => 'nullable|in:mechanical,vulcanized_external,vulcanized_local',
 
             // VULCANIZADO
             'temperature' => 'nullable|numeric|min:0',
@@ -297,6 +394,23 @@ class BandEventDraftController extends Controller
             // LÓGICA
             'same_reference' => 'nullable|boolean',
         ]);
+    }
+
+    private function normalizeDraftDataForType(array $data, ?string $type): array
+    {
+        if ($type !== 'band') {
+            $data['vulcanization_type'] = null;
+            return $data;
+        }
+
+        if (($data['vulcanization_type'] ?? null) !== 'vulcanized_local') {
+            $data['temperature'] = null;
+            $data['pressure'] = null;
+            $data['time'] = null;
+            $data['cooling_time'] = null;
+        }
+
+        return $data;
     }
     // =========================
     // VALIDACIONES POR TIPO
@@ -380,6 +494,7 @@ class BandEventDraftController extends Controller
         }
 
         if ($type === 'band') {
+            if (!$draft->vulcanization_type) $errors['vulcanization_type'][] = 'Debes seleccionar el tipo de banda.';
             if (!$draft->brand) $errors['brand'][] = 'El campo marca es obligatorio.';
             if ($draft->total_thickness === null || $draft->total_thickness === '') $errors['total_thickness'][] = 'El campo espesor total es obligatorio.';
             if ($draft->top_cover_thickness === null || $draft->top_cover_thickness === '') $errors['top_cover_thickness'][] = 'El campo espesor cubierta superior es obligatorio.';
@@ -388,10 +503,12 @@ class BandEventDraftController extends Controller
             if ($draft->width === null || $draft->width === '') $errors['width'][] = 'El campo ancho es obligatorio.';
             if ($draft->length === null || $draft->length === '') $errors['length'][] = 'El campo longitud es obligatorio.';
             if ($draft->roll_count === null || $draft->roll_count === '') $errors['roll_count'][] = 'El campo cantidad de rollos es obligatorio.';
-            if ($draft->temperature === null || $draft->temperature === '') $errors['temperature'][] = 'El campo temperatura es obligatorio.';
-            if ($draft->pressure === null || $draft->pressure === '') $errors['pressure'][] = 'El campo presión es obligatorio.';
-            if ($draft->time === null || $draft->time === '') $errors['time'][] = 'El campo tiempo de vulcanizado es obligatorio.';
-            if ($draft->cooling_time === null || $draft->cooling_time === '') $errors['cooling_time'][] = 'El campo tiempo de enfriamiento es obligatorio.';
+            if ($draft->vulcanization_type === 'vulcanized_local') {
+                if ($draft->temperature === null || $draft->temperature === '') $errors['temperature'][] = 'El campo temperatura es obligatorio.';
+                if ($draft->pressure === null || $draft->pressure === '') $errors['pressure'][] = 'El campo presión es obligatorio.';
+                if ($draft->time === null || $draft->time === '') $errors['time'][] = 'El campo tiempo de vulcanizado es obligatorio.';
+                if ($draft->cooling_time === null || $draft->cooling_time === '') $errors['cooling_time'][] = 'El campo tiempo de enfriamiento es obligatorio.';
+            }
             if ($draft->motor_current === null || $draft->motor_current === '') $errors['motor_current'][] = 'El campo corriente motor es obligatorio.';
             if (!$draft->alignment) $errors['alignment'][] = 'El campo alineación es obligatorio.';
             if (!$draft->material_accumulation) $errors['material_accumulation'][] = 'El campo material acumulado es obligatorio.';

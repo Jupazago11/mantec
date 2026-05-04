@@ -23,6 +23,7 @@ class BandEventDraft extends Model
         'width',
         'length',
         'roll_count',
+        'vulcanization_type',
 
         // VULCANIZADO
         'temperature',
@@ -76,5 +77,12 @@ class BandEventDraft extends Model
     public function parent()
     {
         return $this->belongsTo(BandEvent::class, 'parent_id');
+    }
+
+    public function evidences()
+    {
+        return $this->hasMany(BandEventDraftEvidence::class, 'band_event_draft_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 }
