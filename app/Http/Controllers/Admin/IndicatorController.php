@@ -1123,7 +1123,7 @@ private function resolveSemaphoreTemplate(?int $clientId, ?int $groupId, int $el
 
 private function serializeSemaphoreTemplateColumns(SemaphoreTemplate $template): array
 {
-    return $template->columns
+    return $this->orderSemaphoreTemplateColumns($template->columns)
         ->where('status', true)
         ->values()
         ->map(fn ($column) => [
@@ -1133,6 +1133,44 @@ private function serializeSemaphoreTemplateColumns(SemaphoreTemplate $template):
             'source_column_key' => $column->source_column_key,
         ])
         ->all();
+}
+
+private function orderSemaphoreTemplateColumns(Collection $columns): Collection
+{
+    $ordered = $columns->values();
+
+    foreach ($ordered->values() as $column) {
+        if (($column->column_type ?? null) !== 'belt_change_manual') {
+            continue;
+        }
+
+        $sourceKey = trim((string) ($column->source_column_key ?? ''));
+
+        if ($sourceKey === '') {
+            continue;
+        }
+
+        $currentIndex = $ordered->search(fn ($item) => $item->id === $column->id);
+        $sourceIndex = $ordered->search(fn ($item) => $item->key === $sourceKey);
+
+        if ($currentIndex === false || $sourceIndex === false || $currentIndex < $sourceIndex) {
+            continue;
+        }
+
+        $item = $ordered->pull($currentIndex);
+        $sourceIndex = $ordered->search(fn ($entry) => $entry->key === $sourceKey);
+
+        if ($sourceIndex === false) {
+            $ordered->push($item);
+            continue;
+        }
+
+        $ordered = $ordered->splice(0, $sourceIndex)
+            ->push($item)
+            ->merge($ordered);
+    }
+
+    return $ordered->values();
 }
 
 private function legacySemaphoreColumns(): array
@@ -1166,7 +1204,7 @@ private function buildLegacySemaphoreRowCells(Collection $details, ?SemaphoreBel
 
 private function buildSemaphoreTemplateRowCells(Collection $details, ?SemaphoreBeltChange $override, SemaphoreTemplate $template): array
 {
-    $columns = $template->columns
+    $columns = $this->orderSemaphoreTemplateColumns($template->columns)
         ->where('status', true)
         ->values();
 
@@ -1292,13 +1330,16 @@ private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $c
 
     if ($critical->isEmpty()) {
         $emptyLevel = $column->empty_state_behavior === 'ok' ? 'ok' : 'neutral';
+        $selected = $evaluated->first();
 
         return [
-            'label' => 'N/A',
+            'label' => $selected['condition_name'] ?: 'N/A',
             'level' => $emptyLevel,
-            'detail' => $emptyLevel === 'ok'
-                ? 'Reglas evaluadas sin criticidad.'
-                : 'Sin criticidad relevante para las reglas evaluadas.',
+            'detail' => $selected['condition_description']
+                ?: ($selected['detail']
+                    ?: ($emptyLevel === 'ok'
+                        ? 'Reglas evaluadas sin criticidad.'
+                        : 'Sin criticidad relevante para las reglas evaluadas.')),
             'breakdown' => $breakdown->all(),
             'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
             'severity' => 0,
