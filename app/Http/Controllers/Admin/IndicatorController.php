@@ -1192,7 +1192,7 @@ private function buildLegacySemaphoreRowCells(Collection $details, ?SemaphoreBel
         'change_belt' => $this->buildSemaphoreChangeBelt($details, $override, $beltStatus),
         'belt_status' => $beltStatus,
         'safety_condition' => $this->buildSemaphoreSafetyCondition($details),
-        'discharge' => $this->buildSemaphoreComponentColumn($details, ['descarga']),
+        'discharge' => $this->buildSemaphoreComponentColumn($details, ['Tolva de alimentación']),
         'cleaner' => $this->buildSemaphoreComponentColumn($details, [
             'Limpiador primario',
             'Limpiador secundario',
@@ -1302,6 +1302,7 @@ private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $c
                 'evaluated' => true,
                 'condition_name' => $condition ? $this->conditionDisplayLabel($condition) : 'Sin condicion',
                 'condition_description' => $condition?->description ?: ($condition?->name ?: 'Evaluado sin descripcion registrada.'),
+                'color' => $this->resolveSemaphoreConditionColor($condition, $severity),
                 'severity' => $severity,
                 'detail' => $condition
                     ? ($condition->description ?: $condition->name)
@@ -1329,21 +1330,19 @@ private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $c
         ->values();
 
     if ($critical->isEmpty()) {
-        $emptyLevel = $column->empty_state_behavior === 'ok' ? 'ok' : 'neutral';
         $selected = $evaluated->first();
 
         return [
             'label' => $selected['condition_name'] ?: 'N/A',
-            'level' => $emptyLevel,
+            'level' => 'neutral',
             'detail' => $selected['condition_description']
                 ?: ($selected['detail']
-                    ?: ($emptyLevel === 'ok'
-                        ? 'Reglas evaluadas sin criticidad.'
-                        : 'Sin criticidad relevante para las reglas evaluadas.')),
+                    ?: 'Reglas evaluadas sin criticidad relevante.'),
             'breakdown' => $breakdown->all(),
             'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'color' => $selected['color'] ?? $this->indicatorColorFromSeverity(0),
             'severity' => 0,
-            'order' => $emptyLevel === 'ok' ? 40 : 900,
+            'order' => 40,
         ];
     }
 
@@ -1357,6 +1356,7 @@ private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $c
         'detail' => $selected['condition_description'] ?: $selected['detail'],
         'breakdown' => $breakdown->all(),
         'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+        'color' => $selected['color'] ?? $this->resolveSemaphoreConditionColor(null, $selected['severity']),
         'severity' => $selected['severity'],
         'order' => $this->semaphoreOrderFromConfiguredSeverity($selected['severity'], $column->severity_direction),
     ];
@@ -1538,6 +1538,7 @@ private function buildSemaphoreAggregatedStateColumn(Collection $details, array 
             'evaluated' => true,
             'condition_name' => $condition ? $this->conditionDisplayLabel($condition) : 'Sin condición',
             'condition_description' => $condition?->description ?: ($condition?->name ?: 'Evaluado sin descripción registrada.'),
+            'color' => $this->resolveSemaphoreConditionColor($condition, $severity),
             'severity' => $severity,
             'detail' => $condition
                 ? ($condition->description ?: $condition->name)
@@ -1565,12 +1566,16 @@ private function buildSemaphoreAggregatedStateColumn(Collection $details, array 
         ->values();
 
     if ($critical->isEmpty()) {
+        $selected = $evaluated->first();
+
         return [
-            'label' => $options['normal_label'] ?? 'N/A',
-            'level' => 'ok',
-            'detail' => $options['normal_detail'] ?? 'Evaluado sin criticidad.',
+            'label' => $selected['condition_name'] ?: ($options['normal_label'] ?? 'N/A'),
+            'level' => 'neutral',
+            'detail' => $selected['condition_description']
+                ?: ($selected['detail'] ?: ($options['normal_detail'] ?? 'Evaluado sin criticidad.')),
             'breakdown' => $breakdown->all(),
             'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'color' => $selected['color'] ?? $this->indicatorColorFromSeverity(0),
             'severity' => 0,
             'order' => 40,
         ];
@@ -1584,9 +1589,21 @@ private function buildSemaphoreAggregatedStateColumn(Collection $details, array 
         'detail' => $selected['condition_description'] ?: $selected['detail'],
         'breakdown' => $breakdown->all(),
         'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+        'color' => $selected['color'] ?? $this->resolveSemaphoreConditionColor(null, $selected['severity']),
         'severity' => $selected['severity'],
         'order' => $this->semaphoreOrderFromSeverity($selected['severity']),
     ];
+}
+
+private function resolveSemaphoreConditionColor($condition, ?int $severity = null): string
+{
+    $color = strtoupper(trim((string) ($condition?->color ?? '')));
+
+    if (preg_match('/^#[0-9A-F]{6}$/', $color) === 1) {
+        return $color;
+    }
+
+    return $this->indicatorColorFromSeverity($severity);
 }
 
 private function conditionDisplayLabel($condition): string

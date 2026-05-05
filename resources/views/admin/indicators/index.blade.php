@@ -1266,13 +1266,15 @@
                 title,
                 cell: value,
             }));
+            const customStyle = semaphoreBadgeInlineStyle(value);
 
             return `
                 <button
                     type="button"
                     data-cell-popover="${payload}"
                     onclick="openSemaphoreCellPopover(event, this)"
-                    class="inline-flex max-w-[160px] items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition hover:opacity-85 ${semaphoreBadgeButtonClasses(value.level)}"
+                    class="inline-flex max-w-[160px] items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition hover:opacity-85 ${customStyle ? '' : semaphoreBadgeButtonClasses(value.level)}"
+                    style="${customStyle}"
                     title="${escapeHtml(value.detail || title)}"
                 >
                     <span class="truncate">${escapeHtml(value.label || 'N/A')}</span>
@@ -1362,6 +1364,7 @@
             const value = cell || {};
             const label = value.label || 'N/A';
             const title = value.detail || label;
+            const customStyle = semaphoreBadgeInlineStyle(value);
 
             const classes = {
                 ok: 'bg-emerald-100 text-emerald-700',
@@ -1375,7 +1378,8 @@
             return `
                 <span
                     title="${escapeHtml(title)}"
-                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none ${classes[value.level] || classes.neutral}"
+                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none ${customStyle ? '' : (classes[value.level] || classes.neutral)}"
+                    style="${customStyle}"
                 >
                     ${escapeHtml(label)}
                 </span>
@@ -1417,6 +1421,62 @@
             const blue = parseInt(normalized.slice(5, 7), 16);
 
             return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+        }
+
+        function hexToRgb(hex) {
+            const normalized = normalizeHexColor(hex);
+
+            if (!normalized) {
+                return null;
+            }
+
+            return {
+                red: parseInt(normalized.slice(1, 3), 16),
+                green: parseInt(normalized.slice(3, 5), 16),
+                blue: parseInt(normalized.slice(5, 7), 16),
+            };
+        }
+
+        function relativeLuminanceChannel(channel) {
+            const normalized = channel / 255;
+
+            return normalized <= 0.03928
+                ? normalized / 12.92
+                : Math.pow((normalized + 0.055) / 1.055, 2.4);
+        }
+
+        function relativeLuminance(rgb) {
+            if (!rgb) {
+                return 1;
+            }
+
+            return (0.2126 * relativeLuminanceChannel(rgb.red))
+                + (0.7152 * relativeLuminanceChannel(rgb.green))
+                + (0.0722 * relativeLuminanceChannel(rgb.blue));
+        }
+
+        function semaphoreBadgeInlineStyle(cell) {
+            const color = normalizeHexColor(cell?.color);
+            const severity = Number(cell?.severity);
+
+            if (!color || severity !== 0) {
+                return '';
+            }
+
+            const luminance = relativeLuminance(hexToRgb(color));
+            const backgroundColor = luminance < 0.28
+                ? hexToRgba(color, 0.88)
+                : hexToRgba(color, 0.18);
+            const borderColor = luminance < 0.28
+                ? hexToRgba(color, 0.96)
+                : hexToRgba(color, 0.42);
+            const textColor = luminance < 0.28 ? '#ffffff' : '#0f172a';
+
+            return [
+                `background-color: ${backgroundColor}`,
+                `border: 1px solid ${borderColor}`,
+                `color: ${textColor}`,
+            ].join('; ');
         }
 
         async function loadIndicators() {
@@ -2269,12 +2329,14 @@
             const isChange = Boolean(cell.value || cell.label === 'SI');
             const title = `${cell.detail || (isChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.')} Clic para cambiar.`;
             const classes = semaphoreBadgeButtonClasses(cell.level);
+            const customStyle = semaphoreBadgeInlineStyle(cell);
 
             return `
                 <button
                     type="button"
                     title="${escapeHtml(title)}"
-                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition disabled:cursor-wait disabled:opacity-60 ${classes}"
+                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition disabled:cursor-wait disabled:opacity-60 ${customStyle ? '' : classes}"
+                    style="${customStyle}"
                     data-belt-change-button
                     data-element-id="${escapeHtml(row.element_id)}"
                     data-column-key="${escapeHtml(column?.key || '')}"
