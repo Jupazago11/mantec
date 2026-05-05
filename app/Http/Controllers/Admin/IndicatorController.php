@@ -8,6 +8,7 @@ use App\Models\Element;
 use App\Models\Group;
 use App\Models\ReportDetail;
 use App\Models\SemaphoreBeltChange;
+use App\Models\SemaphoreTemplate;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,7 @@ class IndicatorController extends Controller
         $groups = $this->getScopedGroups($user, $clients->pluck('id')->all());
         $elementTypeOptions = $this->buildElementTypeOptions($groups);
         $defaultScope = $this->resolveDefaultScope($user, $clients, $groups);
+        $defaultDateFrom = $this->resolveDefaultDateFrom($groups, $defaultScope);
 
         return view('admin.indicators.index', [
             'clients' => $clients,
@@ -43,7 +45,7 @@ class IndicatorController extends Controller
             'roleKey' => $roleKey,
             'isReadOnly' => in_array($roleKey, ['observador', 'observador_cliente'], true),
             'canEditSemaphore' => $this->canEditSemaphore($roleKey),
-            'defaultDateFrom' => now()->startOfYear()->toDateString(),
+            'defaultDateFrom' => $defaultDateFrom,
             'defaultDateTo' => now()->toDateString(),
             'dataRoute' => route('admin.indicators.data'),
             'semaphoreDataRoute' => route('admin.indicators.semaphore.data'),
@@ -201,9 +203,7 @@ class IndicatorController extends Controller
         $weeklyAssetCoverage = $this->buildWeeklyAssetCoverage($elements, $details, $weekPairs);
 
         $summaryByElementType = $this->buildSummaryByElementType($elements, $details);
-        $areaDistribution = $this->buildAreaDistribution($details);
-        $inspectorDistribution = $this->buildInspectorDistribution($details);
-        $attentionTrend = $this->buildAttentionTrend($details);
+        $areaDistribution = $this->buildAreaDistribution($elements, $details);
 
         $topElements = $details
             ->groupBy('element_id')
@@ -225,14 +225,19 @@ class IndicatorController extends Controller
             ->groupBy('component_id')
             ->map(function ($items) {
                 $first = $items->first();
+                $total = $items->count();
+                $attention = $this->countAttentionLike($items);
 
                 return [
                     'name' => $first?->component?->name ?: 'Sin componente',
-                    'total' => $items->count(),
-                    'attention' => $this->countAttentionLike($items),
+                    'total' => $total,
+                    'attention' => $attention,
+                    'attention_rate' => $total > 0 ? round(($attention / $total) * 100, 1) : 0,
                 ];
             })
-            ->sortByDesc('total')
+            ->sortByDesc(function ($row) {
+                return sprintf('%012.4f-%012d', $row['attention_rate'], $row['total']);
+            })
             ->take(10)
             ->values();
 
@@ -258,11 +263,17 @@ class IndicatorController extends Controller
             ->map(function ($items) {
                 $first = $items->first();
                 $condition = $first?->condition;
+                $name = $condition?->name ?: 'Sin condición';
+                $description = trim((string) ($condition?->description ?: ''));
 
                 return [
                     'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'code' => $condition?->code ?: '—',
-                    'name' => $condition?->name ?: 'Sin condición',
+                    'name' => $name,
+                    'description' => $description,
+                    'label' => $description !== ''
+                        ? $name . ' · ' . $description
+                        : $name,
                     'severity' => $condition?->severity,
                     'severity_label' => $this->severityLabel($condition?->severity),
                     'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
@@ -270,7 +281,7 @@ class IndicatorController extends Controller
                     'total' => $items->count(),
                 ];
             })
-            ->sortBy(fn ($row) => $row['order'])
+            ->sortByDesc('total')
             ->take(10)
             ->values();
 
@@ -315,8 +326,6 @@ class IndicatorController extends Controller
                 'top_diagnostics' => $topDiagnostics,
                 'top_conditions' => $topConditions,
                 'area_distribution' => $areaDistribution,
-                'inspector_distribution' => $inspectorDistribution,
-                'attention_trend' => $attentionTrend,
             ],
             'tables' => [
                 'summary_by_element_type' => $summaryByElementType,
@@ -452,10 +461,21 @@ class IndicatorController extends Controller
             ->get()
             ->keyBy('element_id');
 
+    $activeTemplate = $this->resolveSemaphoreTemplate(
+        !empty($validated['client_id']) ? (int) $validated['client_id'] : null,
+        !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
+        $elementTypeId,
+        $elements
+    );
+
+    $semaphoreColumns = $activeTemplate
+        ? $this->serializeSemaphoreTemplateColumns($activeTemplate)
+        : $this->legacySemaphoreColumns();
+
     $areas = $elements
         ->filter(fn ($element) => $element->area)
         ->groupBy(fn ($element) => $element->area->id)
-        ->map(function ($areaElements) use ($detailsByElement, $beltChangeOverrides) {
+        ->map(function ($areaElements) use ($detailsByElement, $beltChangeOverrides, $activeTemplate) {
             $area = $areaElements->first()->area;
 
             return [
@@ -464,20 +484,19 @@ class IndicatorController extends Controller
                 'elements_count' => $areaElements->count(),
                 'rows' => $areaElements
                     ->sortBy('name')
-                    ->map(function (Element $element) use ($detailsByElement, $beltChangeOverrides) {
+                    ->map(function (Element $element) use ($detailsByElement, $beltChangeOverrides, $activeTemplate) {
                         $elementDetails = $detailsByElement->get($element->id, collect());
                         $beltChangeOverride = $beltChangeOverrides->get($element->id);
+                        $cells = $activeTemplate
+                            ? $this->buildSemaphoreTemplateRowCells($elementDetails, $beltChangeOverride, $activeTemplate)
+                            : $this->buildLegacySemaphoreRowCells($elementDetails, $beltChangeOverride);
 
-                        return [
+                        return array_merge([
                             'element_id' => $element->id,
                             'element_name' => $element->name,
                             'element_code' => $element->code,
-                            'change_belt' => $this->buildSemaphoreChangeBelt($elementDetails, $beltChangeOverride),
-                            'belt_status' => $this->buildSemaphoreBeltStatus($elementDetails),
-                            'safety_condition' => $this->buildSemaphoreSafetyCondition($elementDetails),
-                            'discharge' => $this->buildSemaphoreComponentColumn($elementDetails, ['descarga']),
-                            'cleaner' => $this->buildSemaphoreComponentColumn($elementDetails, ['limpiador']),
-                        ];
+                            'cells' => $cells,
+                        ], $cells);
                     })
                     ->values(),
             ];
@@ -492,7 +511,11 @@ class IndicatorController extends Controller
             'week' => (int) $validated['week'],
             'elements_count' => $elements->count(),
             'details_count' => $details->count(),
+            'template_id' => $activeTemplate?->id,
+            'template_name' => $activeTemplate?->name ?: 'Modelo legado',
+            'template_source' => $activeTemplate ? 'template' : 'legacy',
         ],
+        'columns' => $semaphoreColumns,
         'areas' => $areas,
     ]);
 }
@@ -831,6 +854,47 @@ class IndicatorController extends Controller
             ->all();
     }
 
+    private function resolveDefaultDateFrom(Collection $groups, array $defaultScope): string
+    {
+        $currentYear = (int) now()->isoWeekYear();
+
+        $groupIds = collect();
+
+        if (!empty($defaultScope['group_id'])) {
+            $groupIds->push((int) $defaultScope['group_id']);
+        }
+
+        $groupIds = $groupIds
+            ->merge($groups->pluck('id')->map(fn ($id) => (int) $id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($groupIds as $groupId) {
+            $elementIds = $this->elementIdsForGroups([(int) $groupId]);
+
+            if (empty($elementIds)) {
+                continue;
+            }
+
+            $firstReport = ReportDetail::query()
+                ->where('status', true)
+                ->whereIn('element_id', $elementIds)
+                ->where('year', $currentYear)
+                ->orderBy('week')
+                ->first(['year', 'week']);
+
+            if ($firstReport) {
+                return Carbon::now()
+                    ->setISODate((int) $firstReport->year, (int) $firstReport->week)
+                    ->startOfWeek()
+                    ->toDateString();
+            }
+        }
+
+        return now()->startOfYear()->toDateString();
+    }
+
     private function countPreventiveReports(Collection $details): int
     {
         return $details
@@ -967,64 +1031,306 @@ class IndicatorController extends Controller
             ->values();
     }
 
-    private function buildAreaDistribution(Collection $details): Collection
+    private function buildAreaDistribution(Collection $elements, Collection $details): Collection
     {
-        return $details
-            ->groupBy(fn ($detail) => $detail->element?->area_id ?: 'none')
-            ->map(function ($items) {
-                $first = $items->first();
+        $detailsByArea = $details->groupBy(fn ($detail) => $detail->element?->area_id ?: 'none');
 
-                return [
-                    'label' => $first?->element?->area?->name ?: 'Sin área',
-                    'total' => $items->count(),
-                    'attention' => $this->countAttentionLike($items),
-                    'inspected' => $items->pluck('element_id')->unique()->count(),
-                ];
-            })
-            ->sortByDesc('total')
-            ->take(10)
-            ->values();
-    }
-
-    private function buildInspectorDistribution(Collection $details): Collection
-    {
-        return $details
-            ->groupBy(fn ($detail) => $detail->user_id ?: 'none')
-            ->map(function ($items) {
-                $first = $items->first();
-
-                return [
-                    'label' => $first?->user?->name ?: 'Sin inspector',
-                    'total' => $this->countPreventiveReports($items),
-                    'findings' => $items->count(),
-                    'attention' => $this->countAttentionLike($items),
-                ];
-            })
-            ->sortByDesc('findings')
-            ->take(10)
-            ->values();
-    }
-
-    private function buildAttentionTrend(Collection $details): Collection
-    {
-        return $details
-            ->groupBy(fn ($detail) => "{$detail->year}-" . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT))
-            ->map(function ($items, $key) {
+        return $elements
+            ->groupBy(fn ($element) => $element->area_id ?: 'none')
+            ->map(function ($areaElements, $areaId) use ($detailsByArea) {
+                $firstElement = $areaElements->first();
+                $items = $detailsByArea->get($areaId, collect());
+                $total = $items->count();
                 $attention = $this->countAttentionLike($items);
 
                 return [
-                    'label' => 'S' . substr($key, -2) . ' / ' . substr($key, 0, 4),
+                    'label' => $firstElement?->area?->name ?: 'Sin área',
+                    'total' => $total,
                     'attention' => $attention,
-                    'normal' => max($items->count() - $attention, 0),
+                    'inspected' => $items->pluck('element_id')->unique()->count(),
+                    'elements' => $areaElements->count(),
+                    'attention_rate' => $total > 0 ? round(($attention / $total) * 100, 1) : 0,
                 ];
             })
-            ->sortBy('label')
+            ->sortByDesc(function ($row) {
+                return sprintf('%012.4f-%012d', $row['attention_rate'], $row['total']);
+            })
             ->values();
     }
 
-    private function buildSemaphoreChangeBelt(Collection $details, ?SemaphoreBeltChange $override = null): array
+private function resolveSemaphoreTemplate(?int $clientId, ?int $groupId, int $elementTypeId, Collection $elements): ?SemaphoreTemplate
 {
-    $latestInspectorBeltChange = $details
+    $resolvedClientId = $clientId;
+
+    if (!$resolvedClientId) {
+        $clientIds = $elements
+            ->pluck('area.client_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($clientIds->count() !== 1) {
+            return null;
+        }
+
+        $resolvedClientId = (int) $clientIds->first();
+    }
+
+    $candidateGroupIds = collect();
+
+    if ($groupId) {
+        $candidateGroupIds->push((int) $groupId);
+    } else {
+        $uniqueGroupIds = $elements
+            ->pluck('group_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($uniqueGroupIds->count() === 1) {
+            $candidateGroupIds->push((int) $uniqueGroupIds->first());
+        }
+    }
+
+    $candidateGroupIds->push(null);
+
+    foreach ($candidateGroupIds->uniqueStrict() as $candidateGroupId) {
+        $template = SemaphoreTemplate::query()
+            ->with([
+                'columns' => fn ($query) => $query
+                    ->where('status', true)
+                    ->with(['rules.component:id,code,name', 'rules.diagnostic:id,name']),
+            ])
+            ->where('status', true)
+            ->where('client_id', $resolvedClientId)
+            ->where('element_type_id', $elementTypeId)
+            ->when(
+                $candidateGroupId !== null,
+                fn ($query) => $query->where('group_id', $candidateGroupId),
+                fn ($query) => $query->whereNull('group_id')
+            )
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+
+        if ($template) {
+            return $template;
+        }
+    }
+
+    return null;
+}
+
+private function serializeSemaphoreTemplateColumns(SemaphoreTemplate $template): array
+{
+    return $template->columns
+        ->where('status', true)
+        ->values()
+        ->map(fn ($column) => [
+            'key' => $column->key,
+            'label' => $column->label,
+            'type' => $column->column_type,
+            'source_column_key' => $column->source_column_key,
+        ])
+        ->all();
+}
+
+private function legacySemaphoreColumns(): array
+{
+    return [
+        ['key' => 'change_belt', 'label' => 'Cambio banda', 'type' => 'belt_change_manual', 'source_column_key' => 'belt_status'],
+        ['key' => 'belt_status', 'label' => 'Estado banda', 'type' => 'condition_aggregate', 'source_column_key' => null],
+        ['key' => 'safety_condition', 'label' => 'Seguridad', 'type' => 'condition_aggregate', 'source_column_key' => null],
+        ['key' => 'discharge', 'label' => 'Descarga', 'type' => 'condition_aggregate', 'source_column_key' => null],
+        ['key' => 'cleaner', 'label' => 'Limpiador', 'type' => 'condition_aggregate', 'source_column_key' => null],
+    ];
+}
+
+private function buildLegacySemaphoreRowCells(Collection $details, ?SemaphoreBeltChange $override = null): array
+{
+    $beltStatus = $this->buildSemaphoreBeltStatus($details);
+
+    return [
+        'change_belt' => $this->buildSemaphoreChangeBelt($details, $override, $beltStatus),
+        'belt_status' => $beltStatus,
+        'safety_condition' => $this->buildSemaphoreSafetyCondition($details),
+        'discharge' => $this->buildSemaphoreComponentColumn($details, ['descarga']),
+        'cleaner' => $this->buildSemaphoreComponentColumn($details, [
+            'Limpiador primario',
+            'Limpiador secundario',
+            'Limpiador transversal',
+            'Limpiador en V',
+        ]),
+    ];
+}
+
+private function buildSemaphoreTemplateRowCells(Collection $details, ?SemaphoreBeltChange $override, SemaphoreTemplate $template): array
+{
+    $columns = $template->columns
+        ->where('status', true)
+        ->values();
+
+    $columnsByKey = $columns->keyBy('key');
+    $resolved = [];
+    $building = [];
+
+    $resolveColumn = function (string $key) use (&$resolveColumn, &$resolved, &$building, $columnsByKey, $details, $override) {
+        if (array_key_exists($key, $resolved)) {
+            return $resolved[$key];
+        }
+
+        if (isset($building[$key])) {
+            return [
+                'label' => 'N/A',
+                'level' => 'neutral',
+                'detail' => 'La columna depende de otra columna en un ciclo no permitido.',
+                'severity' => null,
+                'order' => 900,
+            ];
+        }
+
+        $column = $columnsByKey->get($key);
+
+        if (!$column) {
+            return [
+                'label' => 'N/A',
+                'level' => 'neutral',
+                'detail' => 'La columna configurada ya no existe en la plantilla activa.',
+                'severity' => null,
+                'order' => 900,
+            ];
+        }
+
+        $building[$key] = true;
+
+        if ($column->column_type === 'belt_change_manual') {
+            $sourceCell = $column->source_column_key
+                ? $resolveColumn($column->source_column_key)
+                : $this->buildSemaphoreBeltStatus($details);
+
+            $resolved[$key] = $this->buildSemaphoreChangeBelt($details, $override, $sourceCell);
+        } else {
+            $resolved[$key] = $this->buildSemaphoreConfiguredAggregateColumn($details, $column);
+        }
+
+        unset($building[$key]);
+
+        return $resolved[$key];
+    };
+
+    foreach ($columns as $column) {
+        $resolved[$column->key] = $resolveColumn($column->key);
+    }
+
+    return $resolved;
+}
+
+private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $column): array
+{
+    $breakdown = $column->rules
+        ->map(function ($rule) use ($details) {
+            $componentLabel = trim((string) ($rule->component?->name ?? 'Componente sin configurar'));
+            $diagnosticLabel = trim((string) ($rule->diagnostic?->name ?? 'Diagnostico sin configurar'));
+            $ruleLabel = $diagnosticLabel !== ''
+                ? "{$componentLabel} · {$diagnosticLabel}"
+                : $componentLabel;
+
+            $detail = $details
+                ->filter(function ($detail) use ($rule) {
+                    return (int) ($detail->component_id ?? 0) === (int) ($rule->component_id ?? 0)
+                        && (int) ($detail->diagnostic_id ?? 0) === (int) ($rule->diagnostic_id ?? 0);
+                })
+                ->sortByDesc(fn ($detail) => optional($detail->updated_at ?? $detail->created_at)->timestamp ?? 0)
+                ->first();
+
+            if (!$detail) {
+                return [
+                    'component' => $ruleLabel,
+                    'evaluated' => false,
+                    'condition_name' => null,
+                    'condition_description' => null,
+                    'severity' => null,
+                    'detail' => 'No evaluado en la semana seleccionada.',
+                ];
+            }
+
+            $condition = $detail->condition;
+            $severity = $condition && is_numeric($condition->severity)
+                ? (int) $condition->severity
+                : 0;
+
+            return [
+                'component' => $ruleLabel,
+                'evaluated' => true,
+                'condition_name' => $condition ? $this->conditionDisplayLabel($condition) : 'Sin condicion',
+                'condition_description' => $condition?->description ?: ($condition?->name ?: 'Evaluado sin descripcion registrada.'),
+                'severity' => $severity,
+                'detail' => $condition
+                    ? ($condition->description ?: $condition->name)
+                    : 'Evaluado sin condicion asociada.',
+            ];
+        })
+        ->values();
+
+    $evaluated = $breakdown->where('evaluated', true)->values();
+
+    if ($evaluated->isEmpty()) {
+        return [
+            'label' => 'N/A',
+            'level' => 'neutral',
+            'detail' => 'Sin evaluacion registrada para las reglas configuradas.',
+            'breakdown' => $breakdown->all(),
+            'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'severity' => null,
+            'order' => 900,
+        ];
+    }
+
+    $critical = $evaluated
+        ->filter(fn ($item) => (int) ($item['severity'] ?? 0) > 0)
+        ->values();
+
+    if ($critical->isEmpty()) {
+        $emptyLevel = $column->empty_state_behavior === 'ok' ? 'ok' : 'neutral';
+
+        return [
+            'label' => 'N/A',
+            'level' => $emptyLevel,
+            'detail' => $emptyLevel === 'ok'
+                ? 'Reglas evaluadas sin criticidad.'
+                : 'Sin criticidad relevante para las reglas evaluadas.',
+            'breakdown' => $breakdown->all(),
+            'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'severity' => 0,
+            'order' => $emptyLevel === 'ok' ? 40 : 900,
+        ];
+    }
+
+    $selected = $column->severity_direction === 'desc'
+        ? $critical->sortByDesc('severity')->first()
+        : $critical->sortBy('severity')->first();
+
+    return [
+        'label' => $selected['condition_name'] ?: 'N/A',
+        'level' => $this->semaphoreLevelFromConfiguredSeverity($selected['severity'], $column->severity_direction),
+        'detail' => $selected['condition_description'] ?: $selected['detail'],
+        'breakdown' => $breakdown->all(),
+        'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+        'severity' => $selected['severity'],
+        'order' => $this->semaphoreOrderFromConfiguredSeverity($selected['severity'], $column->severity_direction),
+    ];
+}
+
+private function buildSemaphoreChangeBelt(Collection $details, ?SemaphoreBeltChange $override = null, ?array $beltStatus = null): array
+{
+    $beltEstadoDetails = $details
+        ->filter(function ($detail) {
+            return $this->normalizeSemaphoreText($detail->component?->name) === 'banda'
+                && $this->normalizeSemaphoreText($detail->diagnostic?->name) === 'estado';
+        })
+        ->values();
+
+    $latestInspectorBeltChange = $beltEstadoDetails
         ->filter(fn ($detail) => $detail->is_belt_change !== null)
         ->sortByDesc(fn ($detail) => optional($detail->updated_at ?? $detail->created_at)->timestamp ?? 0)
         ->first();
@@ -1034,135 +1340,211 @@ class IndicatorController extends Controller
         && optional($latestInspectorBeltChange->updated_at ?? $latestInspectorBeltChange->created_at)->gt($override->updated_at);
 
     $hasOverride = $override !== null && !$hasFreshInspectorReport;
-    $hasChange = $hasOverride
-        ? (bool) $override->is_belt_change
-        : ($latestInspectorBeltChange !== null
-            ? (bool) $latestInspectorBeltChange->is_belt_change
-            : $details->contains(fn ($detail) => (bool) $detail->is_belt_change));
+
+    if ($hasOverride) {
+        $hasChange = (bool) $override->is_belt_change;
+        $visual = $this->resolveSemaphoreBeltChangeVisual($hasChange, $beltStatus);
+
+        return [
+            'label' => $hasChange ? 'SI' : 'NO',
+            'level' => $visual['level'],
+            'detail' => 'Valor ajustado manualmente para el componente Banda con diagnóstico Estado.',
+            'value' => $hasChange,
+            'has_override' => true,
+            'color' => $visual['color'],
+            'order' => $visual['order'],
+        ];
+    }
+
+    if ($latestInspectorBeltChange === null) {
+        return [
+            'label' => 'N/A',
+            'level' => 'neutral',
+            'detail' => 'Sin registro del componente Banda con diagnóstico Estado.',
+            'value' => null,
+            'has_override' => false,
+            'color' => '#94a3b8',
+            'order' => 30,
+        ];
+    }
+
+    $hasChange = (bool) $latestInspectorBeltChange->is_belt_change;
+    $visual = $this->resolveSemaphoreBeltChangeVisual($hasChange, $beltStatus);
 
     return [
         'label' => $hasChange ? 'SI' : 'NO',
-        'level' => $hasChange ? 'warning' : 'neutral',
-        'detail' => $hasFreshInspectorReport
-            ? 'Valor tomado de un reporte preventivo posterior al ajuste manual.'
-            : ($hasOverride
-                ? 'Valor ajustado desde el semÃ¡foro.'
-                : ($hasChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.')),
+        'level' => $visual['level'],
+        'detail' => 'Valor tomado del componente Banda con diagnóstico Estado.',
         'value' => $hasChange,
-        'has_override' => $hasOverride,
-        'color' => $hasChange ? '#fb923c' : '#38bdf8',
-        'order' => $hasChange ? 10 : 20,
+        'has_override' => false,
+        'color' => $visual['color'],
+        'order' => $visual['order'],
+    ];
+}
+
+private function resolveSemaphoreBeltChangeVisual(bool $hasChange, ?array $beltStatus = null): array
+{
+    if (!$hasChange) {
+        return [
+            'level' => 'neutral',
+            'color' => '#e2e8f0',
+            'order' => 20,
+        ];
+    }
+
+    $beltLevel = $beltStatus['level'] ?? null;
+
+    if ($beltLevel === 'high') {
+        return [
+            'level' => 'high',
+            'color' => '#fca5a5',
+            'order' => 10,
+        ];
+    }
+
+    if ($beltLevel === 'medium') {
+        return [
+            'level' => 'medium',
+            'color' => '#fde68a',
+            'order' => 15,
+        ];
+    }
+
+    return [
+        'level' => 'warning',
+        'color' => '#fdba74',
+        'order' => 18,
     ];
 }
 
 private function buildSemaphoreBeltStatus(Collection $details): array
 {
-    $condition = $details
-        ->pluck('condition')
-        ->filter()
-        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
-        ->first();
-
-    if (!$condition) {
-        return [
-            'label' => 'N/A',
-            'level' => 'neutral',
-            'detail' => 'Sin condición registrada.',
-        ];
-    }
-
-    return [
-        'label' => $this->conditionDisplayLabel($condition),
-        'level' => $this->semaphoreLevelFromSeverity($condition->severity),
-        'detail' => $condition->description ?: $condition->name,
-        'color' => $condition->color,
-        'severity' => $condition->severity,
-        'order' => $this->semaphoreOrderFromSeverity($condition->severity),
-    ];
+    return $this->buildSemaphoreAggregatedStateColumn(
+        $details,
+        ['Banda'],
+        [
+            'missing_detail' => 'Sin evaluación del componente Banda con diagnóstico Estado.',
+            'normal_label' => 'N/A',
+            'normal_detail' => 'Banda evaluada sin criticidad.',
+            'include_breakdown' => false,
+        ]
+    );
 }
 
 private function buildSemaphoreSafetyCondition(Collection $details): array
 {
-    $safetyDetails = $details->filter(function ($detail) {
-        $code = $this->normalizeSemaphoreText($detail->condition?->code);
-        $name = $this->normalizeSemaphoreText($detail->condition?->name);
-
-        return str_starts_with($code, 'seg')
-            || str_contains($code, 'seg')
-            || str_starts_with($name, 'seg')
-            || str_contains($name, 'seguridad');
-    });
-
-    if ($safetyDetails->isEmpty()) {
-        return [
-            'label' => 'N/A',
-            'level' => 'neutral',
-            'detail' => 'Sin condición de seguridad registrada.',
-        ];
-    }
-
-    $condition = $safetyDetails
-        ->pluck('condition')
-        ->filter()
-        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
-        ->first();
-
-    return [
-        'label' => $this->conditionDisplayLabel($condition),
-        'level' => $this->semaphoreLevelFromSeverity($condition?->severity),
-        'detail' => $condition?->description ?: $condition?->name,
-        'color' => $condition?->color,
-        'severity' => $condition?->severity,
-        'order' => $this->semaphoreOrderFromSeverity($condition?->severity),
-    ];
+    return $this->buildSemaphoreAggregatedStateColumn(
+        $details,
+        ['Guardas de seguridad', 'Cubiertas', 'Plataforma y estructura'],
+        [
+            'missing_detail' => 'Sin evaluación de componentes de seguridad con diagnóstico Estado.',
+            'normal_label' => 'N/A',
+            'normal_detail' => 'Componentes de seguridad evaluados sin criticidad.',
+            'include_breakdown' => true,
+        ]
+    );
 }
 
 private function buildSemaphoreComponentColumn(Collection $details, array $needles): array
 {
-    $matchedDetails = $details->filter(function ($detail) use ($needles) {
-        $componentName = $this->normalizeSemaphoreText($detail->component?->name);
-        $componentCode = $this->normalizeSemaphoreText($detail->component?->code);
+    return $this->buildSemaphoreAggregatedStateColumn(
+        $details,
+        $needles,
+        [
+            'missing_detail' => 'Sin evaluación de componentes asociados con diagnóstico Estado.',
+            'normal_label' => 'N/A',
+            'normal_detail' => 'Componentes evaluados sin criticidad.',
+        ]
+    );
+}
 
-        foreach ($needles as $needle) {
-            $needle = $this->normalizeSemaphoreText($needle);
+private function buildSemaphoreAggregatedStateColumn(Collection $details, array $componentNames, array $options = []): array
+{
+    $normalizedTargets = collect($componentNames)
+        ->map(fn ($name) => $this->normalizeSemaphoreText($name))
+        ->filter()
+        ->values();
 
-            if (str_contains($componentName, $needle) || str_contains($componentCode, $needle)) {
-                return true;
-            }
+    $breakdown = $normalizedTargets->map(function ($normalizedName, $index) use ($details, $componentNames) {
+        $componentLabel = $componentNames[$index] ?? $normalizedName;
+
+        $detail = $details
+            ->filter(function ($detail) use ($normalizedName) {
+                return $this->normalizeSemaphoreText($detail->component?->name) === $normalizedName
+                    && $this->normalizeSemaphoreText($detail->diagnostic?->name) === 'estado';
+            })
+            ->sortByDesc(fn ($detail) => optional($detail->updated_at ?? $detail->created_at)->timestamp ?? 0)
+            ->first();
+
+        if (!$detail) {
+            return [
+                'component' => $componentLabel,
+                'evaluated' => false,
+                'condition_name' => null,
+                'condition_description' => null,
+                'severity' => null,
+                'detail' => 'No evaluado en la semana seleccionada.',
+            ];
         }
 
-        return false;
-    });
+        $condition = $detail->condition;
+        $severity = $condition && is_numeric($condition->severity)
+            ? (int) $condition->severity
+            : 0;
 
-    if ($matchedDetails->isEmpty()) {
+        return [
+            'component' => $componentLabel,
+            'evaluated' => true,
+            'condition_name' => $condition ? $this->conditionDisplayLabel($condition) : 'Sin condición',
+            'condition_description' => $condition?->description ?: ($condition?->name ?: 'Evaluado sin descripción registrada.'),
+            'severity' => $severity,
+            'detail' => $condition
+                ? ($condition->description ?: $condition->name)
+                : 'Evaluado sin condición asociada.',
+        ];
+    })->values();
+
+    $evaluated = $breakdown->where('evaluated', true)->values();
+
+    if ($evaluated->isEmpty()) {
         return [
             'label' => 'N/A',
             'level' => 'neutral',
-            'detail' => 'Sin registro para esta columna.',
+            'detail' => $options['missing_detail'] ?? 'Sin evaluación registrada.',
+            'breakdown' => $breakdown->all(),
+            'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'severity' => null,
+            'order' => 30,
         ];
     }
 
-    $condition = $matchedDetails
-        ->pluck('condition')
-        ->filter()
-        ->sortBy(fn ($condition) => $this->semaphoreOrderFromSeverity($condition->severity ?? null))
-        ->first();
+    $critical = $evaluated
+        ->filter(fn ($item) => (int) ($item['severity'] ?? 0) > 0)
+        ->sortBy('severity')
+        ->values();
 
-    if (!$condition) {
+    if ($critical->isEmpty()) {
         return [
-            'label' => 'OK',
+            'label' => $options['normal_label'] ?? 'N/A',
             'level' => 'ok',
-            'detail' => 'Registrado sin condición asociada.',
+            'detail' => $options['normal_detail'] ?? 'Evaluado sin criticidad.',
+            'breakdown' => $breakdown->all(),
+            'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+            'severity' => 0,
+            'order' => 40,
         ];
     }
+
+    $selected = $critical->first();
 
     return [
-        'label' => $this->conditionDisplayLabel($condition),
-        'level' => $this->semaphoreLevelFromSeverity($condition->severity),
-        'detail' => $condition->description ?: $condition->name,
-        'color' => $condition->color,
-        'severity' => $condition->severity,
-        'order' => $this->semaphoreOrderFromSeverity($condition->severity),
+        'label' => $selected['condition_name'] ?: 'N/A',
+        'level' => $this->semaphoreLevelFromSeverity($selected['severity']),
+        'detail' => $selected['condition_description'] ?: $selected['detail'],
+        'breakdown' => $breakdown->all(),
+        'missing_components' => $breakdown->where('evaluated', false)->pluck('component')->values()->all(),
+        'severity' => $selected['severity'],
+        'order' => $this->semaphoreOrderFromSeverity($selected['severity']),
     ];
 }
 
@@ -1201,6 +1583,25 @@ private function semaphoreLevelFromSeverity($severity): string
     };
 }
 
+private function semaphoreLevelFromConfiguredSeverity($severity, ?string $direction): string
+{
+    if ($direction === 'desc') {
+        if ($severity === null) {
+            return 'neutral';
+        }
+
+        return match ((int) $severity) {
+            0 => 'ok',
+            3 => 'high',
+            2 => 'medium',
+            1 => 'low',
+            default => 'neutral',
+        };
+    }
+
+    return $this->semaphoreLevelFromSeverity($severity);
+}
+
     private function semaphoreOrderFromSeverity($severity): int
 {
     if ($severity === null) {
@@ -1214,6 +1615,25 @@ private function semaphoreLevelFromSeverity($severity): string
         0 => 40,
         default => 100 + (int) $severity,
     };
+}
+
+private function semaphoreOrderFromConfiguredSeverity($severity, ?string $direction): int
+{
+    if ($direction === 'desc') {
+        if ($severity === null) {
+            return 900;
+        }
+
+        return match ((int) $severity) {
+            3 => 10,
+            2 => 20,
+            1 => 30,
+            0 => 40,
+            default => 100 + max(0, 99 - (int) $severity),
+        };
+    }
+
+    return $this->semaphoreOrderFromSeverity($severity);
 }
 
 private function indicatorColorFromSeverity($severity): string

@@ -700,6 +700,12 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 ->withInput();
         }
 
+        $isDetenidoCondition = $this->isDetenidoCondition($condition);
+        $isOkCondition = $this->isOkCondition($condition);
+        $lastNonDetenidoReport = $isDetenidoCondition
+            ? $this->findLatestNonDetenidoReport($element->id, $component->id, $diagnostic->id)
+            : null;
+
         $now = Carbon::now();
         $currentWeek = (int) $now->isoWeek();
         $currentYear = (int) $now->isoWeekYear();
@@ -713,6 +719,12 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
 
         if ($existingReport) {
             $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
+            $previousMatchingReport = $this->findPreviousMatchingReport(
+                $element->id,
+                $component->id,
+                $diagnostic->id,
+                $existingReport->id
+            );
 
             $updateData = [
                 'condition_id' => $validated['condition_id'],
@@ -722,12 +734,22 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 $updateData['is_belt_change'] = $isBeltChangeValue;
             }
 
-            if ($newRecommendation !== '') {
+            if ($isDetenidoCondition && $lastNonDetenidoReport) {
+                $updateData['recommendation'] = $lastNonDetenidoReport->recommendation;
+            } elseif ($newRecommendation !== '') {
                 $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
 
                 $updateData['recommendation'] = $currentRecommendation !== ''
                     ? $currentRecommendation . PHP_EOL . $newRecommendation
                     : $newRecommendation;
+            }
+
+            if ($isOkCondition) {
+                $updateData['orden'] = null;
+                $updateData['aviso'] = null;
+            } else {
+                $updateData['orden'] = $previousMatchingReport?->orden;
+                $updateData['aviso'] = $previousMatchingReport?->aviso;
             }
 
             $existingReport->update($updateData);
@@ -744,6 +766,12 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 ->with('success', 'El reporte existente fue complementado correctamente.');
         }
 
+        $previousMatchingReport = $this->findPreviousMatchingReport(
+            $element->id,
+            $component->id,
+            $diagnostic->id
+        );
+
         $reportDetail = ReportDetail::create([
             'report_id' => null,
             'user_id' => $user->id,
@@ -754,10 +782,12 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             'week' => $currentWeek,
             'condition_id' => $validated['condition_id'],
             'observation' => null,
-            'recommendation' => $validated['recommendation'] ?? null,
+            'recommendation' => $isDetenidoCondition && $lastNonDetenidoReport
+                ? $lastNonDetenidoReport->recommendation
+                : ($validated['recommendation'] ?? null),
+            'orden' => $isOkCondition ? null : $previousMatchingReport?->orden,
+            'aviso' => $isOkCondition ? null : $previousMatchingReport?->aviso,
             'is_belt_change' => $isBeltChangeValue,
-            'orden' => null,
-            'aviso' => null,
             'execution_status_id' => null,
             'execution_date' => now()->toDateString(),
         ]);
@@ -829,6 +859,47 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             'inspector_last_area_id' => $areaId,
             'inspector_last_element_id' => $elementId,
         ]);
+    }
+
+    private function isDetenidoCondition(Condition $condition): bool
+    {
+        return mb_strtolower(trim((string) $condition->code)) === 'detenido';
+    }
+
+    private function isOkCondition(Condition $condition): bool
+    {
+        return mb_strtolower(trim((string) $condition->code)) === 'ok';
+    }
+
+    private function findLatestNonDetenidoReport(int $elementId, int $componentId, int $diagnosticId): ?ReportDetail
+    {
+        return ReportDetail::query()
+            ->where('element_id', $elementId)
+            ->where('component_id', $componentId)
+            ->where('diagnostic_id', $diagnosticId)
+            ->whereHas('condition', function ($query) {
+                $query->whereRaw('LOWER(TRIM(code)) <> ?', ['detenido']);
+            })
+            ->latest('created_at')
+            ->first();
+    }
+
+    private function findPreviousMatchingReport(
+        int $elementId,
+        int $componentId,
+        int $diagnosticId,
+        ?int $excludeReportId = null
+    ): ?ReportDetail
+    {
+        return ReportDetail::query()
+            ->where('element_id', $elementId)
+            ->where('component_id', $componentId)
+            ->where('diagnostic_id', $diagnosticId)
+            ->when($excludeReportId !== null, function ($query) use ($excludeReportId) {
+                $query->where('id', '<>', $excludeReportId);
+            })
+            ->latest('created_at')
+            ->first();
     }
 
     private function userHasClientAccess($user, int $clientId): bool

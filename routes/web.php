@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\AdminElementController;
 use App\Http\Controllers\Admin\AdminPreventiveReportController;
 use App\Http\Controllers\Admin\AdminReportEvidenceController;
 use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
+use App\Http\Controllers\Admin\AdminSemaphoreTemplateController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
@@ -181,6 +182,14 @@ Route::middleware('auth')->group(function () {
         Route::delete('/managed-groups/{group}', [AdminManagedGroupController::class, 'destroy'])->name('managed-groups.destroy');
         Route::post('/managed-groups/{group}/elements', [AdminManagedGroupController::class, 'syncElements'])->name('managed-groups.elements.sync');
         Route::patch('/managed-groups/{group}/toggle-sync', [AdminManagedGroupController::class, 'toggleSync'])->name('managed-groups.toggle-sync');
+
+        // Plantillas de semáforo
+        Route::get('/semaphore-templates', [AdminSemaphoreTemplateController::class, 'index'])->name('semaphore-templates.index');
+        Route::post('/semaphore-templates', [AdminSemaphoreTemplateController::class, 'store'])->name('semaphore-templates.store');
+        Route::get('/semaphore-templates/{semaphoreTemplate}', [AdminSemaphoreTemplateController::class, 'edit'])->name('semaphore-templates.edit');
+        Route::put('/semaphore-templates/{semaphoreTemplate}', [AdminSemaphoreTemplateController::class, 'update'])->name('semaphore-templates.update');
+        Route::delete('/semaphore-templates/{semaphoreTemplate}', [AdminSemaphoreTemplateController::class, 'destroy'])->name('semaphore-templates.destroy');
+        Route::patch('/semaphore-templates/{semaphoreTemplate}/toggle-status', [AdminSemaphoreTemplateController::class, 'toggleStatus'])->name('semaphore-templates.toggle-status');
 
         // AJAX compartido
         Route::get('/clients/{client}/areas', [AdminElementController::class, 'getAreasByClient'])->name('clients.areas');

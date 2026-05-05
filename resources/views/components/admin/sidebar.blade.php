@@ -21,6 +21,11 @@
     $componentDiagnosticsActive = $isRoute('admin.managed-component-diagnostics.*');
     $conditionsActive = $isRoute('admin.managed-conditions.*');
     $inspectorReportsActive = $isRoute('inspector.reports.*');
+    $technicalConfigActive = $elementTypesActive
+        || $componentsActive
+        || $diagnosticsActive
+        || $componentDiagnosticsActive
+        || $conditionsActive;
 
     $modulesConfigActive = $isRoute('admin.client-element-type-modules.*');
     $measurementsModuleActive = $isRoute('admin.system-modules.measurements.*');
@@ -190,35 +195,68 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
                         </a>
                     </div>
 
-                    <div class="mt-4 space-y-1">
-                        <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Configuración técnica
-                        </p>
+                    <div
+                        class="mt-4 space-y-1"
+                        x-data="{
+                            open: @js($technicalConfigActive),
+                            init() {
+                                const stored = localStorage.getItem('admin_sidebar_technical_config_open');
+                                this.open = stored === null ? this.open : stored === '1';
+                            },
+                            toggle() {
+                                this.open = !this.open;
+                                localStorage.setItem('admin_sidebar_technical_config_open', this.open ? '1' : '0');
+                            }
+                        }"
+                    >
+                        <button
+                            type="button"
+                            @click="toggle()"
+                            class="flex w-full items-center justify-between rounded-xl px-3 pt-2 pb-1 text-left text-xs font-semibold uppercase tracking-wider transition {{ $technicalConfigActive ? 'text-[#d55b20]' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600' }}"
+                        >
+                            <span>Configuración técnica</span>
+                            <i
+                                data-lucide="chevron-down"
+                                class="h-4 w-4 transition"
+                                :class="open ? 'rotate-180' : ''"
+                            ></i>
+                        </button>
 
-                        <a href="{{ route('admin.managed-element-types.index') }}" class="{{ $itemClass($elementTypesActive) }}">
-                            <i data-lucide="boxes" class="{{ $iconClass($elementTypesActive) }}"></i>
-                            <span>Tipos de activos - Plantilla</span>
-                        </a>
+                        <div
+                            x-show="open"
+                            x-transition:enter="transition ease-out duration-200"
+                            x-transition:enter-start="opacity-0 -translate-y-2"
+                            x-transition:enter-end="opacity-100 translate-y-0"
+                            x-transition:leave="transition ease-in duration-150"
+                            x-transition:leave-start="opacity-100 translate-y-0"
+                            x-transition:leave-end="opacity-0 -translate-y-1"
+                            class="space-y-1 overflow-hidden"
+                        >
+                            <a href="{{ route('admin.managed-element-types.index') }}" class="{{ $itemClass($elementTypesActive) }}">
+                                <i data-lucide="boxes" class="{{ $iconClass($elementTypesActive) }}"></i>
+                                <span>Tipos de activos - Plantilla</span>
+                            </a>
 
-                        <a href="{{ route('admin.managed-components.index') }}" class="{{ $itemClass($componentsActive) }}">
-                            <i data-lucide="wrench" class="{{ $iconClass($componentsActive) }}"></i>
-                            <span>Componentes - Plantilla</span>
-                        </a>
+                            <a href="{{ route('admin.managed-components.index') }}" class="{{ $itemClass($componentsActive) }}">
+                                <i data-lucide="wrench" class="{{ $iconClass($componentsActive) }}"></i>
+                                <span>Componentes - Plantilla</span>
+                            </a>
 
-                        <a href="{{ route('admin.managed-diagnostics.index') }}" class="{{ $itemClass($diagnosticsActive) }}">
-                            <i data-lucide="clipboard-check" class="{{ $iconClass($diagnosticsActive) }}"></i>
-                            <span>Diagnósticos</span>
-                        </a>
+                            <a href="{{ route('admin.managed-diagnostics.index') }}" class="{{ $itemClass($diagnosticsActive) }}">
+                                <i data-lucide="clipboard-check" class="{{ $iconClass($diagnosticsActive) }}"></i>
+                                <span>Diagnósticos</span>
+                            </a>
 
-                        <a href="{{ route('admin.managed-component-diagnostics.index') }}" class="{{ $itemClass($componentDiagnosticsActive) }}">
-                            <i data-lucide="git-merge" class="{{ $iconClass($componentDiagnosticsActive) }}"></i>
-                            <span>Componentes - Diagnósticos</span>
-                        </a>
+                            <a href="{{ route('admin.managed-component-diagnostics.index') }}" class="{{ $itemClass($componentDiagnosticsActive) }}">
+                                <i data-lucide="git-merge" class="{{ $iconClass($componentDiagnosticsActive) }}"></i>
+                                <span>Componentes - Diagnósticos</span>
+                            </a>
 
-                        <a href="{{ route('admin.managed-conditions.index') }}" class="{{ $itemClass($conditionsActive) }}">
-                            <i data-lucide="alert-triangle" class="{{ $iconClass($conditionsActive) }}"></i>
-                            <span>Condiciones</span>
-                        </a>
+                            <a href="{{ route('admin.managed-conditions.index') }}" class="{{ $itemClass($conditionsActive) }}">
+                                <i data-lucide="alert-triangle" class="{{ $iconClass($conditionsActive) }}"></i>
+                                <span>Condiciones</span>
+                            </a>
+                        </div>
                     </div>
 
                     {{-- Configuración de módulos: solo superadmin / admin_global según permisos --}}
@@ -304,3 +342,5 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
         </div>
     </div>
 </aside>
+
+

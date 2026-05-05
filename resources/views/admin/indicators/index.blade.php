@@ -34,6 +34,16 @@
                     Semáforo
                 </button>
 
+                <button
+                    type="button"
+                    onclick="openSemaphoreTemplateConfig()"
+                    class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    title="Configurar plantillas de semáforo"
+                >
+                    <i data-lucide="settings-2" class="h-4 w-4"></i>
+                    Configurar semáforo
+                </button>
+
                 <div class="inline-flex w-fit items-center rounded-full bg-[#d94d33]/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#d94d33]">
                     Reportes preventivos
                 </div>
@@ -253,6 +263,67 @@
                 </div>
             </div>
 
+            <div id="semaphore_overview_section" class="hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-700">
+                            <i data-lucide="traffic-cone" class="h-3.5 w-3.5"></i>
+                            Semáforo semanal
+                        </div>
+                        <h3 class="mt-3 text-lg font-semibold text-slate-900">Cambio banda y Estado banda</h3>
+                        <p id="semaphore_overview_description" class="mt-1 text-sm text-slate-500">
+                            Vista resumida por semana del semáforo del tipo de activo seleccionado.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col items-stretch gap-3 lg:items-end">
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick="changeSemaphoreOverviewWeek(-1)"
+                                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition hover:bg-slate-100"
+                            >
+                                <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                            </button>
+                            <div id="semaphore_overview_current" class="min-w-[132px] rounded-xl bg-slate-100 px-4 py-2 text-center text-sm font-semibold text-slate-700">
+                                Semana {{ now()->isoWeek() }} / {{ now()->isoWeekYear() }}
+                            </div>
+                            <button
+                                type="button"
+                                onclick="changeSemaphoreOverviewWeek(1)"
+                                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-600 transition hover:bg-slate-100"
+                            >
+                                <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                        <div id="semaphore_overview_weeks" class="flex flex-wrap justify-end gap-2"></div>
+                    </div>
+                </div>
+
+                <div id="semaphore_overview_empty" class="hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500"></div>
+
+                <div id="semaphore_overview_charts" class="mt-6 grid gap-4 lg:grid-cols-2">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <h4 class="text-sm font-bold text-slate-800">Cambio banda</h4>
+                            <span id="semaphore_overview_change_belt_total" class="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">0 registros</span>
+                        </div>
+                        <div class="h-[240px]">
+                            <canvas id="semaphoreOverviewChangeBeltChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <h4 class="text-sm font-bold text-slate-800">Estado banda</h4>
+                            <span id="semaphore_overview_belt_status_total" class="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">0 registros</span>
+                        </div>
+                        <div class="h-[240px]">
+                            <canvas id="semaphoreOverviewBeltStatusChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid gap-6 xl:grid-cols-2">
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
@@ -276,16 +347,6 @@
 
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Tendencia de atención</h3>
-                        <p class="mt-1 text-sm text-slate-500">Evolución semanal de hallazgos normales frente a los que requieren atención.</p>
-                    </div>
-                    <div class="h-[320px]">
-                        <canvas id="attentionTrendChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Activos con más condiciones</h3>
                         <p class="mt-1 text-sm text-slate-500">Ranking de activos por registros preventivos y atención.</p>
                     </div>
@@ -297,7 +358,7 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Condiciones más frecuentes</h3>
-                        <p class="mt-1 text-sm text-slate-500">Condiciones que más se repiten en los reportes preventivos.</p>
+                        <p class="mt-1 text-sm text-slate-500">Ordenadas de mayor a menor frecuencia, mostrando nombre y descripción cuando están disponibles.</p>
                     </div>
                     <div class="h-[320px]">
                         <canvas id="topConditionsChart"></canvas>
@@ -307,7 +368,7 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Novedades por área</h3>
-                        <p class="mt-1 text-sm text-slate-500">Áreas con mayor concentración de hallazgos preventivos.</p>
+                        <p class="mt-1 text-sm text-slate-500">Todas las áreas ordenadas por proporción de hallazgos con atención frente a sus novedades.</p>
                     </div>
                     <div class="h-[320px]">
                         <canvas id="areaChart"></canvas>
@@ -316,150 +377,15 @@
 
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Actividad por inspector</h3>
-                        <p class="mt-1 text-sm text-slate-500">Volumen de hallazgos registrados por inspector.</p>
-                    </div>
-                    <div class="h-[320px]">
-                        <canvas id="inspectorChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Componentes críticos</h3>
-                        <p class="mt-1 text-sm text-slate-500">Componentes con más novedades y hallazgos con atención.</p>
+                        <p class="mt-1 text-sm text-slate-500">Componentes ordenados por proporción de hallazgos con atención sobre sus novedades.</p>
                     </div>
                     <div class="h-[320px]">
                         <canvas id="componentChart"></canvas>
                     </div>
                 </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="mb-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Diagnósticos recurrentes</h3>
-                        <p class="mt-1 text-sm text-slate-500">Diagnósticos más registrados en el rango seleccionado.</p>
-                    </div>
-                    <div class="h-[320px]">
-                        <canvas id="diagnosticChart"></canvas>
-                    </div>
-                </div>
             </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h3 class="text-lg font-semibold text-slate-900">Resumen por tipo de activo</h3>
-                    <p class="mt-1 text-sm text-slate-500">
-                        Permite comparar tipos de activo sin mezclar condiciones propias de cada plantilla.
-                    </p>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200">
-                        <thead class="bg-slate-50">
-                            <tr>
-                                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Tipo de activo</th>
-                                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Activos</th>
-                                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Inspeccionados</th>
-                                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Cobertura</th>
-                                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Novedades</th>
-                                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Atención</th>
-                            </tr>
-                        </thead>
-
-                        <tbody id="table_summary_by_element_type" class="divide-y divide-slate-200 bg-white"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="grid gap-6 xl:grid-cols-2">
-                <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Activos con más novedades preventivas</h3>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Activo</th>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Tipo</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Novedades</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Atención</th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="table_top_elements" class="divide-y divide-slate-200 bg-white"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Top condiciones</h3>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Se separan por tipo de activo para evitar ambigüedad entre condiciones repetidas.
-                        </p>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Tipo</th>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Código</th>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Condición</th>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Criticidad</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Total</th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="table_top_conditions" class="divide-y divide-slate-200 bg-white"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid gap-6 xl:grid-cols-2">
-                <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Top componentes</h3>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Componente</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Novedades</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Atención</th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="table_top_components" class="divide-y divide-slate-200 bg-white"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-slate-900">Top diagnósticos</h3>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Diagnóstico</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Novedades</th>
-                                    <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Atención</th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="table_top_diagnostics" class="divide-y divide-slate-200 bg-white"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
         </div>
 
         {{-- MODAL SEMÁFORO --}}
@@ -550,6 +476,7 @@
                 </div>
 
                 <div id="semaphore_filter_popover" class="fixed z-[100000] hidden w-[320px] rounded-2xl border border-slate-200 bg-white shadow-2xl"></div>
+                <div id="semaphore_cell_popover" class="fixed z-[100000] hidden w-[360px] rounded-2xl border border-slate-200 bg-white shadow-2xl"></div>
 
                 <div class="min-h-0 flex-1 overflow-auto">
                     <div id="semaphore_table_container" class="min-w-full"></div>
@@ -569,13 +496,14 @@
             weeklyChart: null,
             weeklyCoverageChart: null,
             elementTypeCoverageChart: null,
-            attentionTrendChart: null,
             topElementsChart: null,
             topConditionsChart: null,
             areaChart: null,
-            inspectorChart: null,
             componentChart: null,
-            diagnosticChart: null,
+            semaphoreOverviewChangeBeltChart: null,
+            semaphoreOverviewBeltStatusChart: null,
+            semaphoreOverviewYear: {{ now()->isoWeekYear() }},
+            semaphoreOverviewWeek: {{ now()->isoWeek() }},
             semaphoreCharts: {},
             semaphoreData: null,
             semaphoreFilters: {},
@@ -789,6 +717,16 @@
             loadSemaphore();
         }
 
+        function openSemaphoreTemplateConfig() {
+            const params = new URLSearchParams({
+                client_id: document.getElementById('indicator_client_id')?.value || '',
+                group_id: document.getElementById('indicator_group_id')?.value || '',
+                element_type_id: document.getElementById('indicator_element_type_id')?.value || '',
+            });
+
+            window.location.href = `{{ route('admin.semaphore-templates.index') }}?${params.toString()}`;
+        }
+
         function openSemaphoreModal() {
             const modal = document.getElementById('semaphore_modal');
 
@@ -816,6 +754,7 @@
             modal.classList.add('hidden');
             document.body.classList.remove('overflow-hidden');
             closeSemaphoreFilterPopover();
+            closeSemaphoreCellPopover();
 
             if (resetMode) {
                 indicatorState.mode = 'dashboard';
@@ -934,6 +873,7 @@
             indicatorState.semaphoreData = data;
             indicatorState.semaphoreFilters = {};
             closeSemaphoreFilterPopover();
+            closeSemaphoreCellPopover();
             renderSemaphoreTable();
             return;
 
@@ -961,57 +901,6 @@
 
             renderSemaphoreStats(areas);
         }
-
-        function renderSemaphoreTable() {
-            const data = indicatorState.semaphoreData || {};
-            const meta = data.meta || {};
-            const areas = applySemaphoreFilters(data.areas || []);
-            const container = document.getElementById('semaphore_table_container');
-
-            if (!container) {
-                return;
-            }
-
-            setText(
-                'semaphore_meta',
-                `Semana ${meta.week || 'â€”'} / ${meta.year || 'â€”'} · ${areas.reduce((total, area) => total + (area.rows || []).length, 0)} de ${meta.elements_count || 0} activos visibles · ${meta.details_count || 0} registros preventivos`
-            );
-
-            if (!areas.length) {
-                container.innerHTML = `
-                    <div class="px-5 py-10 text-center text-sm font-semibold text-slate-500">
-                        No hay activos que coincidan con los filtros aplicados.
-                    </div>
-                `;
-                renderSemaphoreStats([]);
-                return;
-            }
-
-            container.innerHTML = `
-                <table class="min-w-[920px] w-full divide-y divide-slate-200 text-sm">
-                    <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
-                        <tr>
-                            ${renderSemaphoreFilterHeader('asset', 'Área / Activo', 'w-[220px] text-left')}
-                            ${renderSemaphoreFilterHeader('change_belt', 'Cambio banda', 'text-center')}
-                            ${renderSemaphoreFilterHeader('belt_status', 'Estado banda', 'text-center')}
-                            ${renderSemaphoreFilterHeader('safety_condition', 'Seguridad', 'text-center')}
-                            ${renderSemaphoreFilterHeader('discharge', 'Descarga', 'text-center')}
-                            ${renderSemaphoreFilterHeader('cleaner', 'Limpiador', 'text-center')}
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 bg-white">
-                        ${areas.map(renderSemaphoreArea).join('')}
-                    </tbody>
-                </table>
-            `;
-
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-
-            renderSemaphoreStats(areas);
-        }
-
         function renderSemaphoreFilterHeader(key, label, alignClass = 'text-center') {
             const active = isSemaphoreFilterActive(key);
             const activeClass = active ? 'text-[#d94d33]' : 'text-slate-500';
@@ -1029,18 +918,6 @@
                 </th>
             `;
         }
-
-        function semaphoreFilterColumns() {
-            return {
-                asset: 'Ãrea / Activo',
-                change_belt: 'Cambio banda',
-                belt_status: 'Estado banda',
-                safety_condition: 'Seguridad',
-                discharge: 'Descarga',
-                cleaner: 'Limpiador',
-            };
-        }
-
         function isSemaphoreFilterActive(key) {
             const values = indicatorState.semaphoreFilters?.[key];
 
@@ -1070,19 +947,6 @@
                 })
                 .filter(area => (area.rows || []).length > 0);
         }
-
-        function semaphoreFilterValue(row, area, key) {
-            if (key === 'asset') {
-                const code = row.element_code || '';
-                const name = row.element_name || '';
-                const asset = code && name && code !== name ? `${code} - ${name}` : (code || name || 'Sin activo');
-
-                return `${area?.name || 'Sin Ã¡rea'} / ${asset}`;
-            }
-
-            return String(row[key]?.label || 'N/A').trim() || 'N/A';
-        }
-
         function semaphoreFilterOptions(key) {
             const data = indicatorState.semaphoreData || {};
             const values = [];
@@ -1209,105 +1073,75 @@
             indicatorState.semaphoreFilterPopoverKey = null;
         }
 
-        function renderSemaphoreStats(areas) {
-            const container = document.getElementById('semaphore_stats_container');
+        function openSemaphoreCellPopover(event, button) {
+            event?.stopPropagation();
 
-            if (!container) {
+            const popover = document.getElementById('semaphore_cell_popover');
+            const raw = button?.dataset?.cellPopover || '';
+
+            if (!popover || !raw) {
                 return;
             }
 
-            destroySemaphoreCharts();
+            let payload = null;
 
-            const rows = (areas || []).flatMap(area => area.rows || []);
-            const columns = [
-                { key: 'change_belt', title: 'Cambio banda' },
-                { key: 'belt_status', title: 'Estado banda' },
-                { key: 'safety_condition', title: 'Seguridad' },
-                { key: 'discharge', title: 'Descarga' },
-                { key: 'cleaner', title: 'Limpiador' },
-            ];
+            try {
+                payload = JSON.parse(raw);
+            } catch (error) {
+                return;
+            }
 
-            const stats = columns
-                .map(column => ({
-                    ...column,
-                    rows: buildSemaphoreColumnStats(rows, column.key),
-                }));
-
-            if (!stats.length) {
-                container.innerHTML = `
-                    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500">
-                        No hay valores estadÃ­sticos para graficar sin contar N/A.
+            const title = payload?.title || 'Detalle';
+            const cell = payload?.cell || {};
+            const breakdown = Array.isArray(cell.breakdown) ? cell.breakdown : [];
+            popover.innerHTML = `
+                <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div>
+                        <div class="text-sm font-bold text-slate-900">${escapeHtml(title)}</div>
+                        <div class="mt-1 text-xs text-slate-500">${escapeHtml(cell.detail || 'Detalle por componente')}</div>
                     </div>
-                `;
-                container.classList.remove('hidden');
-                return;
-            }
-
-            container.innerHTML = `
-                <div class="mb-4 flex flex-col gap-1">
-                    <h4 class="text-base font-bold text-slate-900">Resumen estadístico del semáforo</h4>
-                    <p class="text-sm text-slate-500">Frecuencia de valores por columna. Los N/A no se incluyen.</p>
+                    <button type="button" onclick="closeSemaphoreCellPopover()" class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+                        <i data-lucide="x" class="h-4 w-4"></i>
+                    </button>
                 </div>
-                <div class="grid gap-4 lg:grid-cols-2">
-                    ${stats.map((column, index) => `
-                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div class="mb-3 flex items-center justify-between gap-3">
-                                <h5 class="text-sm font-bold text-slate-800">${escapeHtml(column.title)}</h5>
-                                <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
-                                    ${column.rows.reduce((total, row) => total + row.total, 0)} registros
-                                </span>
-                            </div>
-                            <div class="h-[220px]">
-                                ${column.rows.length
-                                    ? `<canvas id="semaphore_stats_chart_${index}"></canvas>`
-                                    : `<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm font-semibold text-slate-500">Sin valores diferentes de N/A.</div>`
+                <div class="max-h-[360px] space-y-3 overflow-auto p-4">
+                    ${breakdown.map(item => `
+                        <div class="rounded-2xl border border-slate-200 p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-sm font-semibold text-slate-800">${escapeHtml(item.component || 'Componente')}</div>
+                                ${item.evaluated
+                                    ? '<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><i data-lucide="check" class="h-3.5 w-3.5"></i></span>'
+                                    : '<span class="rounded-full px-2 py-0.5 text-[10px] font-bold bg-red-50 text-red-600">No evaluado</span>'
                                 }
                             </div>
+                            <div class="mt-2 text-xs font-semibold text-slate-700">${escapeHtml(item.condition_name || 'Sin condición')}</div>
+                            <div class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(item.condition_description || item.detail || 'Sin detalle.')}</div>
                         </div>
-                    `).join('')}
+                    `).join('') || '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">Sin detalle disponible.</div>'}
                 </div>
             `;
-            container.classList.remove('hidden');
 
-            stats.forEach((column, index) => {
-                if (!column.rows.length) {
-                    return;
-                }
+            const rect = button.getBoundingClientRect();
+            const top = Math.min(rect.bottom + 8, window.innerHeight - 420);
+            const left = Math.min(Math.max(12, rect.left - 120), window.innerWidth - 380);
 
-                renderSemaphoreStatsChart(`semaphore_stats_chart_${index}`, column.rows);
-            });
+            popover.style.top = `${Math.max(12, top)}px`;
+            popover.style.left = `${left}px`;
+            popover.classList.remove('hidden');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
         }
 
-        function buildSemaphoreColumnStats(rows, key) {
-            const map = new Map();
+        function closeSemaphoreCellPopover() {
+            const popover = document.getElementById('semaphore_cell_popover');
 
-            rows.forEach(row => {
-                const cell = row[key] || {};
-                const label = String(cell.label || '').trim();
-                const normalized = label.toUpperCase();
-
-                if (!label || normalized === 'N/A') {
-                    return;
-                }
-
-                const current = map.get(label) || {
-                    label,
-                    total: 0,
-                    color: cell.color || semaphoreChartColor(label),
-                    order: Number.isFinite(Number(cell.order)) ? Number(cell.order) : 500,
-                };
-
-                current.total += 1;
-                current.color = current.color || cell.color || semaphoreChartColor(label);
-                current.order = Math.min(current.order, Number.isFinite(Number(cell.order)) ? Number(cell.order) : 500);
-
-                map.set(label, current);
-            });
-
-            return Array.from(map.values())
-                .sort((a, b) => a.order - b.order || b.total - a.total || a.label.localeCompare(b.label));
+            if (popover) {
+                popover.classList.add('hidden');
+                popover.innerHTML = '';
+            }
         }
-
         function renderSemaphoreStatsChart(canvasId, rows) {
             const canvas = document.getElementById(canvasId);
 
@@ -1323,7 +1157,7 @@
                         {
                             label: 'Activos',
                             data: rows.map(row => row.total),
-                            backgroundColor: rows.map(row => row.color || semaphoreChartColor(row.label)),
+                            backgroundColor: rows.map(row => row.color || semaphoreChartColor(row.label, row.level, row.color)),
                             borderRadius: 8,
                         },
                     ],
@@ -1354,15 +1188,39 @@
             indicatorState.semaphoreCharts = {};
         }
 
-        function semaphoreChartColor(label) {
+        function semaphoreChartColor(label, level = null, fallback = null) {
+            if (level === 'high') {
+                return '#fca5a5';
+            }
+
+            if (level === 'medium') {
+                return '#fde68a';
+            }
+
+            if (level === 'low') {
+                return '#bfdbfe';
+            }
+
+            if (level === 'ok') {
+                return '#bbf7d0';
+            }
+
+            if (level === 'warning') {
+                return '#fdba74';
+            }
+
+            if (level === 'neutral') {
+                return '#e2e8f0';
+            }
+
             const normalized = String(label || '').toUpperCase();
 
             if (normalized === 'SI') {
-                return '#fb923c';
+                return '#fdba74';
             }
 
             if (normalized === 'NO') {
-                return '#38bdf8';
+                return '#e2e8f0';
             }
 
             if (normalized.includes('ALTA')) {
@@ -1395,68 +1253,33 @@
                 hash = normalized.charCodeAt(index) + ((hash << 5) - hash);
             }
 
-            return palette[Math.abs(hash) % palette.length];
+            return fallback || palette[Math.abs(hash) % palette.length];
         }
+        function renderSemaphoreDetailCell(cell, title) {
+            const value = cell || {};
 
-        function renderSemaphoreArea(area) {
-            const rows = area.rows || [];
-
-            return `
-                <tr class="bg-slate-100">
-                    <td colspan="6" class="px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-700">
-                        ${escapeHtml(area.name || 'Sin área')} · ${area.elements_count || rows.length} activos
-                    </td>
-                </tr>
-                ${rows.map(renderSemaphoreRow).join('')}
-            `;
-        }
-
-        function renderSemaphoreRow(row) {
-            return `
-                <tr class="hover:bg-slate-50">
-                    <td class="sticky left-0 z-[1] bg-white px-3 py-2.5 shadow-[1px_0_0_#e2e8f0]">
-                        <div class="text-sm font-semibold text-slate-900">${escapeHtml(row.element_code || row.element_name || 'Sin activo')}</div>
-                        ${row.element_name && row.element_name !== row.element_code ? `<div class="mt-0.5 max-w-[190px] truncate text-xs text-slate-500">${escapeHtml(row.element_name)}</div>` : ''}
-                    </td>
-                    <td class="px-3 py-2.5 text-center">${renderSemaphoreBeltChangeControl(row)}</td>
-                    <td class="px-3 py-2.5 text-center">${renderSemaphoreBadge(row.belt_status)}</td>
-                    <td class="px-3 py-2.5 text-center">${renderSemaphoreBadge(row.safety_condition)}</td>
-                    <td class="px-3 py-2.5 text-center">${renderSemaphoreBadge(row.discharge)}</td>
-                    <td class="px-3 py-2.5 text-center">${renderSemaphoreBadge(row.cleaner)}</td>
-                </tr>
-            `;
-        }
-
-        function renderSemaphoreBeltChangeControl(row) {
-            const module = document.querySelector('[data-indicators-module]');
-            const canEdit = module?.dataset.canEditSemaphore === '1';
-            const cell = row.change_belt || {};
-
-            if (!canEdit) {
-                return renderSemaphoreBadge(cell);
+            if (!Array.isArray(value.breakdown) || value.breakdown.length === 0) {
+                return renderSemaphoreBadge(value);
             }
 
-            const isChange = Boolean(cell.value || cell.label === 'SI');
-            const title = `${cell.detail || (isChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.')} Clic para cambiar.`;
-            const classes = isChange
-                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                : 'bg-slate-100 text-slate-500 hover:bg-slate-200';
+            const payload = escapeHtml(JSON.stringify({
+                title,
+                cell: value,
+            }));
 
             return `
                 <button
                     type="button"
-                    title="${escapeHtml(title)}"
-                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition disabled:cursor-wait disabled:opacity-60 ${classes}"
-                    data-belt-change-button
-                    data-element-id="${escapeHtml(row.element_id)}"
-                    data-current-value="${isChange ? '1' : '0'}"
-                    onclick="updateSemaphoreBeltChange(this)"
+                    data-cell-popover="${payload}"
+                    onclick="openSemaphoreCellPopover(event, this)"
+                    class="inline-flex max-w-[160px] items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition hover:opacity-85 ${semaphoreBadgeButtonClasses(value.level)}"
+                    title="${escapeHtml(value.detail || title)}"
                 >
-                    ${isChange ? 'SI' : 'NO'}
+                    <span class="truncate">${escapeHtml(value.label || 'N/A')}</span>
+                    <i data-lucide="info" class="h-3.5 w-3.5"></i>
                 </button>
             `;
         }
-
         async function updateSemaphoreBeltChange(button) {
             const module = document.querySelector('[data-indicators-module]');
             const route = module?.dataset.semaphoreBeltChangeUpdateRoute;
@@ -1503,6 +1326,13 @@
 
                 showIndicatorToast(data.message || 'Cambio de banda actualizado.', 'success');
                 await loadSemaphore();
+
+                if (
+                    Number(document.getElementById('semaphore_year')?.value || 0) === Number(indicatorState.semaphoreOverviewYear) &&
+                    Number(document.getElementById('semaphore_week')?.value || 0) === Number(indicatorState.semaphoreOverviewWeek)
+                ) {
+                    await loadSemaphoreOverview();
+                }
             } catch (error) {
                 showIndicatorToast('OcurriÃ³ un error de red al actualizar cambio de banda.', 'error');
             } finally {
@@ -1532,7 +1362,6 @@
             const value = cell || {};
             const label = value.label || 'N/A';
             const title = value.detail || label;
-            const customColor = normalizeHexColor(value.color);
 
             const classes = {
                 ok: 'bg-emerald-100 text-emerald-700',
@@ -1543,18 +1372,6 @@
                 neutral: 'bg-slate-100 text-slate-500',
             };
 
-            if (customColor && label !== 'N/A') {
-                return `
-                    <span
-                        title="${escapeHtml(title)}"
-                        style="background-color: ${hexToRgba(customColor, 0.16)}; color: ${customColor};"
-                        class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none"
-                    >
-                        ${escapeHtml(label)}
-                    </span>
-                `;
-            }
-
             return `
                 <span
                     title="${escapeHtml(title)}"
@@ -1563,6 +1380,19 @@
                     ${escapeHtml(label)}
                 </span>
             `;
+        }
+
+        function semaphoreBadgeButtonClasses(level) {
+            const classes = {
+                ok: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200',
+                high: 'bg-red-100 text-red-700 hover:bg-red-200',
+                medium: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+                low: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                warning: 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+                neutral: 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+            };
+
+            return classes[level] || classes.neutral;
         }
 
         function normalizeHexColor(value) {
@@ -1656,7 +1486,6 @@
         function renderIndicators(data) {
             const summary = data.summary || {};
             const charts = data.charts || {};
-            const tables = data.tables || {};
             const chartMode = charts.mode || 'severity';
 
             setText('metric_total_elements', summary.total_elements ?? 0);
@@ -1676,6 +1505,7 @@
 
             if (!hasData) {
                 destroyIndicatorCharts();
+                renderSemaphoreOverviewUnavailable('Sin datos para mostrar en el resumen semanal del semáforo.');
                 return;
             }
 
@@ -1692,23 +1522,148 @@
             renderWeeklyChart(charts.reports_by_week || []);
             renderWeeklyCoverageChart(charts.weekly_asset_coverage || []);
             renderElementTypeCoverageChart(charts.summary_by_element_type || []);
-            renderAttentionTrendChart(charts.attention_trend || []);
             renderHorizontalChart('topElementsChart', 'topElementsChart', charts.top_elements || [], 'name', ['total', 'attention'], ['Novedades', 'Atención']);
-            renderHorizontalChart('topConditionsChart', 'topConditionsChart', charts.top_conditions || [], 'name', ['total'], ['Total'], true);
-            renderHorizontalChart('areaChart', 'areaChart', charts.area_distribution || [], 'label', ['total', 'attention'], ['Novedades', 'Atención']);
-            renderHorizontalChart('inspectorChart', 'inspectorChart', charts.inspector_distribution || [], 'label', ['findings', 'attention'], ['Hallazgos', 'Atención']);
-            renderHorizontalChart('componentChart', 'componentChart', charts.top_components || [], 'name', ['total', 'attention'], ['Novedades', 'Atención']);
-            renderHorizontalChart('diagnosticChart', 'diagnosticChart', charts.top_diagnostics || [], 'name', ['total', 'attention'], ['Novedades', 'Atención']);
+            renderHorizontalChart('topConditionsChart', 'topConditionsChart', charts.top_conditions || [], 'label', ['total'], ['Total'], true);
+            renderHorizontalChart('areaChart', 'areaChart', charts.area_distribution || [], 'label', ['attention_rate'], ['Atención %']);
+            renderHorizontalChart('componentChart', 'componentChart', charts.top_components || [], 'name', ['attention_rate'], ['Atención %']);
 
-            renderSummaryByElementType(tables.summary_by_element_type || []);
-            renderTopElements(tables.top_elements || []);
-            renderTopConditions(tables.top_conditions || []);
-            renderAttentionTable('table_top_components', tables.top_components || [], 3);
-            renderAttentionTable('table_top_diagnostics', tables.top_diagnostics || [], 3);
+            resetSemaphoreOverviewWeek();
+            loadSemaphoreOverview();
 
             if (window.lucide) {
                 window.lucide.createIcons();
             }
+        }
+
+        function selectedElementTypeHasSemaphore() {
+            const select = document.getElementById('indicator_element_type_id');
+            const option = select?.selectedOptions?.[0] || null;
+
+            return Boolean(select?.value) && option?.dataset?.hasSemaphore === '1';
+        }
+
+        function resetSemaphoreOverviewWeek() {
+            indicatorState.semaphoreOverviewYear = {{ now()->isoWeekYear() }};
+            indicatorState.semaphoreOverviewWeek = {{ now()->isoWeek() }};
+        }
+
+        function changeSemaphoreOverviewWeek(delta) {
+            const next = shiftIsoWeek(indicatorState.semaphoreOverviewYear, indicatorState.semaphoreOverviewWeek, delta);
+            indicatorState.semaphoreOverviewYear = next.year;
+            indicatorState.semaphoreOverviewWeek = next.week;
+            loadSemaphoreOverview();
+        }
+
+        async function loadSemaphoreOverview() {
+            const section = document.getElementById('semaphore_overview_section');
+            const module = document.querySelector('[data-indicators-module]');
+            const route = module?.dataset.semaphoreRoute;
+
+            if (!section || !route) {
+                return;
+            }
+
+            if (!selectedElementTypeHasSemaphore()) {
+                renderSemaphoreOverviewUnavailable('Selecciona un tipo de activo con semáforo para ver Cambio banda y Estado banda por semana.');
+                return;
+            }
+
+            section.classList.remove('hidden');
+            renderSemaphoreOverviewWeeks();
+            setText('semaphore_overview_current', `Semana ${indicatorState.semaphoreOverviewWeek} / ${indicatorState.semaphoreOverviewYear}`);
+            setText('semaphore_overview_description', 'Vista resumida por semana del semáforo del tipo de activo seleccionado.');
+
+            const params = new URLSearchParams({
+                client_id: document.getElementById('indicator_client_id')?.value || '',
+                group_id: document.getElementById('indicator_group_id')?.value || '',
+                element_type_id: document.getElementById('indicator_element_type_id')?.value || '',
+                year: String(indicatorState.semaphoreOverviewYear || ''),
+                week: String(indicatorState.semaphoreOverviewWeek || ''),
+            });
+
+            try {
+                const response = await fetch(`${route}?${params.toString()}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                    renderSemaphoreOverviewUnavailable(data.message || 'No fue posible cargar el resumen semanal del semáforo.');
+                    return;
+                }
+
+                renderSemaphoreOverview(data);
+            } catch (error) {
+                renderSemaphoreOverviewUnavailable('Ocurrió un error al cargar el resumen semanal del semáforo.');
+            }
+        }
+        function renderSemaphoreOverviewUnavailable(message) {
+            document.getElementById('semaphore_overview_section')?.classList.remove('hidden');
+            document.getElementById('semaphore_overview_empty')?.classList.remove('hidden');
+            document.getElementById('semaphore_overview_charts')?.classList.add('hidden');
+            setText('semaphore_overview_empty', message);
+            setText('semaphore_overview_change_belt_total', '0 registros');
+            setText('semaphore_overview_belt_status_total', '0 registros');
+            destroySemaphoreOverviewCharts();
+            renderSemaphoreOverviewWeeks();
+        }
+
+        function renderSemaphoreOverviewWeeks() {
+            const container = document.getElementById('semaphore_overview_weeks');
+
+            if (!container) {
+                return;
+            }
+
+            const chips = [];
+
+            for (let index = 0; index < 5; index++) {
+                const item = shiftIsoWeek(indicatorState.semaphoreOverviewYear, indicatorState.semaphoreOverviewWeek, -index);
+                const isActive = index === 0;
+
+                chips.push(`
+                    <button
+                        type="button"
+                        onclick="setSemaphoreOverviewWeek(${item.year}, ${item.week})"
+                        class="rounded-full px-3 py-1.5 text-xs font-bold transition ${isActive ? 'bg-[#d94d33] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
+                    >
+                        S${String(item.week).padStart(2, '0')} / ${item.year}
+                    </button>
+                `);
+            }
+
+            container.innerHTML = chips.join('');
+        }
+
+        function setSemaphoreOverviewWeek(year, week) {
+            indicatorState.semaphoreOverviewYear = Number(year);
+            indicatorState.semaphoreOverviewWeek = Number(week);
+            loadSemaphoreOverview();
+        }
+
+        function shiftIsoWeek(year, week, offset) {
+            const base = new Date(Date.UTC(year, 0, 4));
+            const day = base.getUTCDay() || 7;
+            base.setUTCDate(base.getUTCDate() - day + 1 + ((week - 1 + offset) * 7));
+
+            const thursday = new Date(base);
+            thursday.setUTCDate(base.getUTCDate() + 3);
+            const isoYear = thursday.getUTCFullYear();
+            const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+            const firstDay = firstThursday.getUTCDay() || 7;
+            firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 4);
+            const currentThursday = new Date(base);
+            currentThursday.setUTCDate(base.getUTCDate() + 3);
+            const diffWeeks = Math.round((currentThursday - firstThursday) / 604800000);
+
+            return {
+                year: isoYear,
+                week: diffWeeks + 1,
+            };
         }
 
         function setText(id, value) {
@@ -1762,16 +1717,29 @@
             }
 
             indicatorState.weeklyChart = new Chart(canvas, {
-                type: 'bar',
+                type: 'line',
                 data: {
                     labels: rows.map(row => row.label),
                     datasets: [{
                         label: 'Reportes',
                         data: rows.map(row => row.total),
+                        borderColor: '#d94d33',
+                        backgroundColor: 'rgba(217, 77, 51, 0.14)',
+                        fill: true,
+                        tension: 0.28,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#d94d33',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
                     }],
                 },
                 options: {
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -1784,6 +1752,9 @@
                         legend: {
                             display: false,
                         },
+                        tooltip: {
+                            displayColors: false,
+                        },
                     },
                 },
             });
@@ -1795,18 +1766,65 @@
                 'weeklyChart',
                 'weeklyCoverageChart',
                 'elementTypeCoverageChart',
-                'attentionTrendChart',
                 'topElementsChart',
                 'topConditionsChart',
                 'areaChart',
-                'inspectorChart',
                 'componentChart',
-                'diagnosticChart',
             ].forEach(key => {
                 if (indicatorState[key]) {
                     indicatorState[key].destroy();
                     indicatorState[key] = null;
                 }
+            });
+
+            destroySemaphoreOverviewCharts();
+        }
+
+        function destroySemaphoreOverviewCharts() {
+            ['semaphoreOverviewChangeBeltChart', 'semaphoreOverviewBeltStatusChart'].forEach(key => {
+                if (indicatorState[key]) {
+                    indicatorState[key].destroy();
+                    indicatorState[key] = null;
+                }
+            });
+        }
+
+        function renderSemaphoreOverviewChart(canvasId, stateKey, rows, datasetLabel) {
+            const canvas = document.getElementById(canvasId);
+
+            if (!canvas || typeof Chart === 'undefined') {
+                return;
+            }
+
+            if (indicatorState[stateKey]) {
+                indicatorState[stateKey].destroy();
+            }
+
+            indicatorState[stateKey] = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(row => row.label),
+                    datasets: [
+                        {
+                            label: datasetLabel,
+                            data: rows.map(row => row.total),
+                            backgroundColor: rows.map(row => row.color || semaphoreChartColor(row.label, row.level, row.color)),
+                            borderRadius: 10,
+                        },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 },
+                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                    },
+                },
             });
         }
 
@@ -1893,45 +1911,6 @@
             });
         }
 
-        function renderAttentionTrendChart(rows) {
-            const canvas = document.getElementById('attentionTrendChart');
-
-            if (!canvas) {
-                return;
-            }
-
-            if (indicatorState.attentionTrendChart) {
-                indicatorState.attentionTrendChart.destroy();
-            }
-
-            indicatorState.attentionTrendChart = new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: rows.map(row => row.label),
-                    datasets: [
-                        {
-                            label: 'Normal',
-                            data: rows.map(row => row.normal),
-                        },
-                        {
-                            label: 'Atención',
-                            data: rows.map(row => row.attention),
-                        },
-                    ],
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: true },
-                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
-                    },
-                    plugins: {
-                        legend: { position: 'bottom' },
-                    },
-                },
-            });
-        }
-
         function renderHorizontalChart(canvasId, stateKey, rows, labelKey, valueKeys, labels, useRowColors = false) {
             const canvas = document.getElementById(canvasId);
 
@@ -1943,7 +1922,15 @@
                 indicatorState[stateKey].destroy();
             }
 
-            const visibleRows = rows.slice(0, 10);
+            const visibleRows = canvasId === 'areaChart'
+                ? rows
+                : rows.slice(0, 10);
+
+            if (canvas.parentElement) {
+                canvas.parentElement.style.height = canvasId === 'areaChart'
+                    ? `${Math.max(320, visibleRows.length * 42)}px`
+                    : '320px';
+            }
 
             indicatorState[stateKey] = new Chart(canvas, {
                 type: 'bar',
@@ -1961,116 +1948,55 @@
                     indexAxis: 'y',
                     maintainAspectRatio: false,
                     scales: {
-                        x: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                callback: value => labels[0] === 'Atención %' ? `${value}%` : value,
+                            },
+                        },
                     },
                     plugins: {
                         legend: {
                             display: valueKeys.length > 1,
                             position: 'bottom',
                         },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: context => {
+                                    const row = visibleRows[context[0]?.dataIndex ?? -1];
+
+                                    if (!row) {
+                                        return [];
+                                    }
+
+                                    const extras = [];
+
+                                    if (typeof row.description === 'string' && row.description.trim() !== '') {
+                                        extras.push(`Descripción: ${row.description}`);
+                                    }
+
+                                    if (labels[0] === 'Atención %') {
+                                        if (typeof row.total !== 'undefined') {
+                                            extras.push(`Novedades: ${row.total}`);
+                                        }
+
+                                        if (typeof row.attention !== 'undefined') {
+                                            extras.push(`Atención: ${row.attention}`);
+                                        }
+                                    }
+
+                                    if (canvasId === 'areaChart' && typeof row.elements !== 'undefined') {
+                                        extras.push(`Activos: ${row.elements}`);
+                                    }
+
+                                    return extras;
+                                },
+                            },
+                        },
                     },
                 },
             });
-        }
-
-        function renderSummaryByElementType(rows) {
-            const tbody = document.getElementById('table_summary_by_element_type');
-
-            if (!tbody) {
-                return;
-            }
-
-            if (!rows.length) {
-                tbody.innerHTML = emptyRow(6);
-                return;
-            }
-
-            tbody.innerHTML = rows.map(row => `
-                <tr class="hover:bg-slate-50">
-                    <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.name)}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.elements}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.inspected}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.coverage}%</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.findings}</td>
-                    <td class="px-5 py-3 text-right text-sm font-semibold text-slate-900">${row.attention}</td>
-                </tr>
-            `).join('');
-        }
-
-        function renderTopElements(rows) {
-            const tbody = document.getElementById('table_top_elements');
-
-            if (!tbody) {
-                return;
-            }
-
-            if (!rows.length) {
-                tbody.innerHTML = emptyRow(4);
-                return;
-            }
-
-            tbody.innerHTML = rows.map(row => `
-                <tr class="hover:bg-slate-50">
-                    <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.name)}</td>
-                    <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.type)}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.total}</td>
-                    <td class="px-5 py-3 text-right text-sm font-semibold text-slate-900">${row.attention}</td>
-                </tr>
-            `).join('');
-        }
-
-        function renderTopConditions(rows) {
-            const tbody = document.getElementById('table_top_conditions');
-
-            if (!tbody) {
-                return;
-            }
-
-            if (!rows.length) {
-                tbody.innerHTML = emptyRow(5);
-                return;
-            }
-
-            tbody.innerHTML = rows.map(row => `
-                <tr class="hover:bg-slate-50">
-                    <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.type)}</td>
-                    <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.code)}</td>
-                    <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.name)}</td>
-                    <td class="px-5 py-3 text-sm text-slate-700">${escapeHtml(row.severity_label)}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.total}</td>
-                </tr>
-            `).join('');
-        }
-
-        function renderAttentionTable(id, rows, colspan) {
-            const tbody = document.getElementById(id);
-
-            if (!tbody) {
-                return;
-            }
-
-            if (!rows.length) {
-                tbody.innerHTML = emptyRow(colspan);
-                return;
-            }
-
-            tbody.innerHTML = rows.map(row => `
-                <tr class="hover:bg-slate-50">
-                    <td class="px-5 py-3 text-sm font-semibold text-slate-800">${escapeHtml(row.name)}</td>
-                    <td class="px-5 py-3 text-right text-sm text-slate-700">${row.total}</td>
-                    <td class="px-5 py-3 text-right text-sm font-semibold text-slate-900">${row.attention}</td>
-                </tr>
-            `).join('');
-        }
-
-        function emptyRow(colspan) {
-            return `
-                <tr>
-                    <td colspan="${colspan}" class="px-5 py-8 text-center text-sm text-slate-500">
-                        Sin datos para mostrar.
-                    </td>
-                </tr>
-            `;
         }
 
         function escapeHtml(value) {
@@ -2107,6 +2033,312 @@
                 setTimeout(() => toast.remove(), 350);
             }, 4000);
         }
+
+        function semaphoreColumns() {
+            const columns = indicatorState.semaphoreData?.columns;
+
+            if (Array.isArray(columns) && columns.length > 0) {
+                return columns;
+            }
+
+            return [
+                { key: 'change_belt', label: 'Cambio banda', type: 'belt_change_manual', source_column_key: 'belt_status' },
+                { key: 'belt_status', label: 'Estado banda', type: 'condition_aggregate', source_column_key: null },
+                { key: 'safety_condition', label: 'Seguridad', type: 'condition_aggregate', source_column_key: null },
+                { key: 'discharge', label: 'Descarga', type: 'condition_aggregate', source_column_key: null },
+                { key: 'cleaner', label: 'Limpiador', type: 'condition_aggregate', source_column_key: null },
+            ];
+        }
+
+        function semaphoreFilterColumns() {
+            return semaphoreColumns().reduce((labels, column) => {
+                labels[column.key] = column.label;
+                return labels;
+            }, {
+                asset: 'Área / Activo',
+            });
+        }
+
+        function renderSemaphoreTable() {
+            const data = indicatorState.semaphoreData || {};
+            const meta = data.meta || {};
+            const areas = applySemaphoreFilters(data.areas || []);
+            const columns = semaphoreColumns();
+            const container = document.getElementById('semaphore_table_container');
+
+            if (!container) {
+                return;
+            }
+
+            closeSemaphoreCellPopover();
+
+            setText(
+                'semaphore_meta',
+                `Semana ${meta.week || '—'} / ${meta.year || '—'} · ${areas.reduce((total, area) => total + (area.rows || []).length, 0)} de ${meta.elements_count || 0} activos visibles · ${meta.details_count || 0} registros preventivos · ${meta.template_name || 'Modelo legado'}`
+            );
+
+            if (!areas.length) {
+                container.innerHTML = `
+                    <div class="px-5 py-10 text-center text-sm font-semibold text-slate-500">
+                        No hay activos que coincidan con los filtros aplicados.
+                    </div>
+                `;
+                renderSemaphoreStats([]);
+                return;
+            }
+
+            container.innerHTML = `
+                <table class="w-full divide-y divide-slate-200 text-sm" style="min-width: ${Math.max(920, 260 + (columns.length * 150))}px;">
+                    <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
+                        <tr>
+                            ${renderSemaphoreFilterHeader('asset', 'Área / Activo', 'w-[220px] text-left')}
+                            ${columns.map(column => renderSemaphoreFilterHeader(column.key, column.label, 'text-center')).join('')}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        ${areas.map(renderSemaphoreArea).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+
+            renderSemaphoreStats(areas);
+        }
+
+        function semaphoreFilterValue(row, area, key) {
+            if (key === 'asset') {
+                const code = row.element_code || '';
+                const name = row.element_name || '';
+                const asset = code && name && code !== name ? `${code} - ${name}` : (code || name || 'Sin activo');
+
+                return `${area?.name || 'Sin área'} / ${asset}`;
+            }
+
+            const cell = row.cells?.[key] || row[key] || {};
+
+            return String(cell.label || 'N/A').trim() || 'N/A';
+        }
+
+        function renderSemaphoreStats(areas) {
+            const container = document.getElementById('semaphore_stats_container');
+
+            if (!container) {
+                return;
+            }
+
+            destroySemaphoreCharts();
+
+            const rows = (areas || []).flatMap(area => area.rows || []);
+            const columns = semaphoreColumns();
+            const stats = columns.map(column => ({
+                key: column.key,
+                title: column.label,
+                rows: buildSemaphoreColumnStats(rows, column.key),
+            }));
+
+            if (!stats.length) {
+                container.innerHTML = `
+                    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500">
+                        No hay valores estadísticos para graficar sin contar N/A.
+                    </div>
+                `;
+                container.classList.remove('hidden');
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="mb-4 flex flex-col gap-1">
+                    <h4 class="text-base font-bold text-slate-900">Resumen estadístico del semáforo</h4>
+                    <p class="text-sm text-slate-500">Frecuencia de valores por columna. Los N/A no se incluyen.</p>
+                </div>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    ${stats.map((column, index) => `
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <h5 class="text-sm font-bold text-slate-800">${escapeHtml(column.title)}</h5>
+                                <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                                    ${column.rows.reduce((total, row) => total + row.total, 0)} registros
+                                </span>
+                            </div>
+                            <div class="h-[220px]">
+                                ${column.rows.length
+                                    ? `<canvas id="semaphore_stats_chart_${index}"></canvas>`
+                                    : `<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm font-semibold text-slate-500">Sin valores diferentes de N/A.</div>`
+                                }
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.classList.remove('hidden');
+
+            stats.forEach((column, index) => {
+                if (!column.rows.length) {
+                    return;
+                }
+
+                renderSemaphoreStatsChart(`semaphore_stats_chart_${index}`, column.rows);
+            });
+        }
+
+        function buildSemaphoreColumnStats(rows, key) {
+            const map = new Map();
+
+            rows.forEach(row => {
+                const cell = row.cells?.[key] || row[key] || {};
+                const label = String(cell.label || '').trim();
+                const normalized = label.toUpperCase();
+
+                if (!label || normalized === 'N/A') {
+                    return;
+                }
+
+                const current = map.get(label) || {
+                    label,
+                    total: 0,
+                    level: cell.level || null,
+                    color: semaphoreChartColor(label, cell.level, cell.color),
+                    order: Number.isFinite(Number(cell.order)) ? Number(cell.order) : 500,
+                };
+
+                current.total += 1;
+                current.level = current.level || cell.level || null;
+                current.color = current.color || semaphoreChartColor(label, cell.level, cell.color);
+                current.order = Math.min(current.order, Number.isFinite(Number(cell.order)) ? Number(cell.order) : 500);
+
+                map.set(label, current);
+            });
+
+            return Array.from(map.values())
+                .sort((a, b) => a.order - b.order || b.total - a.total || a.label.localeCompare(b.label));
+        }
+
+        function renderSemaphoreArea(area) {
+            const rows = area.rows || [];
+            const colspan = semaphoreColumns().length + 1;
+
+            return `
+                <tr class="bg-slate-100">
+                    <td colspan="${colspan}" class="px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-700">
+                        ${escapeHtml(area.name || 'Sin área')} · ${area.elements_count || rows.length} activos
+                    </td>
+                </tr>
+                ${rows.map(renderSemaphoreRow).join('')}
+            `;
+        }
+
+        function renderSemaphoreRow(row) {
+            const cells = row.cells || {};
+
+            return `
+                <tr class="hover:bg-slate-50">
+                    <td class="sticky left-0 z-[1] bg-white px-3 py-2.5 shadow-[1px_0_0_#e2e8f0]">
+                        <div class="text-sm font-semibold text-slate-900">${escapeHtml(row.element_code || row.element_name || 'Sin activo')}</div>
+                        ${row.element_name && row.element_name !== row.element_code ? `<div class="mt-0.5 max-w-[190px] truncate text-xs text-slate-500">${escapeHtml(row.element_name)}</div>` : ''}
+                    </td>
+                    ${semaphoreColumns().map(column => `
+                        <td class="px-3 py-2.5 text-center">${renderSemaphoreColumnCell(row, column, cells[column.key] || row[column.key] || {})}</td>
+                    `).join('')}
+                </tr>
+            `;
+        }
+
+        function renderSemaphoreColumnCell(row, column, cell) {
+            if (column?.type === 'belt_change_manual') {
+                return renderSemaphoreBeltChangeControl(row, column, cell);
+            }
+
+            if (Array.isArray(cell?.breakdown) && cell.breakdown.length > 0) {
+                return renderSemaphoreDetailCell(cell, column?.label || 'Detalle');
+            }
+
+            return renderSemaphoreBadge(cell);
+        }
+
+        function renderSemaphoreBeltChangeControl(row, column, cell) {
+            const module = document.querySelector('[data-indicators-module]');
+            const canEdit = module?.dataset.canEditSemaphore === '1';
+
+            if (!canEdit || typeof cell.value !== 'boolean') {
+                return renderSemaphoreBadge(cell);
+            }
+
+            const isChange = Boolean(cell.value || cell.label === 'SI');
+            const title = `${cell.detail || (isChange ? 'Tiene cambio de banda registrado.' : 'Sin cambio de banda.')} Clic para cambiar.`;
+            const classes = semaphoreBadgeButtonClasses(cell.level);
+
+            return `
+                <button
+                    type="button"
+                    title="${escapeHtml(title)}"
+                    class="inline-flex max-w-[130px] items-center justify-center truncate rounded-full px-2.5 py-1 text-[11px] font-bold leading-none transition disabled:cursor-wait disabled:opacity-60 ${classes}"
+                    data-belt-change-button
+                    data-element-id="${escapeHtml(row.element_id)}"
+                    data-column-key="${escapeHtml(column?.key || '')}"
+                    data-current-value="${isChange ? '1' : '0'}"
+                    onclick="updateSemaphoreBeltChange(this)"
+                >
+                    ${isChange ? 'SI' : 'NO'}
+                </button>
+            `;
+        }
+
+        function resolveSemaphoreOverviewColumnKeys(data) {
+            const columns = Array.isArray(data?.columns) ? data.columns : [];
+            const changeColumn = columns.find(column => column.type === 'belt_change_manual')
+                || columns.find(column => String(column.key || '').includes('change'))
+                || columns.find(column => String(column.key || '').includes('cambio'));
+
+            const beltStatusColumn = (changeColumn?.source_column_key
+                ? columns.find(column => column.key === changeColumn.source_column_key)
+                : null)
+                || columns.find(column => String(column.key || '').includes('belt_status'))
+                || columns.find(column => String(column.key || '').includes('estado-banda'))
+                || columns.find(column => String(column.key || '').includes('estado_banda'));
+
+            return {
+                changeBeltKey: changeColumn?.key || 'change_belt',
+                beltStatusKey: beltStatusColumn?.key || 'belt_status',
+            };
+        }
+
+        function renderSemaphoreOverview(data) {
+            const rows = (data.areas || []).flatMap(area => area.rows || []);
+            const columnKeys = resolveSemaphoreOverviewColumnKeys(data);
+            const changeBeltRows = buildSemaphoreColumnStats(rows, columnKeys.changeBeltKey);
+            const beltStatusRows = buildSemaphoreColumnStats(rows, columnKeys.beltStatusKey);
+
+            document.getElementById('semaphore_overview_section')?.classList.remove('hidden');
+            document.getElementById('semaphore_overview_empty')?.classList.toggle('hidden', rows.length > 0);
+            document.getElementById('semaphore_overview_charts')?.classList.toggle('hidden', rows.length === 0);
+
+            setText(
+                'semaphore_overview_description',
+                `Semana ${data.meta?.week || indicatorState.semaphoreOverviewWeek} / ${data.meta?.year || indicatorState.semaphoreOverviewYear} · ${data.meta?.elements_count || 0} activos · ${data.meta?.details_count || 0} registros preventivos · ${data.meta?.template_name || 'Modelo legado'}`
+            );
+            setText('semaphore_overview_current', `Semana ${data.meta?.week || indicatorState.semaphoreOverviewWeek} / ${data.meta?.year || indicatorState.semaphoreOverviewYear}`);
+            setText('semaphore_overview_change_belt_total', `${changeBeltRows.reduce((total, row) => total + row.total, 0)} registros`);
+            setText('semaphore_overview_belt_status_total', `${beltStatusRows.reduce((total, row) => total + row.total, 0)} registros`);
+
+            if (!rows.length) {
+                renderSemaphoreOverviewUnavailable('No hay datos de semáforo para la semana seleccionada.');
+                return;
+            }
+
+            document.getElementById('semaphore_overview_empty').classList.add('hidden');
+            document.getElementById('semaphore_overview_charts').classList.remove('hidden');
+            destroySemaphoreOverviewCharts();
+            renderSemaphoreOverviewChart('semaphoreOverviewChangeBeltChart', 'semaphoreOverviewChangeBeltChart', changeBeltRows, 'Activos');
+            renderSemaphoreOverviewChart('semaphoreOverviewBeltStatusChart', 'semaphoreOverviewBeltStatusChart', beltStatusRows, 'Activos');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
                 closeSemaphoreFilterPopover();
@@ -2117,6 +2349,7 @@
         document.addEventListener('click', function (event) {
             const modal = document.getElementById('semaphore_modal');
             const popover = document.getElementById('semaphore_filter_popover');
+            const cellPopover = document.getElementById('semaphore_cell_popover');
 
             if (modal?.classList.contains('flex') && event.target === modal) {
                 closeSemaphoreModal();
@@ -2130,6 +2363,16 @@
             ) {
                 closeSemaphoreFilterPopover();
             }
+
+            if (
+                cellPopover &&
+                !cellPopover.classList.contains('hidden') &&
+                !cellPopover.contains(event.target) &&
+                !event.target.closest('button[onclick^="openSemaphoreCellPopover"]')
+            ) {
+                closeSemaphoreCellPopover();
+            }
         });
     </script>
 @endsection
+
