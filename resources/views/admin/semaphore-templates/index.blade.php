@@ -880,7 +880,9 @@
             const allowedDiagnostics = diagnosticsForComponent(componentId);
             const diagnosticStillAllowed = allowedDiagnostics.some(item => String(item.id) === String(rule.diagnostic_id || ''));
 
-            if (!diagnosticStillAllowed) {
+            if (allowedDiagnostics.length === 1) {
+                rule.diagnostic_id = String(allowedDiagnostics[0].id);
+            } else if (!diagnosticStillAllowed) {
                 rule.diagnostic_id = '';
             }
 
@@ -939,7 +941,9 @@
 
                     return {
                         ...rule,
-                        diagnostic_id: diagnosticStillAllowed ? rule.diagnostic_id : '',
+                        diagnostic_id: allowedDiagnostics.length === 1
+                            ? String(allowedDiagnostics[0].id)
+                            : (diagnosticStillAllowed ? rule.diagnostic_id : ''),
                     };
                 });
 

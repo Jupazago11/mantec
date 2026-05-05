@@ -10,6 +10,7 @@
 
     $dashboardActive = $isRoute('admin.dashboard');
     $indicatorsActive = $isRoute('admin.indicators.*');
+    $semaphoreTemplatesActive = false;
     $clientsActive = $isRoute('admin.clients.*');
     $usersActive = $isRoute('admin.managed-users.*');
     $areasActive = $isRoute('admin.managed-areas.*');
