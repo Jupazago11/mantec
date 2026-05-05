@@ -797,7 +797,7 @@
                     },
                 });
 
-                const data = await response.json();
+                const data = await parseSemaphoreTemplateJsonResponse(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.message || 'No fue posible cargar la plantilla.');
@@ -835,6 +835,56 @@
             });
 
             return rows.join('');
+        }
+
+        function diagnosticsForComponent(componentId) {
+            const normalizedComponentId = String(componentId || '');
+
+            if (!normalizedComponentId) {
+                return [];
+            }
+
+            const component = semaphoreBuilderState.components.find(item => String(item.id) === normalizedComponentId);
+
+            if (!component) {
+                return [];
+            }
+
+            const allowedDiagnosticIds = new Set((component.diagnostic_ids || []).map(item => String(item)));
+
+            return (semaphoreBuilderState.diagnostics || []).filter(item => allowedDiagnosticIds.has(String(item.id)));
+        }
+
+        async function parseSemaphoreTemplateJsonResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+
+            if (!contentType.includes('application/json')) {
+                throw new Error('El servidor no devolvio JSON. Revisa la respuesta del backend.');
+            }
+
+            return await response.json();
+        }
+
+        function handleSemaphoreRuleComponentChange(columnIndex, ruleIndex, componentId) {
+            syncSemaphoreBuilderStateFromDom();
+
+            const column = semaphoreBuilderState.columns[columnIndex];
+            const rule = column?.rules?.[ruleIndex];
+
+            if (!rule) {
+                return;
+            }
+
+            rule.component_id = componentId || '';
+
+            const allowedDiagnostics = diagnosticsForComponent(componentId);
+            const diagnosticStillAllowed = allowedDiagnostics.some(item => String(item.id) === String(rule.diagnostic_id || ''));
+
+            if (!diagnosticStillAllowed) {
+                rule.diagnostic_id = '';
+            }
+
+            renderSemaphoreColumns();
         }
 
         function updateSemaphoreBuilderSummary() {
@@ -882,6 +932,16 @@
                     component_id: container.querySelector(`[name="columns[${columnIndex}][rules][${ruleIndex}][component_id]"]`)?.value ?? column.rules?.[ruleIndex]?.component_id ?? '',
                     diagnostic_id: container.querySelector(`[name="columns[${columnIndex}][rules][${ruleIndex}][diagnostic_id]"]`)?.value ?? column.rules?.[ruleIndex]?.diagnostic_id ?? '',
                 }));
+
+                nextColumn.rules = nextColumn.rules.map((rule) => {
+                    const allowedDiagnostics = diagnosticsForComponent(rule.component_id);
+                    const diagnosticStillAllowed = allowedDiagnostics.some(item => String(item.id) === String(rule.diagnostic_id || ''));
+
+                    return {
+                        ...rule,
+                        diagnostic_id: diagnosticStillAllowed ? rule.diagnostic_id : '',
+                    };
+                });
 
                 return nextColumn;
             });
@@ -1060,10 +1120,13 @@
 
                         <div class="mt-4 space-y-3">
                             ${(column.rules || []).map((rule, ruleIndex) => `
+                                ${(() => {
+                                    const filteredDiagnostics = diagnosticsForComponent(rule.component_id);
+                                    return `
                                 <div class="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                     <div>
                                         <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Componente</label>
-                                        <select name="columns[${columnIndex}][rules][${ruleIndex}][component_id]" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]">
+                                        <select name="columns[${columnIndex}][rules][${ruleIndex}][component_id]" onchange="handleSemaphoreRuleComponentChange(${columnIndex}, ${ruleIndex}, this.value)" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]">
                                             <option value="">Seleccione</option>
                                             ${semaphoreBuilderState.components.map(item => `<option value="${item.id}" ${String(rule.component_id) === String(item.id) ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}
                                         </select>
@@ -1072,7 +1135,7 @@
                                         <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Diagnostico</label>
                                         <select name="columns[${columnIndex}][rules][${ruleIndex}][diagnostic_id]" class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]">
                                             <option value="">Seleccione</option>
-                                            ${semaphoreBuilderState.diagnostics.map(item => `<option value="${item.id}" ${String(rule.diagnostic_id) === String(item.id) ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}
+                                            ${filteredDiagnostics.map(item => `<option value="${item.id}" ${String(rule.diagnostic_id) === String(item.id) ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}
                                         </select>
                                     </div>
                                     <div class="flex items-end">
@@ -1085,6 +1148,8 @@
                                         </button>
                                     </div>
                                 </div>
+                                    `;
+                                })()}
                             `).join('') || `
                                 <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
                                     Esta columna todavia no tiene reglas.
@@ -1121,7 +1186,7 @@
                     body: new FormData(form),
                 });
 
-                const data = await response.json();
+                const data = await parseSemaphoreTemplateJsonResponse(response);
 
                 if (response.status === 422) {
                     renderAjaxErrors('createSemaphoreTemplateAjaxErrors', data.errors || {});
@@ -1162,7 +1227,7 @@
                     body: new FormData(form),
                 });
 
-                const data = await response.json();
+                const data = await parseSemaphoreTemplateJsonResponse(response);
 
                 if (response.status === 422) {
                     renderAjaxErrors('editSemaphoreTemplateAjaxErrors', data.errors || {});
@@ -1194,7 +1259,7 @@
                     },
                 });
 
-                const data = await response.json();
+                const data = await parseSemaphoreTemplateJsonResponse(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.message || 'No fue posible actualizar el estado.');
@@ -1222,7 +1287,7 @@
                     },
                 });
 
-                const data = await response.json();
+                const data = await parseSemaphoreTemplateJsonResponse(response);
 
                 if (!response.ok || !data.success) {
                     throw new Error(data.message || 'No fue posible eliminar la plantilla.');

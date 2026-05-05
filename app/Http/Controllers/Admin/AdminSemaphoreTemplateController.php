@@ -138,6 +138,13 @@ class AdminSemaphoreTemplateController extends Controller
         $groups = $this->scopedGroups($clients->pluck('id')->all());
         $elementTypes = $this->scopedElementTypes($clients->pluck('id')->all());
         $components = Component::query()
+            ->with([
+                'diagnostics' => fn ($query) => $query
+                    ->where('status', true)
+                    ->where('client_id', $semaphoreTemplate->client_id)
+                    ->where('element_type_id', $semaphoreTemplate->element_type_id)
+                    ->orderBy('name'),
+            ])
             ->where('status', true)
             ->where('client_id', $semaphoreTemplate->client_id)
             ->where('element_type_id', $semaphoreTemplate->element_type_id)
@@ -488,7 +495,23 @@ class AdminSemaphoreTemplateController extends Controller
 
     private function assertColumnRulesConsistency(int $clientId, int $elementTypeId, array $columns): void
     {
+        $columnKeys = [];
+
         foreach ($columns as $columnIndex => $column) {
+            $computedKey = Str::slug(trim((string) ($column['key'] ?? ''))) ?: Str::slug(trim((string) ($column['label'] ?? '')));
+
+            if ($computedKey !== '') {
+                abort_unless(
+                    !in_array($computedKey, $columnKeys, true),
+                    422,
+                    'La clave interna de la columna ' . ($columnIndex + 1) . ' esta duplicada dentro de la plantilla.'
+                );
+
+                $columnKeys[] = $computedKey;
+            }
+
+            $rulePairs = [];
+
             foreach (($column['rules'] ?? []) as $ruleIndex => $rule) {
                 $componentId = isset($rule['component_id']) ? (int) $rule['component_id'] : 0;
                 $diagnosticId = isset($rule['diagnostic_id']) ? (int) $rule['diagnostic_id'] : 0;
@@ -496,6 +519,16 @@ class AdminSemaphoreTemplateController extends Controller
                 if ($componentId <= 0 || $diagnosticId <= 0) {
                     continue;
                 }
+
+                $pairKey = $componentId . ':' . $diagnosticId;
+
+                abort_unless(
+                    !in_array($pairKey, $rulePairs, true),
+                    422,
+                    'La regla ' . ($ruleIndex + 1) . ' de la columna ' . ($columnIndex + 1) . ' esta duplicada.'
+                );
+
+                $rulePairs[] = $pairKey;
 
                 $component = Component::query()->findOrFail($componentId);
                 $diagnostic = Diagnostic::query()->findOrFail($diagnosticId);
@@ -606,6 +639,7 @@ class AdminSemaphoreTemplateController extends Controller
             'components' => $components->map(fn ($item) => [
                 'id' => $item->id,
                 'label' => trim(($item->code ? $item->code . ' - ' : '') . $item->name),
+                'diagnostic_ids' => $item->diagnostics->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
             ])->values()->all(),
             'diagnostics' => $diagnostics->map(fn ($item) => [
                 'id' => $item->id,
