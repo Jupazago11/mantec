@@ -9,6 +9,26 @@
 </head>
 <body class="bg-slate-100 text-slate-900">
     @php
+        $filterLabelMap = [
+            'element_type_names' => 'Tipo de activo',
+            'area_names' => 'Área',
+            'element_names' => 'Activo',
+            'diagnostic_pairs' => 'Componente / diagnóstico',
+            'recommendation_values' => 'Recomendación',
+            'condition_codes' => 'Código condición',
+            'orden_values' => 'Orden',
+            'aviso_values' => 'Aviso',
+            'inspector_names' => 'Inspector',
+            'responsable_names' => 'Responsable',
+            'condition_names' => 'Condición',
+            'execution_statuses' => 'Estado ejecución',
+            'weeks' => 'Semana',
+            'report_date_from' => 'Fecha reporte desde',
+            'report_date_to' => 'Fecha reporte hasta',
+            'execution_date_from' => 'Fecha ejecución desde',
+            'execution_date_to' => 'Fecha ejecución hasta',
+        ];
+
         $hasFilter = function ($key) use ($activeFilters) {
             $value = $activeFilters[$key] ?? null;
 
@@ -29,6 +49,33 @@
             });
 
         $clearFiltersUrl = route('admin.preventive-reports.general', $client->id) . '?year=' . $currentYear;
+
+        $activeFilterBadges = collect($activeFilters)
+            ->map(function ($value, $key) use ($filterLabelMap) {
+                if (is_array($value)) {
+                    $clean = collect($value)
+                        ->filter(fn ($item) => $item !== null && $item !== '')
+                        ->values();
+
+                    if ($clean->isEmpty()) {
+                        return null;
+                    }
+
+                    return [
+                        'label' => $filterLabelMap[$key] ?? $key,
+                    ];
+                }
+
+                if ($value === null || $value === '') {
+                    return null;
+                }
+
+                return [
+                        'label' => $filterLabelMap[$key] ?? $key,
+                ];
+            })
+            ->filter()
+            ->values();
     @endphp
 
     <div class="min-h-screen p-4">
@@ -90,6 +137,21 @@
                         @endif
                     </div>
                 </div>
+
+                @if($activeFilterBadges->isNotEmpty())
+                    <div class="mt-4 border-t border-slate-200 pt-4">
+                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Filtros activos
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($activeFilterBadges as $badge)
+                                <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                    {{ $badge['label'] }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
 
 
@@ -306,7 +368,12 @@
 <tbody class="divide-y divide-slate-200 bg-white">
     @forelse($reports as $report)
         @php
-            $isDone = ($report->executionStatus?->name ?? null) === 'REALIZADO';
+            $executionStatusName = trim((string) ($report->executionStatus?->name ?? 'PENDIENTE'));
+            $isDone = in_array(mb_strtoupper($executionStatusName), ['REALIZADO', 'REALIZADA', 'FINALIZADO', 'FINALIZADA', 'EJECUTADO', 'EJECUTADA'], true);
+            $isExecutionOk = mb_strtoupper($executionStatusName) === 'OK';
+            $executionBadgeClasses = $isExecutionOk
+                ? 'bg-sky-100 text-sky-800'
+                : ($isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800');
         @endphp
 
         <tr class="align-top hover:bg-slate-50">
@@ -406,17 +473,17 @@
             </td>
 
             <td class="px-3 py-3 text-sm">
-                @if($isReadOnly ?? false)
+                @if(($isReadOnly ?? false) || $isExecutionOk)
                     <span
                         id="execution-badge-{{ $report->id }}"
-                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $executionBadgeClasses }}"
                     >
-                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                        <span>{{ $executionStatusName }}</span>
                     </span>
                 @else
                     <label
                         id="execution-badge-{{ $report->id }}"
-                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $isDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800' }}"
+                        class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold {{ $executionBadgeClasses }}"
                     >
                         <input
                             type="checkbox"
@@ -424,7 +491,7 @@
                             data-id="{{ $report->id }}"
                             {{ $isDone ? 'checked' : '' }}
                         >
-                        <span>{{ $isDone ? 'REALIZADO' : 'PENDIENTE' }}</span>
+                        <span>{{ $executionStatusName }}</span>
                     </label>
                 @endif
             </td>
@@ -443,7 +510,7 @@
 </tbody>
 @if($reports->hasPages())
     <div class="border-t border-slate-200 px-4 py-3">
-        {{ $reports->appends(['year' => $currentYear])->links() }}
+        {{ $reports->appends(request()->query())->links() }}
     </div>
 @endif
             </div>
@@ -651,6 +718,22 @@ function renderChecklist(body, config, selectedValues, objectMode = false) {
                         placeholder="Buscar dentro de la lista"
                     >
                 </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        onclick="setAllCurrentPopoverChecks(true)"
+                        class="text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                    >
+                        Seleccionar todo
+                    </button>
+                    <button
+                        type="button"
+                        onclick="setAllCurrentPopoverChecks(false)"
+                        class="text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                    >
+                        Deseleccionar todo
+                    </button>
+                </div>
                 <div id="${listId}" class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3"></div>
             `;
 
@@ -693,6 +776,18 @@ function renderChecklist(body, config, selectedValues, objectMode = false) {
 
             renderList();
             search.addEventListener('input', renderList);
+        }
+
+        function setAllCurrentPopoverChecks(checked) {
+            document.querySelectorAll('#filterPopover #filterPopoverBody .filter-check').forEach(input => {
+                const label = input.closest('label');
+
+                if (label && label.offsetParent === null) {
+                    return;
+                }
+
+                input.checked = checked;
+            });
         }
 
         function renderDateRange(body, config) {

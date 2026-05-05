@@ -8,6 +8,7 @@ use App\Models\ElementType;
 use App\Models\ExecutionStatus;
 use App\Models\ReportDetail;
 use App\Models\User;
+use App\Services\Execution\ExecutionStatusResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,6 +17,11 @@ use Illuminate\View\View;
 
 class AdminPreventiveReportController extends Controller
 {
+    public function __construct(
+        private readonly ExecutionStatusResolver $executionStatusResolver,
+    ) {
+    }
+
     public function show(Client $client, ElementType $elementType, Request $request): View
     {
         $user = Auth::user();
@@ -174,7 +180,7 @@ class AdminPreventiveReportController extends Controller
                 ->sort()
                 ->values(),
 
-            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO']),
+            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO', 'OK']),
 
             'weeks' => $optionsRows
                 ->map(fn ($row) => $row->week)
@@ -428,7 +434,7 @@ class AdminPreventiveReportController extends Controller
                 ->sort()
                 ->values(),
 
-            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO']),
+            'execution_statuses' => collect(['PENDIENTE', 'REALIZADO', 'OK']),
 
             'weeks' => $optionsRows
                 ->map(fn ($row) => $row->week)
@@ -500,30 +506,22 @@ class AdminPreventiveReportController extends Controller
             'No autorizado para modificar este reporte.'
         );
 
-        $statuses = \App\Models\ExecutionStatus::query()
-            ->where('status', true)
-            ->get();
-
-        $pendingStatus = $statuses->first(function ($status) {
-            $name = mb_strtoupper(trim((string) ($status->name ?? '')));
-            $code = mb_strtoupper(trim((string) ($status->code ?? '')));
-
-            return in_array($name, ['PENDIENTE', 'PENDIENTE DE EJECUCIÓN', 'SIN EJECUTAR'], true)
-                || in_array($code, ['PENDIENTE', 'PENDING', 'PEND'], true);
-        });
-
-        $doneStatus = $statuses->first(function ($status) {
-            $name = mb_strtoupper(trim((string) ($status->name ?? '')));
-            $code = mb_strtoupper(trim((string) ($status->code ?? '')));
-
-            return in_array($name, ['EJECUTADO', 'EJECUTADA', 'REALIZADO', 'REALIZADA', 'FINALIZADO', 'FINALIZADA'], true)
-                || in_array($code, ['EJECUTADO', 'DONE', 'REALIZADO', 'COMPLETADO'], true);
-        });
+        $statuses = $this->executionStatusResolver->activeStatuses();
+        $pendingStatus = $this->executionStatusResolver->findPendingStatus($statuses);
+        $doneStatus = $this->executionStatusResolver->findDoneStatus($statuses);
+        $okStatus = $this->executionStatusResolver->findOkStatus($statuses);
 
         if (!$pendingStatus || !$doneStatus) {
             return response()->json([
                 'success' => false,
                 'message' => 'Configura dos estados activos de ejecución: uno pendiente y otro realizado.',
+            ], 422);
+        }
+
+        if ($okStatus && (int) $reportDetail->execution_status_id === (int) $okStatus->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Los reportes con condición OK no cambian entre pendiente y realizado.',
             ], 422);
         }
 
@@ -755,6 +753,12 @@ class AdminPreventiveReportController extends Controller
                     ->map(fn ($v) => strtoupper(trim((string) $v)))
                     ->values();
 
+                if ($normalized->contains('OK')) {
+                    $statusQuery->orWhereHas('executionStatus', function ($q) {
+                        $q->where('name', 'OK');
+                    });
+                }
+
                 if ($normalized->contains('REALIZADO')) {
                     $statusQuery->orWhereHas('executionStatus', function ($q) {
                         $q->where('name', 'REALIZADO');
@@ -765,7 +769,7 @@ class AdminPreventiveReportController extends Controller
                     $statusQuery->orWhere(function ($q) {
                         $q->whereNull('execution_status_id')
                             ->orWhereHas('executionStatus', function ($statusQ) {
-                                $statusQ->where('name', '!=', 'REALIZADO');
+                                $statusQ->where('name', 'PENDIENTE');
                             });
                     });
                 }
@@ -1000,14 +1004,8 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
 
             $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
 
-            $report->executed = in_array($statusUpper, [
-                'EJECUTADO',
-                'EJECUTADA',
-                'FINALIZADO',
-                'FINALIZADA',
-                'REALIZADO',
-                'REALIZADA',
-            ], true);
+            $report->executed = $this->executionStatusResolver->isDoneStatusName($statusUpper);
+            $report->is_execution_ok = $this->executionStatusResolver->isOkStatusName($statusUpper);
 
             if (!$report->executed) {
                 $report->execution_date = null;
@@ -1132,9 +1130,8 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         false
     ),
 
-    'execution_statuses' => $this->buildFilterOptionsFromValues(
-        $optionsRows->pluck('execution_status_name'),
-        true
+    'execution_statuses' => $this->buildExecutionStatusFilterOptions(
+        $optionsRows->pluck('execution_status_name')
     ),
 
     'weeks' => $this->buildFilterOptionsFromValues(
@@ -1578,17 +1575,33 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         }
 
         if ($request->filled('execution_statuses')) {
-            [$statuses, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('execution_statuses', []));
+            $statuses = collect((array) $request->input('execution_statuses', []))
+                ->map(fn ($value) => $this->normalizeExecutionStatusName($value))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
 
-            $query->where(function ($q) use ($statuses, $wantsEmpty) {
-                if (!empty($statuses)) {
-                    $q->orWhereHas('executionStatus', function ($statusQuery) use ($statuses) {
-                        $statusQuery->whereIn('name', $statuses);
+            $query->where(function ($q) use ($statuses) {
+                if (in_array('OK', $statuses, true)) {
+                    $q->orWhereHas('executionStatus', function ($statusQuery) {
+                        $statusQuery->where('name', 'OK');
                     });
                 }
 
-                if ($wantsEmpty) {
-                    $q->orWhereNull('execution_status_id');
+                if (in_array('REALIZADO', $statuses, true)) {
+                    $q->orWhereHas('executionStatus', function ($statusQuery) {
+                        $statusQuery->where('name', 'REALIZADO');
+                    });
+                }
+
+                if (in_array('PENDIENTE', $statuses, true)) {
+                    $q->orWhere(function ($pendingQuery) {
+                        $pendingQuery->whereNull('execution_status_id')
+                            ->orWhereHas('executionStatus', function ($statusQuery) {
+                                $statusQuery->where('name', 'PENDIENTE');
+                            });
+                    });
                 }
             });
         }
@@ -2036,7 +2049,7 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
             ->all();
     }
 
-    private function canAccessReportByCurrentScope($user, ReportDetail $report): bool
+private function canAccessReportByCurrentScope($user, ReportDetail $report): bool
 {
     $roleKey = $user->role?->key;
 
@@ -2072,6 +2085,44 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
     }
 
     return $this->canAccessElementType($user, $clientId, $elementTypeId);
+}
+
+private function buildExecutionStatusFilterOptions(\Illuminate\Support\Collection $values): \Illuminate\Support\Collection
+{
+    return $values
+        ->map(fn ($value) => $this->normalizeExecutionStatusName($value))
+        ->filter()
+        ->unique()
+        ->sortBy(fn ($value) => match ($value) {
+            'PENDIENTE' => 1,
+            'REALIZADO' => 2,
+            'OK' => 3,
+            default => 99,
+        })
+        ->values()
+        ->map(fn ($value) => [
+            'value' => $value,
+            'label' => $value,
+        ]);
+}
+
+private function normalizeExecutionStatusName($value): string
+{
+    $normalized = mb_strtoupper(trim((string) $value));
+
+    if ($normalized === '') {
+        return 'PENDIENTE';
+    }
+
+    if ($normalized === 'OK') {
+        return 'OK';
+    }
+
+    if (in_array($normalized, ['REALIZADO', 'REALIZADA', 'EJECUTADO', 'EJECUTADA', 'FINALIZADO', 'FINALIZADA'], true)) {
+        return 'REALIZADO';
+    }
+
+    return 'PENDIENTE';
 }
 
 private function buildFilterOptionsFromValues(

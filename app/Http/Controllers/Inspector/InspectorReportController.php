@@ -12,6 +12,7 @@ use App\Models\Diagnostic;
 use App\Models\Element;
 use App\Models\Group;
 use App\Models\ReportDetail;
+use App\Services\Execution\ExecutionStatusResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,11 @@ use App\Support\ReportFilePathBuilder;
 
 class InspectorReportController extends Controller
 {
+    public function __construct(
+        private readonly ExecutionStatusResolver $executionStatusResolver,
+    ) {
+    }
+
     public function index(): View
     {
         $user = Auth::user();
@@ -701,7 +707,8 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         }
 
         $isDetenidoCondition = $this->isDetenidoCondition($condition);
-        $isOkCondition = $this->isOkCondition($condition);
+        $isOkCondition = $this->executionStatusResolver->isOkCondition($condition);
+        $executionStatusId = $this->executionStatusResolver->resolveStatusIdForCondition($condition);
         $lastNonDetenidoReport = $isDetenidoCondition
             ? $this->findLatestNonDetenidoReport($element->id, $component->id, $diagnostic->id)
             : null;
@@ -747,9 +754,13 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             if ($isOkCondition) {
                 $updateData['orden'] = null;
                 $updateData['aviso'] = null;
+                $updateData['execution_status_id'] = $executionStatusId;
+                $updateData['execution_date'] = null;
             } else {
                 $updateData['orden'] = $previousMatchingReport?->orden;
                 $updateData['aviso'] = $previousMatchingReport?->aviso;
+                $updateData['execution_status_id'] = $executionStatusId;
+                $updateData['execution_date'] = $existingReport->execution_date ?: now()->toDateString();
             }
 
             $existingReport->update($updateData);
@@ -788,8 +799,8 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             'orden' => $isOkCondition ? null : $previousMatchingReport?->orden,
             'aviso' => $isOkCondition ? null : $previousMatchingReport?->aviso,
             'is_belt_change' => $isBeltChangeValue,
-            'execution_status_id' => null,
-            'execution_date' => now()->toDateString(),
+            'execution_status_id' => $executionStatusId,
+            'execution_date' => $isOkCondition ? null : now()->toDateString(),
         ]);
 
         if ($request->hasFile('attachments')) {
@@ -864,11 +875,6 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
     private function isDetenidoCondition(Condition $condition): bool
     {
         return mb_strtolower(trim((string) $condition->code)) === 'detenido';
-    }
-
-    private function isOkCondition(Condition $condition): bool
-    {
-        return mb_strtolower(trim((string) $condition->code)) === 'ok';
     }
 
     private function findLatestNonDetenidoReport(int $elementId, int $componentId, int $diagnosticId): ?ReportDetail

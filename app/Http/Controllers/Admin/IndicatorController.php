@@ -9,6 +9,7 @@ use App\Models\Group;
 use App\Models\ReportDetail;
 use App\Models\SemaphoreBeltChange;
 use App\Models\SemaphoreTemplate;
+use App\Services\Semaphore\SemaphoreBuilder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,11 @@ use Illuminate\View\View;
 
 class IndicatorController extends Controller
 {
+    public function __construct(
+        private readonly SemaphoreBuilder $semaphoreBuilder,
+    ) {
+    }
+
     public function index(): View
     {
         $user = auth()->user();
@@ -297,9 +303,41 @@ class IndicatorController extends Controller
                     return true;
                 }
 
+                if ($statusName === 'ok') {
+                    return false;
+                }
+
                 return !str_contains($statusName, 'ejecut');
             })
             ->count();
+
+        $doneExecution = $details
+            ->filter(function ($detail) {
+                $statusName = mb_strtolower((string) ($detail->executionStatus?->name ?? ''));
+
+                return str_contains($statusName, 'ejecut')
+                    || str_contains($statusName, 'realiz')
+                    || str_contains($statusName, 'finaliz')
+                    || $statusName === 'done';
+            })
+            ->count();
+
+        $okExecution = $details
+            ->filter(function ($detail) {
+                $statusName = mb_strtolower((string) ($detail->executionStatus?->name ?? ''));
+                $statusCode = mb_strtolower((string) ($detail->executionStatus?->code ?? ''));
+
+                return $statusName === 'ok' || $statusCode === 'ok';
+            })
+            ->count();
+
+        $executionTracked = $pendingExecution + $doneExecution + $okExecution;
+        $pendingExecutionRate = $executionTracked > 0
+            ? round(($pendingExecution / $executionTracked) * 100, 1)
+            : 0;
+        $okExecutionRate = $executionTracked > 0
+            ? round(($okExecution / $executionTracked) * 100, 1)
+            : 0;
 
         return response()->json([
             'success' => true,
@@ -313,6 +351,11 @@ class IndicatorController extends Controller
                 'diagnostics' => $details->whereNotNull('diagnostic_id')->count(),
                 'attention_findings' => $this->countAttentionLike($details),
                 'pending_execution' => $pendingExecution,
+                'done_execution' => $doneExecution,
+                'ok_execution' => $okExecution,
+                'execution_tracked' => $executionTracked,
+                'pending_execution_rate' => $pendingExecutionRate,
+                'ok_execution_rate' => $okExecutionRate,
             ],
             'charts' => [
                 'mode' => $singleTypeMode ? 'condition' : 'severity',
@@ -1123,16 +1166,7 @@ private function resolveSemaphoreTemplate(?int $clientId, ?int $groupId, int $el
 
 private function serializeSemaphoreTemplateColumns(SemaphoreTemplate $template): array
 {
-    return $this->orderSemaphoreTemplateColumns($template->columns)
-        ->where('status', true)
-        ->values()
-        ->map(fn ($column) => [
-            'key' => $column->key,
-            'label' => $column->label,
-            'type' => $column->column_type,
-            'source_column_key' => $column->source_column_key,
-        ])
-        ->all();
+    return $this->semaphoreBuilder->serializeTemplateColumns($template);
 }
 
 private function orderSemaphoreTemplateColumns(Collection $columns): Collection
@@ -1175,92 +1209,17 @@ private function orderSemaphoreTemplateColumns(Collection $columns): Collection
 
 private function legacySemaphoreColumns(): array
 {
-    return [
-        ['key' => 'change_belt', 'label' => 'Cambio banda', 'type' => 'belt_change_manual', 'source_column_key' => 'belt_status'],
-        ['key' => 'belt_status', 'label' => 'Estado banda', 'type' => 'condition_aggregate', 'source_column_key' => null],
-        ['key' => 'safety_condition', 'label' => 'Seguridad', 'type' => 'condition_aggregate', 'source_column_key' => null],
-        ['key' => 'discharge', 'label' => 'Descarga', 'type' => 'condition_aggregate', 'source_column_key' => null],
-        ['key' => 'cleaner', 'label' => 'Limpiador', 'type' => 'condition_aggregate', 'source_column_key' => null],
-    ];
+    return $this->semaphoreBuilder->legacyColumns();
 }
 
 private function buildLegacySemaphoreRowCells(Collection $details, ?SemaphoreBeltChange $override = null): array
 {
-    $beltStatus = $this->buildSemaphoreBeltStatus($details);
-
-    return [
-        'change_belt' => $this->buildSemaphoreChangeBelt($details, $override, $beltStatus),
-        'belt_status' => $beltStatus,
-        'safety_condition' => $this->buildSemaphoreSafetyCondition($details),
-        'discharge' => $this->buildSemaphoreComponentColumn($details, ['Tolva de alimentación']),
-        'cleaner' => $this->buildSemaphoreComponentColumn($details, [
-            'Limpiador primario',
-            'Limpiador secundario',
-            'Limpiador transversal',
-            'Limpiador en V',
-        ]),
-    ];
+    return $this->semaphoreBuilder->buildLegacyRowCells($details, $override);
 }
 
 private function buildSemaphoreTemplateRowCells(Collection $details, ?SemaphoreBeltChange $override, SemaphoreTemplate $template): array
 {
-    $columns = $this->orderSemaphoreTemplateColumns($template->columns)
-        ->where('status', true)
-        ->values();
-
-    $columnsByKey = $columns->keyBy('key');
-    $resolved = [];
-    $building = [];
-
-    $resolveColumn = function (string $key) use (&$resolveColumn, &$resolved, &$building, $columnsByKey, $details, $override) {
-        if (array_key_exists($key, $resolved)) {
-            return $resolved[$key];
-        }
-
-        if (isset($building[$key])) {
-            return [
-                'label' => 'N/A',
-                'level' => 'neutral',
-                'detail' => 'La columna depende de otra columna en un ciclo no permitido.',
-                'severity' => null,
-                'order' => 900,
-            ];
-        }
-
-        $column = $columnsByKey->get($key);
-
-        if (!$column) {
-            return [
-                'label' => 'N/A',
-                'level' => 'neutral',
-                'detail' => 'La columna configurada ya no existe en la plantilla activa.',
-                'severity' => null,
-                'order' => 900,
-            ];
-        }
-
-        $building[$key] = true;
-
-        if ($column->column_type === 'belt_change_manual') {
-            $sourceCell = $column->source_column_key
-                ? $resolveColumn($column->source_column_key)
-                : $this->buildSemaphoreBeltStatus($details);
-
-            $resolved[$key] = $this->buildSemaphoreChangeBelt($details, $override, $sourceCell);
-        } else {
-            $resolved[$key] = $this->buildSemaphoreConfiguredAggregateColumn($details, $column);
-        }
-
-        unset($building[$key]);
-
-        return $resolved[$key];
-    };
-
-    foreach ($columns as $column) {
-        $resolved[$column->key] = $resolveColumn($column->key);
-    }
-
-    return $resolved;
+    return $this->semaphoreBuilder->buildTemplateRowCells($details, $override, $template);
 }
 
 private function buildSemaphoreConfiguredAggregateColumn(Collection $details, $column): array

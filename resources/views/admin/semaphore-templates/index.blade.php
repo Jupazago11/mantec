@@ -349,10 +349,6 @@
 
                 <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
                     <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                        <div class="text-sm text-slate-500">
-                            El guardado es por AJAX. Si hay errores, el constructor conserva lo que ya escribiste.
-                        </div>
-
                         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
                             <button
                                 type="button"

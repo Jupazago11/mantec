@@ -567,6 +567,25 @@
     @php
         $isReadOnly = $isReadOnly ?? false;
         $roleKey = $roleKey ?? auth()->user()?->role?->key;
+        $filterLabelMap = [
+            'area_names' => 'Área',
+            'element_names' => 'Activo',
+            'warehouse_codes' => 'Código bodega',
+            'diagnostic_pairs' => 'Componente / diagnóstico',
+            'recommendation_values' => 'Recomendación',
+            'condition_codes' => 'Código condición',
+            'orden_values' => 'Orden',
+            'aviso_values' => 'Aviso',
+            'inspector_names' => 'Inspector',
+            'responsable_names' => 'Responsable',
+            'condition_names' => 'Condición',
+            'execution_statuses' => 'Estado ejecución',
+            'weeks' => 'Semana',
+            'report_date_from' => 'Fecha reporte desde',
+            'report_date_to' => 'Fecha reporte hasta',
+            'execution_date_from' => 'Fecha ejecución desde',
+            'execution_date_to' => 'Fecha ejecución hasta',
+        ];
 
         $dateFrom = $dateFrom ?? request('date_from', now()->startOfYear()->toDateString());
         $dateTo = $dateTo ?? request('date_to', now()->toDateString());
@@ -597,6 +616,33 @@
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
             ]);
+
+        $activeFilterBadges = collect($activeFilters)
+            ->map(function ($value, $key) use ($filterLabelMap) {
+                if (is_array($value)) {
+                    $clean = collect($value)
+                        ->filter(fn ($item) => $item !== null && $item !== '')
+                        ->values();
+
+                    if ($clean->isEmpty()) {
+                        return null;
+                    }
+
+                    return [
+                        'label' => $filterLabelMap[$key] ?? $key,
+                    ];
+                }
+
+                if ($value === null || $value === '') {
+                    return null;
+                }
+
+                return [
+                    'label' => $filterLabelMap[$key] ?? $key,
+                ];
+            })
+            ->filter()
+            ->values();
 
         $showWarehouseColumn = $showWarehouseColumn ?? false;
 
@@ -752,15 +798,17 @@
 
                     <div class="sm:col-span-2 lg:col-span-2">
                         <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Estado de filtros
+                            Filtros activos
                         </label>
 
-                        <div class="flex h-[42px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                        <div class="flex min-h-[42px] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                             @if($hasAnyActiveFilter)
-                                <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                                <span class="font-medium text-slate-700">Hay filtros activos en la tabla</span>
+                                @foreach($activeFilterBadges as $badge)
+                                    <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                                        {{ $badge['label'] }}
+                                    </span>
+                                @endforeach
                             @else
-                                <span class="inline-flex h-2.5 w-2.5 rounded-full bg-slate-300"></span>
                                 <span class="font-medium text-slate-500">Sin filtros adicionales</span>
                             @endif
                         </div>
@@ -790,6 +838,7 @@
                         Aplicar rango
                     </button>
                 </div>
+
             </div>
 
             <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -959,11 +1008,14 @@
                                                         @forelse($reports as $report)
                                 @php
                                     $reportId = $report->id;
-                                    $executionBadgeClasses = $report->executed
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : 'bg-amber-100 text-amber-800';
+                                    $isExecutionOk = (bool) ($report->is_execution_ok ?? false);
+                                    $executionBadgeClasses = $isExecutionOk
+                                        ? 'bg-sky-100 text-sky-800'
+                                        : ($report->executed
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : 'bg-amber-100 text-amber-800');
 
-                                    $executionLabel = $report->executed ? 'REALIZADO' : 'PENDIENTE';
+                                    $executionLabel = $report->execution_status_name ?: 'PENDIENTE';
 
                                     $executionDateText = $report->execution_date
                                         ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d')
@@ -1123,7 +1175,7 @@
                                     </td>
 
                                     <td class="cell-execution text-sm text-slate-700">
-                                        @if(!$isReadOnly)
+                                        @if(!$isReadOnly && !$isExecutionOk)
                                             <button
                                                 type="button"
                                                 onclick="toggleExecution({{ $reportId }})"
@@ -1134,6 +1186,7 @@
                                             </button>
                                         @else
                                             <span
+                                                id="execution-badge-{{ $reportId }}"
                                                 class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold {{ $executionBadgeClasses }}"
                                             >
                                                 {{ $executionLabel }}
@@ -1689,6 +1742,23 @@
                         >
                     </div>
 
+                    <div class="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onclick="setAllPopoverOptionsChecked(true)"
+                            class="text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                        >
+                            Seleccionar todo
+                        </button>
+                        <button
+                            type="button"
+                            onclick="setAllPopoverOptionsChecked(false)"
+                            class="text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+                        >
+                            Deseleccionar todo
+                        </button>
+                    </div>
+
                     <div
                         id="filter-options-container"
                         data-filter-key="${escapeHtml(filterKey)}"
@@ -1752,6 +1822,18 @@
             });
 
             closeFilterPopover();
+        }
+
+        function setAllPopoverOptionsChecked(checked) {
+            const container = document.getElementById('filter-options-container');
+
+            if (!container) {
+                return;
+            }
+
+            container.querySelectorAll('label:not(.hidden) .filter-option-checkbox').forEach(input => {
+                input.checked = checked;
+            });
         }
 
         function submitDateRangeFilter(filterKey) {

@@ -10,6 +10,7 @@ use App\Models\ElementType;
 use App\Models\Group;
 use App\Models\SemaphoreTemplate;
 use App\Models\SemaphoreTemplateColumn;
+use App\Services\Semaphore\SemaphoreColumnOrderer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,11 @@ use Illuminate\View\View;
 
 class AdminSemaphoreTemplateController extends Controller
 {
+    public function __construct(
+        private readonly SemaphoreColumnOrderer $semaphoreColumnOrderer,
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $this->authorizeManage();
@@ -446,7 +452,7 @@ class AdminSemaphoreTemplateController extends Controller
 
     private function syncColumns(SemaphoreTemplate $template, array $columns): void
     {
-        $columns = $this->normalizeSemaphoreColumnOrder($columns);
+        $columns = $this->semaphoreColumnOrderer->normalizePayload($columns);
         $existingIds = $template->columns()->pluck('id')->all();
         $keptIds = [];
 
@@ -492,63 +498,6 @@ class AdminSemaphoreTemplateController extends Controller
         if (!empty($deleteIds)) {
             $template->columns()->whereIn('id', $deleteIds)->delete();
         }
-    }
-
-    private function normalizeSemaphoreColumnOrder(array $columns): array
-    {
-        $normalized = array_values($columns);
-
-        foreach ($normalized as $index => $column) {
-            $computedKey = Str::slug(trim((string) ($column['key'] ?? '')))
-                ?: Str::slug(trim((string) ($column['label'] ?? '')))
-                ?: 'column-' . ($index + 1);
-
-            $normalized[$index]['__computed_key'] = $computedKey;
-        }
-
-        foreach (array_values($normalized) as $column) {
-            if (($column['column_type'] ?? null) !== 'belt_change_manual') {
-                continue;
-            }
-
-            $sourceKey = trim((string) ($column['source_column_key'] ?? ''));
-
-            if ($sourceKey === '') {
-                continue;
-            }
-
-            $currentIndex = collect($normalized)->search(
-                fn ($item) => ($item['__computed_key'] ?? null) === ($column['__computed_key'] ?? null)
-            );
-            $sourceIndex = collect($normalized)->search(
-                fn ($item) => ($item['__computed_key'] ?? null) === $sourceKey
-            );
-
-            if ($currentIndex === false || $sourceIndex === false || $currentIndex < $sourceIndex) {
-                continue;
-            }
-
-            $item = $normalized[$currentIndex];
-            array_splice($normalized, $currentIndex, 1);
-
-            $sourceIndex = collect($normalized)->search(
-                fn ($entry) => ($entry['__computed_key'] ?? null) === $sourceKey
-            );
-
-            if ($sourceIndex === false) {
-                $normalized[] = $item;
-                continue;
-            }
-
-            array_splice($normalized, $sourceIndex, 0, [$item]);
-        }
-
-        return array_map(function (array $column, int $index) {
-            unset($column['__computed_key']);
-            $column['position'] = $index;
-
-            return $column;
-        }, $normalized, array_keys($normalized));
     }
 
     private function assertColumnRulesConsistency(int $clientId, int $elementTypeId, array $columns): void
@@ -661,7 +610,7 @@ class AdminSemaphoreTemplateController extends Controller
 
     private function serializeTemplateEditor(SemaphoreTemplate $template, Collection $components, Collection $diagnostics): array
     {
-        $orderedColumns = $this->orderSemaphoreTemplateColumns($template->columns);
+        $orderedColumns = $this->semaphoreColumnOrderer->orderCollection($template->columns);
 
         return [
             'id' => $template->id,
@@ -706,44 +655,6 @@ class AdminSemaphoreTemplateController extends Controller
                 'label' => $item->name,
             ])->values()->all(),
         ];
-    }
-
-    private function orderSemaphoreTemplateColumns(Collection $columns): Collection
-    {
-        $ordered = $columns->values();
-
-        foreach ($ordered->values() as $column) {
-            if (($column->column_type ?? null) !== 'belt_change_manual') {
-                continue;
-            }
-
-            $sourceKey = trim((string) ($column->source_column_key ?? ''));
-
-            if ($sourceKey === '') {
-                continue;
-            }
-
-            $currentIndex = $ordered->search(fn ($item) => $item->id === $column->id);
-            $sourceIndex = $ordered->search(fn ($item) => $item->key === $sourceKey);
-
-            if ($currentIndex === false || $sourceIndex === false || $currentIndex < $sourceIndex) {
-                continue;
-            }
-
-            $item = $ordered->pull($currentIndex);
-            $sourceIndex = $ordered->search(fn ($entry) => $entry->key === $sourceKey);
-
-            if ($sourceIndex === false) {
-                $ordered->push($item);
-                continue;
-            }
-
-            $ordered = $ordered->splice(0, $sourceIndex)
-                ->push($item)
-                ->merge($ordered);
-        }
-
-        return $ordered->values();
     }
 
     private function wantsJsonResponse(Request $request): bool

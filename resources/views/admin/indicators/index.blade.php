@@ -207,7 +207,7 @@
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-4">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Componentes evaluados</p>
                     <p id="metric_evaluated_components" class="mt-3 text-3xl font-bold text-slate-900">0</p>
@@ -226,6 +226,19 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Pendientes de ejecución</p>
                     <p id="metric_pending_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
+                    <p id="metric_pending_execution_rate" class="mt-1 text-sm text-slate-500">0% del estado de ejecución</p>
+                </div>
+
+                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Realizados</p>
+                    <p id="metric_done_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
+                    <p id="metric_execution_tracked" class="mt-1 text-sm text-slate-500">0 registros con seguimiento</p>
+                </div>
+
+                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Estado OK</p>
+                    <p id="metric_ok_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
+                    <p id="metric_ok_execution_rate" class="mt-1 text-sm text-slate-500">0% del estado de ejecución</p>
                 </div>
             </div>
 
@@ -1557,6 +1570,11 @@
             setText('metric_diagnostics', summary.diagnostics ?? 0);
             setText('metric_attention_findings', summary.attention_findings ?? 0);
             setText('metric_pending_execution', summary.pending_execution ?? 0);
+            setText('metric_pending_execution_rate', `${summary.pending_execution_rate ?? 0}% del estado de ejecución`);
+            setText('metric_done_execution', summary.done_execution ?? 0);
+            setText('metric_execution_tracked', `${summary.execution_tracked ?? 0} registros con seguimiento`);
+            setText('metric_ok_execution', summary.ok_execution ?? 0);
+            setText('metric_ok_execution_rate', `${summary.ok_execution_rate ?? 0}% del estado de ejecución`);
 
             const hasData = Number(summary.preventive_reports || 0) > 0 || Number(summary.evaluated_components || 0) > 0;
 

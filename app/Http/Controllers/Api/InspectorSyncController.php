@@ -9,6 +9,7 @@ use App\Models\Condition;
 use App\Models\Diagnostic;
 use App\Models\Element;
 use App\Models\ReportDetail;
+use App\Services\Execution\ExecutionStatusResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,11 @@ use Illuminate\Support\Facades\DB;
 
 class InspectorSyncController extends Controller
 {
+    public function __construct(
+        private readonly ExecutionStatusResolver $executionStatusResolver,
+    ) {
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -93,6 +99,7 @@ class InspectorSyncController extends Controller
             ->first();
 
         if ($existing) {
+            $executionStatusId = $this->executionStatusResolver->resolveStatusIdForCondition($condition);
             $incomingRecommendation = trim((string) ($validated['recommendation'] ?? ''));
             $currentRecommendation = trim((string) ($existing->recommendation ?? ''));
 
@@ -115,7 +122,8 @@ class InspectorSyncController extends Controller
                 'condition_id' => $validated['condition_id'],
                 'recommendation' => $finalRecommendation !== '' ? $finalRecommendation : null,
                 'is_belt_change' => $validated['is_belt_change'] ?? null,
-                'execution_date' => $validated['execution_date'],
+                'execution_status_id' => $executionStatusId,
+                'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
             ]);
 
             return response()->json([
@@ -126,7 +134,9 @@ class InspectorSyncController extends Controller
             ]);
         }
 
-        $reportDetail = DB::transaction(function () use ($validated, $user) {
+        $executionStatusId = $this->executionStatusResolver->resolveStatusIdForCondition($condition);
+
+        $reportDetail = DB::transaction(function () use ($validated, $user, $executionStatusId, $condition) {
             return ReportDetail::create([
                 'report_id' => null,
                 'user_id' => $user->id,
@@ -141,8 +151,8 @@ class InspectorSyncController extends Controller
                 'orden' => null,
                 'aviso' => null,
                 'is_belt_change' => $validated['is_belt_change'] ?? null,
-                'execution_status_id' => null,
-                'execution_date' => $validated['execution_date'],
+                'execution_status_id' => $executionStatusId,
+                'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
             ]);
         });
 

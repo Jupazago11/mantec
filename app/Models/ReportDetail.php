@@ -2,10 +2,37 @@
 
 namespace App\Models;
 
+use App\Services\Execution\ExecutionStatusResolver;
 use Illuminate\Database\Eloquent\Model;
 
 class ReportDetail extends Model
 {
+    protected static function booted(): void
+    {
+        static::saving(function (ReportDetail $reportDetail) {
+            if ($reportDetail->execution_status_id) {
+                return;
+            }
+
+            $resolver = app(ExecutionStatusResolver::class);
+            $condition = $reportDetail->relationLoaded('condition')
+                ? $reportDetail->condition
+                : ($reportDetail->condition_id ? Condition::find($reportDetail->condition_id) : null);
+
+            if ($condition) {
+                $reportDetail->execution_status_id = $resolver->resolveStatusIdForCondition($condition);
+
+                if ($resolver->isOkCondition($condition)) {
+                    $reportDetail->execution_date = null;
+                }
+
+                return;
+            }
+
+            $reportDetail->execution_status_id = $resolver->findPendingStatus()?->id;
+        });
+    }
+
     protected $fillable = [
         'report_id',
         'user_id',
