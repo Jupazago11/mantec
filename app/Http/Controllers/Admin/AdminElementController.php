@@ -12,12 +12,13 @@ use App\Models\ElementType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminElementController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
         $clientIds = $clients->pluck('id')->all();
@@ -89,85 +90,80 @@ class AdminElementController extends Controller
             ->values()
             ->all();
 
-        $baseQuery = Element::query()
-            ->with(['area.client', 'elementType', 'group', 'components'])
-            ->withCount(['components', 'reportDetails'])
-            ->whereHas('area', function ($query) use ($clients) {
-                $query->whereIn('client_id', $clients->pluck('id'));
-            });
+        $baseQuery = $this->buildElementBaseQuery($clients);
+        $filteredQuery = $this->applyElementFilters(
+            clone $baseQuery,
+            $selectedClientIds,
+            $selectedAreaIds,
+            $selectedElementTypeIds,
+            $selectedNames,
+            $selectedWarehouseCodes,
+            $selectedStatuses
+        );
 
-        if (!empty($selectedClientIds)) {
-            $baseQuery->whereHas('area', function ($query) use ($selectedClientIds) {
-                $query->whereIn('client_id', $selectedClientIds);
-            });
-        }
-
-        if (!empty($selectedAreaIds)) {
-            $baseQuery->whereIn('area_id', $selectedAreaIds);
-        }
-
-        if (!empty($selectedElementTypeIds)) {
-            $baseQuery->whereIn('element_type_id', $selectedElementTypeIds);
-        }
-
-        if (!empty($selectedNames)) {
-            $baseQuery->whereIn('name', $selectedNames);
-        }
-
-        if (!empty($selectedWarehouseCodes)) {
-            $baseQuery->whereIn('warehouse_code', $selectedWarehouseCodes);
-        }
-
-        if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
-        }
-
-        $elements = (clone $baseQuery)
+        $elements = (clone $filteredQuery)
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
 
+        $allVisibleElements = (clone $filteredQuery)->get();
+
         $filterClientOptions = $showClientColumn
-            ? $clients->map(fn ($client) => [
-                'value' => (string) $client->id,
-                'label' => $client->name,
-            ])->values()
+            ? $allVisibleElements
+                ->map(fn ($element) => $element->area?->client)
+                ->filter()
+                ->unique('id')
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->map(fn ($client) => [
+                    'value' => (string) $client->id,
+                    'label' => $client->name,
+                ])->values()
             : collect();
 
-        $filterAreaOptions = $areas->map(fn ($area) => [
-            'value' => (string) $area->id,
-            'label' => $showClientColumn ? (($area->client?->name ?? '—') . ' - ' . $area->name) : $area->name,
-        ])->values();
+        $filterAreaOptions = $allVisibleElements
+            ->map(fn ($element) => $element->area)
+            ->filter()
+            ->unique('id')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->map(fn ($area) => [
+                'value' => (string) $area->id,
+                'label' => $showClientColumn ? (($area->client?->name ?? '—') . ' - ' . $area->name) : $area->name,
+            ])->values();
 
-        $filterElementTypeOptions = $elementTypes->map(fn ($type) => [
-            'value' => (string) $type->id,
-            'label' => $type->name,
-        ])->values();
+        $filterElementTypeOptions = $allVisibleElements
+            ->map(fn ($element) => $element->elementType)
+            ->filter()
+            ->unique('id')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->map(fn ($type) => [
+                'value' => (string) $type->id,
+                'label' => $type->name,
+            ])->values();
 
-        $filterNameOptions = Element::query()
-            ->whereHas('area', function ($query) use ($clients) {
-                $query->whereIn('client_id', $clients->pluck('id'));
-            })
+        $filterNameOptions = $allVisibleElements
             ->pluck('name')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $filterWarehouseOptions = Element::query()
-            ->whereHas('area', function ($query) use ($clients) {
-                $query->whereIn('client_id', $clients->pluck('id'));
-            })
+        $filterWarehouseOptions = $allVisibleElements
             ->pluck('warehouse_code')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $filterStatusOptions = collect([
-            ['value' => '1', 'label' => 'Activo'],
-            ['value' => '0', 'label' => 'Inactivo'],
-        ]);
+        $filterStatusOptions = $allVisibleElements
+            ->pluck('status')
+            ->map(fn ($status) => (string) ((int) $status))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->map(fn ($value) => [
+                'value' => $value,
+                'label' => $value === '1' ? 'Activo' : 'Inactivo',
+            ]);
 
         $filterOptions = [
             'client_ids' => $filterClientOptions,
@@ -187,7 +183,7 @@ class AdminElementController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
-        return view('admin.managed-elements.index', [
+        $viewData = [
             'clients' => $clients,
             'singleClient' => $singleClient,
             'areas' => $areas,
@@ -198,7 +194,29 @@ class AdminElementController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'showClientColumn' => $showClientColumn,
-        ]);
+        ];
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-elements.partials.list', array_merge(
+                    $viewData,
+                    ['hasFilter' => $this->hasFilterResolver($activeFilters)]
+                ))->render(),
+                'filter_options' => [
+                    'client_ids' => $filterClientOptions->values()->all(),
+                    'area_ids' => $filterAreaOptions->values()->all(),
+                    'element_type_ids' => $filterElementTypeOptions->values()->all(),
+                    'names' => $filterNameOptions->values()->all(),
+                    'warehouse_codes' => $filterWarehouseOptions->values()->all(),
+                    'statuses' => $filterStatusOptions->values()->all(),
+                ],
+                'has_any_active_filter' => $this->hasAnyActiveFilter($activeFilters),
+                'current_page' => $elements->currentPage(),
+            ]);
+        }
+
+        return view('admin.managed-elements.index', $viewData);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -600,6 +618,47 @@ class AdminElementController extends Controller
             ->get(['clients.id', 'clients.name']);
     }
 
+    private function buildElementBaseQuery(Collection $clients)
+    {
+        return Element::query()
+            ->with(['area.client', 'elementType', 'group', 'components'])
+            ->withCount(['components', 'reportDetails'])
+            ->whereHas('area', function ($query) use ($clients) {
+                $query->whereIn('client_id', $clients->pluck('id'));
+            });
+    }
+
+    private function applyElementFilters($query, array $selectedClientIds, array $selectedAreaIds, array $selectedElementTypeIds, array $selectedNames, array $selectedWarehouseCodes, array $selectedStatuses)
+    {
+        if (!empty($selectedClientIds)) {
+            $query->whereHas('area', function ($query) use ($selectedClientIds) {
+                $query->whereIn('client_id', $selectedClientIds);
+            });
+        }
+
+        if (!empty($selectedAreaIds)) {
+            $query->whereIn('area_id', $selectedAreaIds);
+        }
+
+        if (!empty($selectedElementTypeIds)) {
+            $query->whereIn('element_type_id', $selectedElementTypeIds);
+        }
+
+        if (!empty($selectedNames)) {
+            $query->whereIn('name', $selectedNames);
+        }
+
+        if (!empty($selectedWarehouseCodes)) {
+            $query->whereIn('warehouse_code', $selectedWarehouseCodes);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $query->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
+        }
+
+        return $query;
+    }
+
     private function buildRedirectQuery(Request $request): array
     {
         $query = [];
@@ -647,10 +706,38 @@ class AdminElementController extends Controller
         return $query;
     }
 
-private function isAjaxRequest(Request $request): bool
-{
-    return $request->expectsJson() || $request->ajax();
-}
+    private function isAjaxRequest(Request $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
+    }
+
+    private function hasFilterResolver(array $activeFilters): \Closure
+    {
+        return function (string $key) use ($activeFilters): bool {
+            $value = $activeFilters[$key] ?? null;
+
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+
+            return $value !== null && $value !== '';
+        };
+    }
+
+    private function hasAnyActiveFilter(array $activeFilters): bool
+    {
+        foreach ($activeFilters as $value) {
+            if (is_array($value) && count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0) {
+                return true;
+            }
+
+            if (!is_array($value) && $value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 private function elementPayload(Element $element): array
 {

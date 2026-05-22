@@ -203,42 +203,30 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Reportes preventivos</p>
                     <p id="metric_preventive_reports" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                    <p class="mt-1 text-sm text-slate-500">Reportes únicos del rango</p>
+                    <p class="mt-1 text-sm text-slate-500">Cuenta un reporte único por activo y semana dentro del rango.</p>
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Componentes evaluados</p>
-                    <p id="metric_evaluated_components" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Diagnósticos registrados</p>
-                    <p id="metric_diagnostics" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Novedades con atención</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Novedades con atención</p>
+                        <button
+                            type="button"
+                            class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-slate-500 transition hover:border-[#d94d33] hover:text-[#d94d33]"
+                            title="Cuenta los registros preventivos cuya condición tiene severidad mayor a 0. Son hallazgos que no están en OK y requieren revisión, seguimiento o intervención."
+                            aria-label="Explicación de novedades con atención"
+                        >
+                            <i data-lucide="info" class="h-3.5 w-3.5"></i>
+                        </button>
+                    </div>
                     <p id="metric_attention_findings" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Pendientes de ejecución</p>
-                    <p id="metric_pending_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                    <p id="metric_pending_execution_rate" class="mt-1 text-sm text-slate-500">0% del estado de ejecución</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Realizados</p>
-                    <p id="metric_done_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                    <p id="metric_execution_tracked" class="mt-1 text-sm text-slate-500">0 registros con seguimiento</p>
                 </div>
 
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Estado OK</p>
                     <p id="metric_ok_execution" class="mt-3 text-3xl font-bold text-slate-900">0</p>
-                    <p id="metric_ok_execution_rate" class="mt-1 text-sm text-slate-500">0% del estado de ejecución</p>
+                    <p id="metric_ok_execution_rate" class="mt-1 text-sm text-slate-500">0% de los registros preventivos del rango</p>
                 </div>
             </div>
 
@@ -341,7 +329,7 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Activos revisados por semana</h3>
-                        <p class="mt-1 text-sm text-slate-500">Cobertura semanal de activos inspeccionados frente al universo filtrado.</p>
+                        <p class="mt-1 text-sm text-slate-500">Cantidad de activos inspeccionados en cada semana del rango.</p>
                     </div>
                     <div class="h-[320px]">
                         <canvas id="weeklyCoverageChart"></canvas>
@@ -361,10 +349,12 @@
                 <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="mb-4">
                         <h3 class="text-lg font-semibold text-slate-900">Activos con más condiciones</h3>
-                        <p class="mt-1 text-sm text-slate-500">Ranking de activos por registros preventivos y atención.</p>
+                        <p class="mt-1 text-sm text-slate-500">Ranking de activos con más hallazgos que requieren atención.</p>
                     </div>
-                    <div class="h-[320px]">
-                        <canvas id="topElementsChart"></canvas>
+                    <div class="max-h-[420px] overflow-y-auto pr-2">
+                        <div class="h-[320px]">
+                            <canvas id="topElementsChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -383,8 +373,10 @@
                         <h3 class="text-lg font-semibold text-slate-900">Novedades por área</h3>
                         <p class="mt-1 text-sm text-slate-500">Todas las áreas ordenadas por proporción de hallazgos con atención frente a sus novedades.</p>
                     </div>
-                    <div class="h-[320px]">
-                        <canvas id="areaChart"></canvas>
+                    <div class="max-h-[420px] overflow-y-auto pr-2">
+                        <div class="h-[320px]">
+                            <canvas id="areaChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -393,8 +385,10 @@
                         <h3 class="text-lg font-semibold text-slate-900">Componentes críticos</h3>
                         <p class="mt-1 text-sm text-slate-500">Componentes ordenados por proporción de hallazgos con atención sobre sus novedades.</p>
                     </div>
-                    <div class="h-[320px]">
-                        <canvas id="componentChart"></canvas>
+                    <div class="max-h-[420px] overflow-y-auto pr-2">
+                        <div class="h-[320px]">
+                            <canvas id="componentChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1300,7 +1294,7 @@
             const route = module?.dataset.semaphoreBeltChangeUpdateRoute;
 
             if (!route) {
-                showIndicatorToast('No se encontrÃ³ la ruta para actualizar cambio de banda.', 'error');
+                showIndicatorToast('No se encontró la ruta para actualizar cambio de banda.', 'error');
                 return;
             }
 
@@ -1349,7 +1343,7 @@
                     await loadSemaphoreOverview();
                 }
             } catch (error) {
-                showIndicatorToast('OcurriÃ³ un error de red al actualizar cambio de banda.', 'error');
+                showIndicatorToast('Ocurrió un error de red al actualizar cambio de banda.', 'error');
             } finally {
                 button.disabled = false;
                 button.className = originalClass;
@@ -1566,17 +1560,11 @@
             setText('metric_not_inspected_elements', `${summary.not_inspected_elements ?? 0} sin inspección`);
             setText('metric_coverage', `${summary.coverage ?? 0}%`);
             setText('metric_preventive_reports', summary.preventive_reports ?? 0);
-            setText('metric_evaluated_components', summary.evaluated_components ?? 0);
-            setText('metric_diagnostics', summary.diagnostics ?? 0);
             setText('metric_attention_findings', summary.attention_findings ?? 0);
-            setText('metric_pending_execution', summary.pending_execution ?? 0);
-            setText('metric_pending_execution_rate', `${summary.pending_execution_rate ?? 0}% del estado de ejecución`);
-            setText('metric_done_execution', summary.done_execution ?? 0);
-            setText('metric_execution_tracked', `${summary.execution_tracked ?? 0} registros con seguimiento`);
             setText('metric_ok_execution', summary.ok_execution ?? 0);
-            setText('metric_ok_execution_rate', `${summary.ok_execution_rate ?? 0}% del estado de ejecución`);
+            setText('metric_ok_execution_rate', `${summary.ok_execution_rate ?? 0}% de los registros preventivos del rango`);
 
-            const hasData = Number(summary.preventive_reports || 0) > 0 || Number(summary.evaluated_components || 0) > 0;
+            const hasData = Number(summary.preventive_reports || 0) > 0 || Number(summary.total_findings || 0) > 0;
 
             document.getElementById('indicator_empty')?.classList.toggle('hidden', hasData);
             document.getElementById('indicator_content')?.classList.toggle('hidden', !hasData);
@@ -1600,7 +1588,7 @@
             renderWeeklyChart(charts.reports_by_week || []);
             renderWeeklyCoverageChart(charts.weekly_asset_coverage || []);
             renderElementTypeCoverageChart(charts.summary_by_element_type || []);
-            renderHorizontalChart('topElementsChart', 'topElementsChart', charts.top_elements || [], 'name', ['total', 'attention'], ['Novedades', 'Atención']);
+            renderHorizontalChart('topElementsChart', 'topElementsChart', charts.top_elements || [], 'name', ['attention'], ['Atención']);
             renderHorizontalChart('topConditionsChart', 'topConditionsChart', charts.top_conditions || [], 'label', ['total'], ['Total'], true);
             renderHorizontalChart('areaChart', 'areaChart', charts.area_distribution || [], 'label', ['attention_rate'], ['Atención %']);
             renderHorizontalChart('componentChart', 'componentChart', charts.top_components || [], 'name', ['attention_rate'], ['Atención %']);
@@ -1651,33 +1639,95 @@
             setText('semaphore_overview_current', `Semana ${indicatorState.semaphoreOverviewWeek} / ${indicatorState.semaphoreOverviewYear}`);
             setText('semaphore_overview_description', 'Vista resumida por semana del semáforo del tipo de activo seleccionado.');
 
+            try {
+                const preferred = {
+                    year: Number(indicatorState.semaphoreOverviewYear || 0),
+                    week: Number(indicatorState.semaphoreOverviewWeek || 0),
+                };
+                const resolved = await findSemaphoreOverviewWeekWithData(route, preferred.year, preferred.week);
+
+                if (!resolved.success) {
+                    renderSemaphoreOverviewUnavailable(resolved.message || 'No fue posible cargar el resumen semanal del semáforo.');
+                    return;
+                }
+
+                indicatorState.semaphoreOverviewYear = resolved.year;
+                indicatorState.semaphoreOverviewWeek = resolved.week;
+                renderSemaphoreOverviewWeeks();
+                renderSemaphoreOverview(resolved.data, resolved.fallbackApplied);
+            } catch (error) {
+                renderSemaphoreOverviewUnavailable('Ocurrió un error al cargar el resumen semanal del semáforo.');
+            }
+        }
+
+        async function fetchSemaphoreOverviewWeek(route, year, week) {
             const params = new URLSearchParams({
                 client_id: document.getElementById('indicator_client_id')?.value || '',
                 group_id: document.getElementById('indicator_group_id')?.value || '',
                 element_type_id: document.getElementById('indicator_element_type_id')?.value || '',
-                year: String(indicatorState.semaphoreOverviewYear || ''),
-                week: String(indicatorState.semaphoreOverviewWeek || ''),
+                year: String(year || ''),
+                week: String(week || ''),
             });
 
-            try {
-                const response = await fetch(`${route}?${params.toString()}`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                });
+            const response = await fetch(`${route}?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
 
-                const data = await response.json();
+            const data = await response.json();
+
+            return {
+                response,
+                data,
+            };
+        }
+
+        function semaphoreOverviewHasPrimaryData(data) {
+            const rows = (data?.areas || []).flatMap(area => area.rows || []);
+
+            if (!rows.length) {
+                return false;
+            }
+
+            const columnKeys = resolveSemaphoreOverviewColumnKeys(data);
+            const changeBeltRows = buildSemaphoreColumnStats(rows, columnKeys.changeBeltKey);
+            const beltStatusRows = buildSemaphoreColumnStats(rows, columnKeys.beltStatusKey);
+
+            return changeBeltRows.length > 0 || beltStatusRows.length > 0;
+        }
+
+        async function findSemaphoreOverviewWeekWithData(route, initialYear, initialWeek) {
+            let probe = { year: initialYear, week: initialWeek };
+
+            for (let index = 0; index < 52; index++) {
+                const { response, data } = await fetchSemaphoreOverviewWeek(route, probe.year, probe.week);
 
                 if (!response.ok || data.success === false) {
-                    renderSemaphoreOverviewUnavailable(data.message || 'No fue posible cargar el resumen semanal del semáforo.');
-                    return;
+                    return {
+                        success: false,
+                        message: data.message || 'No fue posible cargar el resumen semanal del semáforo.',
+                    };
                 }
 
-                renderSemaphoreOverview(data);
-            } catch (error) {
-                renderSemaphoreOverviewUnavailable('Ocurrió un error al cargar el resumen semanal del semáforo.');
+                if (semaphoreOverviewHasPrimaryData(data)) {
+                    return {
+                        success: true,
+                        data,
+                        year: probe.year,
+                        week: probe.week,
+                        fallbackApplied: index > 0,
+                    };
+                }
+
+                probe = shiftIsoWeek(probe.year, probe.week, -1);
             }
+
+            return {
+                success: false,
+                message: 'No se encontraron semanas con datos para Cambio banda o Estado banda.',
+            };
         }
         function renderSemaphoreOverviewUnavailable(message) {
             document.getElementById('semaphore_overview_section')?.classList.remove('hidden');
@@ -1752,6 +1802,76 @@
             }
         }
 
+        function distributeConditionRows(rows) {
+            const groups = new Map();
+
+            (rows || []).forEach(row => {
+                const key = normalizeChartColorKey(row.color || semaphoreChartColor(row.label));
+
+                if (!groups.has(key)) {
+                    groups.set(key, []);
+                }
+
+                groups.get(key).push(row);
+            });
+
+            const orderedGroups = Array.from(groups.values())
+                .map(group => group.slice().sort((a, b) => (b.total || 0) - (a.total || 0)))
+                .sort((a, b) => (b[0]?.total || 0) - (a[0]?.total || 0));
+
+            const distributed = [];
+            let added = true;
+
+            while (added) {
+                added = false;
+
+                orderedGroups.forEach(group => {
+                    if (!group.length) {
+                        return;
+                    }
+
+                    distributed.push(group.shift());
+                    added = true;
+                });
+            }
+
+            return distributed;
+        }
+
+        function normalizeChartColorKey(color) {
+            const normalized = String(color || '').trim().toLowerCase();
+
+            if (['#ff0000', '#ff0d0d', '#ff1a1a', '#f87171', '#ef4444', '#dc2626'].includes(normalized)) {
+                return 'red';
+            }
+
+            if (['#ffff00', '#ffeb3b', '#fde68a', '#fbbf24', '#eab308'].includes(normalized)) {
+                return 'yellow';
+            }
+
+            if (['#00ff00', '#22c55e', '#34d399', '#16a34a'].includes(normalized)) {
+                return 'green';
+            }
+
+            if (['#00b0f0', '#60a5fa', '#3b82f6', '#0ea5e9'].includes(normalized)) {
+                return 'blue';
+            }
+
+            if (['#ffffff', '#f8fafc', '#f1f5f9', '#e2e8f0'].includes(normalized)) {
+                return 'neutral';
+            }
+
+            if (['#7030a0', '#8b5cf6', '#7c3aed'].includes(normalized)) {
+                return 'purple';
+            }
+
+            if (['#ff9900', '#f97316', '#fdba74'].includes(normalized)) {
+                return 'orange';
+            }
+
+            return normalized;
+        }
+
         function renderConditionChart(rows) {
             const canvas = document.getElementById('conditionChart');
 
@@ -1763,13 +1883,15 @@
                 indicatorState.conditionChart.destroy();
             }
 
+            const chartRows = distributeConditionRows(rows);
+
             indicatorState.conditionChart = new Chart(canvas, {
                 type: 'doughnut',
                 data: {
-                    labels: rows.map(row => row.label),
+                    labels: chartRows.map(row => row.label),
                     datasets: [{
-                        data: rows.map(row => row.total),
-                        backgroundColor: rows.map(row => row.color || semaphoreChartColor(row.label)),
+                        data: chartRows.map(row => row.total),
+                        backgroundColor: chartRows.map(row => row.color || semaphoreChartColor(row.label)),
                     }],
                 },
                 options: {
@@ -1918,36 +2040,27 @@
             }
 
             indicatorState.weeklyCoverageChart = new Chart(canvas, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: rows.map(row => row.label),
                     datasets: [
                         {
                             label: 'Activos revisados',
                             data: rows.map(row => row.inspected),
-                            tension: 0.25,
-                            yAxisID: 'y',
-                        },
-                        {
-                            label: 'Cobertura %',
-                            data: rows.map(row => row.coverage),
-                            tension: 0.25,
-                            yAxisID: 'y1',
+                            backgroundColor: '#93c5fd',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            borderRadius: 10,
                         },
                     ],
                 },
                 options: {
                     maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0 } },
-                        y1: {
-                            beginAtZero: true,
-                            max: 100,
-                            position: 'right',
-                            grid: { drawOnChartArea: false },
-                            ticks: { callback: value => `${value}%` },
-                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
                     },
                 },
             });
@@ -2000,12 +2113,12 @@
                 indicatorState[stateKey].destroy();
             }
 
-            const visibleRows = canvasId === 'areaChart'
+            const visibleRows = ['areaChart', 'topElementsChart', 'componentChart'].includes(canvasId)
                 ? rows
                 : rows.slice(0, 10);
 
             if (canvas.parentElement) {
-                canvas.parentElement.style.height = canvasId === 'areaChart'
+                canvas.parentElement.style.height = ['areaChart', 'topElementsChart', 'componentChart'].includes(canvasId)
                     ? `${Math.max(320, visibleRows.length * 42)}px`
                     : '320px';
             }
@@ -2385,11 +2498,14 @@
             };
         }
 
-        function renderSemaphoreOverview(data) {
+        function renderSemaphoreOverview(data, fallbackApplied = false) {
             const rows = (data.areas || []).flatMap(area => area.rows || []);
             const columnKeys = resolveSemaphoreOverviewColumnKeys(data);
             const changeBeltRows = buildSemaphoreColumnStats(rows, columnKeys.changeBeltKey);
             const beltStatusRows = buildSemaphoreColumnStats(rows, columnKeys.beltStatusKey);
+            const fallbackNote = fallbackApplied
+                ? ' | Mostrando la última semana anterior con datos en Cambio banda o Estado banda.'
+                : '';
 
             document.getElementById('semaphore_overview_section')?.classList.remove('hidden');
             document.getElementById('semaphore_overview_empty')?.classList.toggle('hidden', rows.length > 0);
@@ -2397,12 +2513,11 @@
 
             setText(
                 'semaphore_overview_description',
-                `Semana ${data.meta?.week || indicatorState.semaphoreOverviewWeek} / ${data.meta?.year || indicatorState.semaphoreOverviewYear} · ${data.meta?.elements_count || 0} activos · ${data.meta?.details_count || 0} registros preventivos · ${data.meta?.template_name || 'Modelo legado'}`
+                `Semana ${data.meta?.week || indicatorState.semaphoreOverviewWeek} / ${data.meta?.year || indicatorState.semaphoreOverviewYear} | ${data.meta?.elements_count || 0} activos | ${data.meta?.details_count || 0} registros preventivos | ${data.meta?.template_name || 'Modelo legado'}${fallbackNote}`
             );
             setText('semaphore_overview_current', `Semana ${data.meta?.week || indicatorState.semaphoreOverviewWeek} / ${data.meta?.year || indicatorState.semaphoreOverviewYear}`);
             setText('semaphore_overview_change_belt_total', `${changeBeltRows.reduce((total, row) => total + row.total, 0)} registros`);
             setText('semaphore_overview_belt_status_total', `${beltStatusRows.reduce((total, row) => total + row.total, 0)} registros`);
-
             if (!rows.length) {
                 renderSemaphoreOverviewUnavailable('No hay datos de semáforo para la semana seleccionada.');
                 return;
@@ -2455,4 +2570,3 @@
         });
     </script>
 @endsection
-

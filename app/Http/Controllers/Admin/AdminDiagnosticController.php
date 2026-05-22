@@ -14,7 +14,7 @@ use Illuminate\Http\JsonResponse;
 
 class AdminDiagnosticController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
 
@@ -36,14 +36,11 @@ class AdminDiagnosticController extends Controller
                 ->all()
             : ($singleClient ? [(string) $singleClient->id] : []);
 
-
         $selectedElementTypeIds = collect($request->input('element_type_ids', []))
             ->filter()
             ->map(fn ($id) => (string) $id)
             ->values()
             ->all();
-
-
 
         $selectedDiagnosticNames = collect($request->input('diagnostic_names', []))
             ->filter()
@@ -76,7 +73,7 @@ class AdminDiagnosticController extends Controller
 
         if (!empty($selectedStatuses)) {
             $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
-}
+        }
 
         $diagnostics = (clone $baseQuery)
             ->orderBy('client_id')
@@ -92,25 +89,14 @@ class AdminDiagnosticController extends Controller
             ])->values()
             : collect();
 
-
-        $elementTypeFilterOptions = $elementTypes->map(fn ($elementType) => [
-            'value' => (string) $elementType->id,
+        $elementTypeFilterOptions = (clone $baseQuery)->get()->map(fn ($diagnostic) => [
+            'value' => (string) $diagnostic->element_type_id,
             'label' => $showClientColumn
-                ? (($elementType->client?->name ?? '—') . ' - ' . $elementType->name)
-                : $elementType->name,
-        ])->values();
+                ? (($diagnostic->client?->name ?? '—') . ' - ' . ($diagnostic->elementType?->name ?? '—'))
+                : ($diagnostic->elementType?->name ?? '—'),
+        ])->unique('value')->sortBy('label')->values();
 
-
-        $elementTypeFilterOptions = $elementTypes->map(fn ($elementType) => [
-            'value' => (string) $elementType->id,
-            'label' => $showClientColumn
-                ? (($elementType->client?->name ?? '—') . ' - ' . $elementType->name)
-                : $elementType->name,
-        ])->values();
-
-        $diagnosticNameFilterOptions = Diagnostic::query()
-            ->whereIn('client_id', $clients->pluck('id'))
-            ->pluck('name')
+        $diagnosticNameFilterOptions = (clone $baseQuery)->pluck('name')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
@@ -128,13 +114,31 @@ class AdminDiagnosticController extends Controller
             'statuses' => $statusFilterOptions,
         ];
 
-
         $activeFilters = [
             'client_ids' => $selectedClientIds,
             'element_type_ids' => $selectedElementTypeIds,
             'diagnostic_names' => $selectedDiagnosticNames,
             'statuses' => $selectedStatuses,
         ];
+
+        $hasAnyActiveFilter = collect($activeFilters)->contains(function ($value) {
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+            return $value !== null && $value !== '';
+        });
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-diagnostics.partials.list', compact(
+                    'diagnostics', 'activeFilters', 'showClientColumn'
+                ))->render(),
+                'filter_options' => $filterOptions,
+                'has_any_active_filter' => $hasAnyActiveFilter,
+                'current_page' => $diagnostics->currentPage(),
+            ]);
+        }
 
         $preferredClientId = old('client_id');
 
@@ -152,7 +156,6 @@ class AdminDiagnosticController extends Controller
             $preferredElementTypeId = session('preferred_diagnostic_element_type_id');
         }
 
-
         return view('admin.managed-diagnostics.index', compact(
             'clients',
             'singleClient',
@@ -161,10 +164,10 @@ class AdminDiagnosticController extends Controller
             'diagnostics',
             'filterOptions',
             'activeFilters',
+            'hasAnyActiveFilter',
             'preferredClientId',
             'preferredElementTypeId'
         ));
-
     }
 
 public function store(Request $request): RedirectResponse|JsonResponse

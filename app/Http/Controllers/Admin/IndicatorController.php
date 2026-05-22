@@ -215,16 +215,19 @@ class IndicatorController extends Controller
             ->groupBy('element_id')
             ->map(function ($items) {
                 $first = $items->first();
+                $attention = $this->countAttentionLike($items);
 
                 return [
                     'name' => $first?->element?->name ?: 'Sin activo',
                     'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'total' => $items->count(),
-                    'attention' => $this->countAttentionLike($items),
+                    'attention' => $attention,
                 ];
             })
-            ->sortByDesc('total')
-            ->take(10)
+            ->filter(fn ($row) => (int) ($row['attention'] ?? 0) > 0)
+            ->sortByDesc(function ($row) {
+                return sprintf('%012d-%012d', $row['attention'], $row['total']);
+            })
             ->values();
 
         $topComponents = $details
@@ -244,7 +247,6 @@ class IndicatorController extends Controller
             ->sortByDesc(function ($row) {
                 return sprintf('%012.4f-%012d', $row['attention_rate'], $row['total']);
             })
-            ->take(10)
             ->values();
 
         $topDiagnostics = $details
@@ -332,11 +334,8 @@ class IndicatorController extends Controller
             ->count();
 
         $executionTracked = $pendingExecution + $doneExecution + $okExecution;
-        $pendingExecutionRate = $executionTracked > 0
-            ? round(($pendingExecution / $executionTracked) * 100, 1)
-            : 0;
-        $okExecutionRate = $executionTracked > 0
-            ? round(($okExecution / $executionTracked) * 100, 1)
+        $okExecutionRate = $details->count() > 0
+            ? round(($okExecution / $details->count()) * 100, 1)
             : 0;
 
         return response()->json([
@@ -347,14 +346,10 @@ class IndicatorController extends Controller
                 'not_inspected_elements' => $notInspectedElements,
                 'coverage' => $coverage,
                 'preventive_reports' => $preventiveReports,
-                'evaluated_components' => $details->count(),
-                'diagnostics' => $details->whereNotNull('diagnostic_id')->count(),
+                'total_findings' => $details->count(),
                 'attention_findings' => $this->countAttentionLike($details),
-                'pending_execution' => $pendingExecution,
-                'done_execution' => $doneExecution,
                 'ok_execution' => $okExecution,
                 'execution_tracked' => $executionTracked,
-                'pending_execution_rate' => $pendingExecutionRate,
                 'ok_execution_rate' => $okExecutionRate,
             ],
             'charts' => [

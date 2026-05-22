@@ -24,7 +24,7 @@
         });
 @endphp
 
-<div class="space-y-8">
+<div class="space-y-8" data-users-index data-index-url="{{ route('admin.managed-users.index') }}">
     @if(session('success'))
         <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {{ session('success') }}
@@ -323,19 +323,27 @@
                     <div class="flex items-center justify-between gap-4">
                         <h3 class="text-lg font-semibold text-slate-900">Listado de usuarios</h3>
 
-                        @if($hasAnyActiveFilter)
-                            <a
-                                href="{{ route('admin.managed-users.index') }}"
-                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                                Limpiar filtros
-                            </a>
-                        @endif
+                        <a
+                            href="{{ route('admin.managed-users.index') }}"
+                            data-clear-filters
+                            class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                        >
+                            Limpiar filtros
+                        </a>
                     </div>
                 </div>
 
                 <form id="filtersForm" method="GET" class="hidden"></form>
 
+                @include('admin.managed-users.partials.list', [
+                    'users' => $users,
+                    'showClientColumn' => $showClientColumn,
+                    'authUserId' => $authUserId,
+                    'activeFilters' => $activeFilters,
+                    'hasFilter' => $hasFilter,
+                ])
+
+                @if(false)
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-200">
                         <thead class="bg-slate-50">
@@ -606,6 +614,7 @@
                     <div class="border-t border-slate-200 px-5 py-4">
                         {{ $users->links() }}
                     </div>
+                @endif
                 @endif
             </div>
         </div>
@@ -994,8 +1003,10 @@
     };
 
     const activeFilters = @json($activeFilters);
+    const usersIndexUrl = document.querySelector('[data-users-index]')?.dataset.indexUrl || @json(route('admin.managed-users.index'));
     let currentPopoverKey = null;
     let currentEditingUserPayload = null;
+    let isUsersListLoading = false;
 
     function getSelectedRoleKey(prefix) {
         const select = document.getElementById(`${prefix}_role_id`);
@@ -1298,9 +1309,9 @@ async function submitEditUserForm(event) {
         const data = await parseAjaxResponse(response);
 
         if (response.ok) {
-            refreshEditedUserRowFromForm();
             showCrudToast(data?.message || 'Usuario actualizado correctamente.', 'success');
             closeEditUserModal();
+            await loadUsersList(currentUsersPage(), false);
 
             return false;
         }
@@ -1360,25 +1371,8 @@ async function toggleUserStatus(button, url) {
             return;
         }
 
-        const enabled = Boolean(data?.status);
-
-        button.dataset.status = enabled ? '1' : '0';
-
-        button.className = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ' +
-            (enabled
-                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                : 'bg-red-100 text-red-700 hover:bg-red-200');
-
-        button.innerHTML = `
-            <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-            <span>${enabled ? 'Activo' : 'Inactivo'}</span>
-        `;
-
         showCrudToast(data?.message || 'Estado actualizado correctamente.', 'success');
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        await loadUsersList(currentUsersPage(), false);
     } catch (error) {
         button.innerHTML = previousHtml;
         button.className = previousClass;
@@ -1633,6 +1627,146 @@ function openEditUserModal(user) {
         });
     }
 
+    function updateUserFilterOptions(options = {}) {
+        Object.entries(options).forEach(([key, values]) => {
+            if (filterOptions[key]) {
+                filterOptions[key].options = Array.isArray(values) ? values : [];
+            }
+        });
+    }
+
+    function buildUsersQueryParams(page = 1) {
+        const params = new URLSearchParams();
+
+        Object.entries(activeFilters).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value
+                    .filter(item => item !== null && item !== '')
+                    .forEach(item => params.append(`${key}[]`, item));
+            } else if (value !== null && value !== '') {
+                params.set(key, value);
+            }
+        });
+
+        params.set('page', String(page));
+
+        return params;
+    }
+
+    function currentUsersPage() {
+        const params = new URLSearchParams(window.location.search);
+        return Math.max(1, Number(params.get('page') || '1'));
+    }
+
+    function syncUserActiveFiltersFromLocation() {
+        const params = new URLSearchParams(window.location.search);
+
+        Object.keys(activeFilters).forEach(key => {
+            const values = params.getAll(`${key}[]`);
+
+            if (values.length > 0) {
+                activeFilters[key] = values;
+                return;
+            }
+
+            const scalar = params.get(key);
+            activeFilters[key] = scalar !== null ? scalar : [];
+        });
+    }
+
+    function syncUserRedirectInputs(page = currentUsersPage()) {
+        const forms = [
+            document.getElementById('createUserForm'),
+            document.getElementById('editUserForm'),
+        ].filter(Boolean);
+
+        const mapping = {
+            client_ids: 'redirect_client_ids[]',
+            names: 'redirect_names[]',
+            role_keys: 'redirect_role_keys[]',
+            statuses: 'redirect_statuses[]',
+        };
+
+        forms.forEach(form => {
+            form.querySelectorAll('input[data-redirect-filter], input[data-redirect-page], input[name^="redirect_"]').forEach(input => input.remove());
+
+            Object.entries(mapping).forEach(([key, inputName]) => {
+                const values = Array.isArray(activeFilters[key]) ? activeFilters[key] : [];
+
+                values
+                    .filter(value => value !== null && value !== '')
+                    .forEach(value => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = inputName;
+                        input.value = value;
+                        input.dataset.redirectFilter = '1';
+                        form.appendChild(input);
+                    });
+            });
+
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'redirect_page';
+            pageInput.value = String(page);
+            pageInput.dataset.redirectPage = '1';
+            form.appendChild(pageInput);
+        });
+    }
+
+    async function loadUsersList(page = 1, updateHistory = true) {
+        if (isUsersListLoading) {
+            return;
+        }
+
+        const container = document.getElementById('usersListContainer');
+
+        if (!container) {
+            return;
+        }
+
+        isUsersListLoading = true;
+        closeFilterPopover();
+        container.classList.add('opacity-60', 'pointer-events-none', 'transition', 'duration-150');
+
+        try {
+            const params = buildUsersQueryParams(page);
+            const response = await fetch(`${usersIndexUrl}?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await parseAjaxResponse(response);
+
+            if (!response.ok || data?.success === false) {
+                throw new Error(data?.message || 'No fue posible cargar el listado de usuarios.');
+            }
+
+            container.outerHTML = data.list_html;
+            updateUserFilterOptions(data.filter_options || {});
+            document.querySelector('[data-clear-filters]')?.classList.toggle('hidden', !data.has_any_active_filter);
+
+            if (updateHistory) {
+                const url = new URL(usersIndexUrl, window.location.origin);
+                url.search = params.toString();
+                window.history.pushState({}, '', url);
+            }
+
+            syncUserRedirectInputs(Number(data.current_page || page));
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        } catch (error) {
+            showCrudToast(error.message || 'Ocurrió un error al cargar el listado de usuarios.', 'error');
+        } finally {
+            isUsersListLoading = false;
+            document.getElementById('usersListContainer')?.classList.remove('opacity-60', 'pointer-events-none');
+        }
+    }
+
     function closeFilterPopover() {
         const popover = document.getElementById('filterPopover');
         popover.classList.add('hidden');
@@ -1731,7 +1865,7 @@ function openEditUserModal(user) {
         if (!currentPopoverKey) return;
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
-        submitFilters();
+        loadUsersList(1);
     }
 
     function applyCurrentFilter() {
@@ -1741,12 +1875,11 @@ function openEditUserModal(user) {
             .map(cb => cb.value);
 
         activeFilters[config.inputName] = values;
-        submitFilters();
+        loadUsersList(1);
     }
 
     function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        loadUsersList(1);
     }
 
     function escapeHtml(text) {
@@ -1759,6 +1892,8 @@ function openEditUserModal(user) {
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        syncUserActiveFiltersFromLocation();
+        syncUserRedirectInputs();
         toggleSpecializedPermissions('create');
         toggleClientElementTypes('create');
         toggleAreaPermissionsByElementType('create');
@@ -1818,10 +1953,13 @@ function openEditUserModal(user) {
 
             if (response.ok) {
                 showCrudToast(data?.message || 'Usuario creado correctamente.', 'success');
-
-                setTimeout(() => {
-                    window.location.reload();
-                }, 700);
+                form.reset();
+                toggleSpecializedPermissions('create');
+                toggleClientElementTypes('create');
+                toggleAreaPermissionsByElementType('create');
+                toggleGroupPermissions('create');
+                toggleGroupDetails('create');
+                await loadUsersList(currentUsersPage(), false);
 
                 return;
             }
@@ -1850,6 +1988,29 @@ function openEditUserModal(user) {
     document.addEventListener('click', function (event) {
         const popover = document.getElementById('filterPopover');
         const modal = document.getElementById('editUserModal');
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        const clearFiltersLink = event.target.closest('[data-clear-filters]');
+
+        if (paginationLink) {
+            event.preventDefault();
+
+            if (paginationLink.classList.contains('pointer-events-none')) {
+                return;
+            }
+
+            const url = new URL(paginationLink.href, window.location.origin);
+            loadUsersList(Number(url.searchParams.get('page') || '1'));
+            return;
+        }
+
+        if (clearFiltersLink) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key] = [];
+            });
+            loadUsersList(1);
+            return;
+        }
 
         if (!popover.classList.contains('hidden')) {
             if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
@@ -1867,6 +2028,11 @@ function openEditUserModal(user) {
             closeFilterPopover();
             closeEditUserModal();
         }
+    });
+
+    window.addEventListener('popstate', function () {
+        syncUserActiveFiltersFromLocation();
+        loadUsersList(currentUsersPage(), false);
     });
 
     function getCheckedValues(selector) {

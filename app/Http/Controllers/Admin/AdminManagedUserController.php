@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ use Illuminate\View\View;
 
 class AdminManagedUserController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $authUser = auth()->user();
         $authRoleKey = $authUser->role?->key;
@@ -135,7 +136,7 @@ class AdminManagedUserController extends Controller
             ->values()
             ->all();
 
-        $baseQuery = User::query()
+        $baseQuery = $this->buildUserBaseQuery($visibleRoleKeys)
             ->with([
                 'role',
                 'clients',
@@ -143,10 +144,7 @@ class AdminManagedUserController extends Controller
                 'allowedElementTypes',
                 'allowedAreas',
                 'allowedGroupAreas',
-            ])
-            ->whereHas('role', function ($query) use ($visibleRoleKeys) {
-                $query->whereIn('key', $visibleRoleKeys);
-            });
+            ]);
 
         if (!in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
             $baseQuery->where(function ($query) use ($clientIds, $authUser) {
@@ -156,44 +154,32 @@ class AdminManagedUserController extends Controller
             });
         }
 
-        if (!empty($selectedClientIds)) {
-            $baseQuery->where(function ($query) use ($selectedClientIds, $authUser, $authRoleKey) {
-                $query->whereHas('clients', function ($subQuery) use ($selectedClientIds) {
-                    $subQuery->whereIn('clients.id', $selectedClientIds);
-                });
+        $filteredQuery = $this->applyUserFilters(
+            clone $baseQuery,
+            $selectedClientIds,
+            $selectedNames,
+            $selectedRoleKeys,
+            $selectedStatuses,
+            $authUser,
+            $authRoleKey
+        );
 
-                if (!in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
-                    $query->orWhere('id', $authUser->id);
-                }
-            });
-        }
-
-        if (!empty($selectedNames)) {
-            $baseQuery->whereIn('name', $selectedNames);
-        }
-
-        if (!empty($selectedRoleKeys)) {
-            $baseQuery->whereHas('role', function ($query) use ($selectedRoleKeys) {
-                $query->whereIn('key', $selectedRoleKeys);
-            });
-        }
-
-        if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
-        }
-
-        $users = (clone $baseQuery)
+        $users = (clone $filteredQuery)
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
 
-        $allVisibleUsers = (clone $baseQuery)->get();
+        $allVisibleUsers = (clone $filteredQuery)->get();
 
         $clientFilterOptions = $showClientColumn
-            ? $clients->map(fn ($client) => [
-                'value' => (string) $client->id,
-                'label' => $client->name,
-            ])->values()
+            ? $allVisibleUsers
+                ->flatMap(fn ($user) => $user->clients->map(fn ($client) => [
+                    'value' => (string) $client->id,
+                    'label' => $client->name,
+                ]))
+                ->unique(fn ($option) => $option['value'])
+                ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
             : collect();
 
         $nameFilterOptions = $allVisibleUsers->pluck('name')
@@ -202,15 +188,27 @@ class AdminManagedUserController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $roleFilterOptions = $visibleRoles->map(fn ($role) => [
-            'value' => $role->key,
-            'label' => $role->name,
-        ])->values();
+        $roleFilterOptions = $allVisibleUsers
+            ->map(fn ($user) => $user->role)
+            ->filter()
+            ->unique('key')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->map(fn ($role) => [
+                'value' => $role->key,
+                'label' => $role->name,
+            ])
+            ->values();
 
-        $statusFilterOptions = collect([
-            ['value' => '1', 'label' => 'Activo'],
-            ['value' => '0', 'label' => 'Inactivo'],
-        ]);
+        $statusFilterOptions = $allVisibleUsers
+            ->pluck('status')
+            ->map(fn ($status) => (string) ((int) $status))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->map(fn ($value) => [
+                'value' => $value,
+                'label' => $value === '1' ? 'Activo' : 'Inactivo',
+            ]);
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
@@ -226,7 +224,7 @@ class AdminManagedUserController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
-        return view('admin.managed-users.index', [
+        $viewData = [
             'users' => $users,
             'clients' => $clients,
             'singleClient' => $singleClient,
@@ -239,7 +237,27 @@ class AdminManagedUserController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'authUserId' => $authUser->id,
-        ]);
+        ];
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-users.partials.list', array_merge(
+                    $viewData,
+                    ['hasFilter' => $this->hasFilterResolver($activeFilters)]
+                ))->render(),
+                'filter_options' => [
+                    'client_ids' => $clientFilterOptions->values()->all(),
+                    'names' => $nameFilterOptions->values()->all(),
+                    'role_keys' => $roleFilterOptions->values()->all(),
+                    'statuses' => $statusFilterOptions->values()->all(),
+                ],
+                'has_any_active_filter' => $this->hasAnyActiveFilter($activeFilters),
+                'current_page' => $users->currentPage(),
+            ]);
+        }
+
+        return view('admin.managed-users.index', $viewData);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -921,6 +939,73 @@ private function syncAreaPermissions(
     private function isAjaxRequest(Request $request): bool
     {
         return $request->expectsJson() || $request->ajax();
+    }
+
+    private function buildUserBaseQuery(array $visibleRoleKeys)
+    {
+        return User::query()
+            ->whereHas('role', function ($query) use ($visibleRoleKeys) {
+                $query->whereIn('key', $visibleRoleKeys);
+            });
+    }
+
+    private function applyUserFilters($query, array $selectedClientIds, array $selectedNames, array $selectedRoleKeys, array $selectedStatuses, User $authUser, string $authRoleKey)
+    {
+        if (!empty($selectedClientIds)) {
+            $query->where(function ($query) use ($selectedClientIds, $authUser, $authRoleKey) {
+                $query->whereHas('clients', function ($subQuery) use ($selectedClientIds) {
+                    $subQuery->whereIn('clients.id', $selectedClientIds);
+                });
+
+                if (!in_array($authRoleKey, ['superadmin', 'admin_global'], true)) {
+                    $query->orWhere('id', $authUser->id);
+                }
+            });
+        }
+
+        if (!empty($selectedNames)) {
+            $query->whereIn('name', $selectedNames);
+        }
+
+        if (!empty($selectedRoleKeys)) {
+            $query->whereHas('role', function ($query) use ($selectedRoleKeys) {
+                $query->whereIn('key', $selectedRoleKeys);
+            });
+        }
+
+        if (!empty($selectedStatuses)) {
+            $query->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
+        }
+
+        return $query;
+    }
+
+    private function hasFilterResolver(array $activeFilters): \Closure
+    {
+        return function (string $key) use ($activeFilters): bool {
+            $value = $activeFilters[$key] ?? null;
+
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+
+            return $value !== null && $value !== '';
+        };
+    }
+
+    private function hasAnyActiveFilter(array $activeFilters): bool
+    {
+        foreach ($activeFilters as $value) {
+            if (is_array($value) && count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0) {
+                return true;
+            }
+
+            if (!is_array($value) && $value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
     private function validateGroupAreaPermissions(
     array $clientIds,

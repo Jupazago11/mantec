@@ -15,7 +15,7 @@ use Illuminate\View\View;
 
 class AdminConditionController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
 
@@ -100,32 +100,20 @@ class AdminConditionController extends Controller
             ])->values()
             : collect();
 
-        $elementTypeFilterOptions = $elementTypes->map(function ($type) use ($showClientColumn, $clients) {
-            $clientName = $clients->firstWhere('id', $type->client_id)?->name ?? '—';
+        $elementTypeFilterOptions = (clone $baseQuery)->get()->map(fn ($condition) => [
+            'value' => (string) $condition->element_type_id,
+            'label' => $showClientColumn
+                ? (($condition->client?->name ?? '—') . ' - ' . ($condition->elementType?->name ?? '—'))
+                : ($condition->elementType?->name ?? '—'),
+        ])->unique('value')->sortBy('label')->values();
 
-            return [
-                'value' => (string) $type->id,
-                'label' => $showClientColumn
-                    ? $clientName . ' - ' . $type->name
-                    : $type->name,
-            ];
-        })->values();
-
-        $allConditions = Condition::query()
-            ->whereIn('client_id', $clients->pluck('id'))
-            ->orderBy('severity')
-            ->orderBy('name')
-            ->get(['code', 'name']);
-
-        $codeFilterOptions = $allConditions
-            ->pluck('code')
+        $codeFilterOptions = (clone $baseQuery)->pluck('code')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $nameFilterOptions = $allConditions
-            ->pluck('name')
+        $nameFilterOptions = (clone $baseQuery)->pluck('name')
             ->filter()
             ->unique()
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
@@ -152,6 +140,25 @@ class AdminConditionController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $hasAnyActiveFilter = collect($activeFilters)->contains(function ($value) {
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+            return $value !== null && $value !== '';
+        });
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-conditions.partials.list', compact(
+                    'conditions', 'activeFilters', 'showClientColumn'
+                ))->render(),
+                'filter_options' => $filterOptions,
+                'has_any_active_filter' => $hasAnyActiveFilter,
+                'current_page' => $conditions->currentPage(),
+            ]);
+        }
+
         $preferredClientId = old('client_id');
 
         if (!$preferredClientId) {
@@ -174,10 +181,11 @@ class AdminConditionController extends Controller
             'showClientColumn' => $showClientColumn,
             'conditions' => $conditions,
             'elementTypes' => $elementTypes,
-            'preferredClientId',
-            'preferredElementTypeId',
+            'preferredClientId' => $preferredClientId,
+            'preferredElementTypeId' => $preferredElementTypeId,
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
+            'hasAnyActiveFilter' => $hasAnyActiveFilter,
         ]);
     }
 

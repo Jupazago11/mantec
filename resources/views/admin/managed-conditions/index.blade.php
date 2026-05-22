@@ -4,27 +4,6 @@
 @section('header_title', 'Condiciones')
 
 @section('content')
-    @php
-        $hasFilter = function ($key) use ($activeFilters) {
-            $value = $activeFilters[$key] ?? null;
-
-            if (is_array($value)) {
-                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-            }
-
-            return $value !== null && $value !== '';
-        };
-
-        $hasAnyActiveFilter =
-            collect($activeFilters)->contains(function ($value) {
-                if (is_array($value)) {
-                    return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-                }
-
-                return $value !== null && $value !== '';
-            });
-    @endphp
-
     <div class="space-y-8">
 
         @if(session('success'))
@@ -218,23 +197,6 @@
                             @enderror
                         </div>
 
-                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['codes'] ?? []) as $value)
-                            <input type="hidden" name="redirect_codes[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['names'] ?? []) as $value)
-                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                        @endforeach
-                        <input type="hidden" name="redirect_page" value="{{ request('page', 1) }}">
-
                         <button
                             type="submit"
                             class="inline-flex w-full items-center justify-center rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
@@ -246,274 +208,30 @@
             </div>
 
             <div>
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    data-conditions-index
+                    data-index-url="{{ route('admin.managed-conditions.index') }}"
+                >
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">Listado de condiciones</h3>
 
-                            @if($hasAnyActiveFilter)
-                                <a
-                                    href="{{ route('admin.managed-conditions.index') }}"
-                                    class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                >
-                                    Limpiar filtros
-                                </a>
-                            @endif
+                            <a
+                                href="{{ route('admin.managed-conditions.index') }}"
+                                data-clear-filters
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                            >
+                                Limpiar filtros
+                            </a>
                         </div>
                     </div>
 
-                    <form id="filtersForm" method="GET" class="hidden"></form>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    @if($showClientColumn)
-                                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <div class="flex items-center gap-2">
-                                                <span>Cliente</span>
-                                                <button
-                                                    type="button"
-                                                    onclick="openFilterPopover(event, 'client_ids')"
-                                                    class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('client_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </th>
-                                    @endif
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Tipo de activo</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'element_type_ids')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Código</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'codes')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('codes') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Nombre</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'names')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('names') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Descripción
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Criticidad
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Uso
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Estado</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'statuses')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="conditionsTableBody" class="divide-y divide-slate-200 bg-white">
-                                @forelse($conditions as $condition)
-                                    @php
-                                        $hasDependencies = ($condition->report_details_count ?? 0) > 0;
-                                    @endphp
-
-                                    <tr class="hover:bg-slate-50" id="condition-row-{{ $condition->id }}">
-                                        @if($showClientColumn)
-                                            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                                {{ $condition->client?->name ?? '—' }}
-                                            </td>
-                                        @endif
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-element-type-{{ $condition->id }}">
-                                            {{ $condition->elementType?->name ?? '—' }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-code-{{ $condition->id }}">
-                                            {{ $condition->code }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
-                                            <div class="flex items-center gap-2">
-                                                <span
-                                                    class="inline-block h-5 w-5 rounded-full border border-slate-300"
-                                                    id="condition-color-dot-{{ $condition->id }}"
-                                                    style="background-color: {{ $condition->color ?? '#ffffff' }};"
-                                                ></span>
-                                                <span id="condition-name-{{ $condition->id }}">{{ $condition->name }}</span>
-                                            </div>
-                                        </td>
-
-                                        <td class="px-5 py-3 text-sm text-slate-600" id="condition-description-{{ $condition->id }}">
-                                            {{ $condition->description ?: '—' }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-severity-{{ $condition->id }}">
-                                            {{ $condition->severity }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                                            {{ $condition->report_details_count }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            <button
-                                                type="button"
-                                                onclick="toggleConditionStatus({{ $condition->id }})"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $condition->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
-                                                id="condition-status-badge-{{ $condition->id }}"
-                                                title="Cambiar estado"
-                                            >
-                                                <i data-lucide="{{ $condition->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $condition->status ? 'Activo' : 'Inactivo' }}</span>
-                                            </button>
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-right">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                                                    onclick="openComponentConditionModal(
-                                                        '{{ $condition->id }}',
-                                                        @js($condition->client?->name ?? '—'),
-                                                        @js($condition->elementType?->name ?? '—'),
-                                                        @js($condition->name)
-                                                    )"
-                                                >
-                                                    Componentes
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    id="condition-edit-button-{{ $condition->id }}"
-                                                    class="text-slate-400 transition hover:text-[#d94d33]"
-                                                    data-code="{{ $condition->code }}"
-                                                    data-name="{{ $condition->name }}"
-                                                    data-description="{{ $condition->description }}"
-                                                    data-severity="{{ $condition->severity }}"
-                                                    data-color="{{ $condition->color }}"
-                                                    data-client_id="{{ $condition->client_id }}"
-                                                    data-element_type_id="{{ $condition->element_type_id }}"
-                                                    data-action="{{ route('admin.managed-conditions.update', $condition) }}"
-                                                    onclick="openEditConditionModal(this)"
-                                                    title="Editar condición"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                    </svg>
-                                                </button>
-
-                                                @if(!$hasDependencies)
-                                                    <button
-                                                        type="button"
-                                                        onclick="deleteCondition({{ $condition->id }})"
-                                                        class="text-red-500 transition hover:text-red-700"
-                                                        title="Eliminar condición"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                        </svg>
-                                                    </button>
-
-                                                    <form
-                                                        id="delete-condition-form-{{ $condition->id }}"
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-conditions.destroy', $condition) }}"
-                                                        class="hidden"
-                                                    >
-                                                        @csrf
-                                                        @method('DELETE')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['codes'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_codes[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="{{ $showClientColumn ? 9 : 8 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                            No hay condiciones registradas todavía.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if($conditions->hasPages())
-                        <div class="border-t border-slate-200 px-6 py-4">
-                            {{ $conditions->links() }}
-                        </div>
-                    @endif
+                    @include('admin.managed-conditions.partials.list', [
+                        'conditions' => $conditions,
+                        'activeFilters' => $activeFilters,
+                        'showClientColumn' => $showClientColumn,
+                    ])
                 </div>
             </div>
         </div>
@@ -684,23 +402,6 @@
                 </div>
             </div>
 
-            @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['codes'] ?? []) as $value)
-                <input type="hidden" name="redirect_codes[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['names'] ?? []) as $value)
-                <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['statuses'] ?? []) as $value)
-                <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-            @endforeach
-            <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
-
             <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                     <button
@@ -839,22 +540,6 @@
                     ></div>
                 </div>
 
-                @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                    <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                    <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['codes'] ?? []) as $value)
-                    <input type="hidden" name="redirect_codes[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['names'] ?? []) as $value)
-                    <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                @endforeach
-                @foreach(($activeFilters['statuses'] ?? []) as $value)
-                    <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                @endforeach
-                <input type="hidden" name="redirect_page" value="{{ $conditions->currentPage() }}">
             </div>
 
             <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
@@ -879,7 +564,7 @@
     </div>
 </div>
 <script>
-const filterOptions = {
+let filterOptions = {
     @if($showClientColumn)
     client_ids: {
         type: 'checklist_object',
@@ -916,28 +601,74 @@ const filterOptions = {
 
 const activeFilters = @json($activeFilters);
 let currentPopoverKey = null;
+let currentPage = {{ $conditions->currentPage() }};
 
-function buildFiltersForm() {
-    const form = document.getElementById('filtersForm');
-    form.innerHTML = '';
+async function loadConditionsList(page = 1, updateHistory = true) {
+    const container = document.querySelector('[data-conditions-index]');
+    const indexUrl = container ? container.dataset.indexUrl : window.location.pathname;
 
-    const addHidden = (name, value) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value ?? '';
-        form.appendChild(input);
-    };
-
+    const params = new URLSearchParams();
     Object.entries(activeFilters).forEach(([key, value]) => {
         if (Array.isArray(value)) {
-            value.filter(item => item !== null && item !== '').forEach(item => {
-                addHidden(`${key}[]`, item);
-            });
-        } else if (value !== null && value !== '') {
-            addHidden(key, value);
+            value.filter(v => v !== null && v !== '').forEach(v => params.append(`${key}[]`, v));
         }
     });
+    if (page > 1) params.set('page', page);
+
+    const queryString = params.toString();
+    const url = queryString ? `${indexUrl}?${queryString}` : indexUrl;
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) return;
+
+        const listContainer = document.getElementById('conditionsListContainer');
+        if (listContainer) {
+            listContainer.outerHTML = data.list_html;
+        }
+
+        updateConditionFilterOptions(data.filter_options);
+        currentPage = data.current_page || page;
+
+        const clearBtn = document.querySelector('[data-clear-filters]');
+        if (clearBtn) clearBtn.classList.toggle('hidden', !data.has_any_active_filter);
+
+        if (window.lucide) window.lucide.createIcons();
+
+        if (updateHistory) {
+            window.history.pushState({ page }, '', url);
+        }
+    } catch (e) {
+        // silent
+    }
+}
+
+function updateConditionFilterOptions(newOptions) {
+    if (!newOptions) return;
+
+    if (newOptions.client_ids && filterOptions.client_ids) {
+        filterOptions.client_ids.options = newOptions.client_ids;
+    }
+    if (newOptions.element_type_ids && filterOptions.element_type_ids) {
+        filterOptions.element_type_ids.options = newOptions.element_type_ids;
+    }
+    if (newOptions.codes && filterOptions.codes) {
+        filterOptions.codes.options = newOptions.codes;
+    }
+    if (newOptions.names && filterOptions.names) {
+        filterOptions.names.options = newOptions.names;
+    }
+    if (newOptions.statuses && filterOptions.statuses) {
+        filterOptions.statuses.options = newOptions.statuses;
+    }
 }
 
 function closeFilterPopover() {
@@ -1039,7 +770,8 @@ function clearCurrentFilter() {
 
     const config = filterOptions[currentPopoverKey];
     activeFilters[config.inputName] = [];
-    submitFilters();
+    closeFilterPopover();
+    loadConditionsList(1);
 }
 
 function applyCurrentFilter() {
@@ -1050,12 +782,8 @@ function applyCurrentFilter() {
         .map(cb => cb.value);
 
     activeFilters[config.inputName] = values;
-    submitFilters();
-}
-
-function submitFilters() {
-    buildFiltersForm();
-    document.getElementById('filtersForm').submit();
+    closeFilterPopover();
+    loadConditionsList(1);
 }
 
 function escapeHtml(text) {
@@ -1250,6 +978,7 @@ async function handleComponentConditionSubmit(event) {
 
         showCrudToast(data.message || 'Componentes actualizados correctamente.', 'success');
         closeComponentConditionModal();
+        loadConditionsList(currentPage, false);
     } catch (error) {
         showCrudToast(error.message || 'Ocurrió un error al actualizar los componentes.', 'error');
     } finally {
@@ -1268,12 +997,28 @@ document.addEventListener('click', function (event) {
         }
     }
 
-    if (editModal.classList.contains('flex') && event.target === editModal) {
+    if (editModal && editModal.classList.contains('flex') && event.target === editModal) {
         closeEditConditionModal();
     }
 
-    if (componentModal.classList.contains('flex') && event.target === componentModal) {
+    if (componentModal && componentModal.classList.contains('flex') && event.target === componentModal) {
         closeComponentConditionModal();
+    }
+
+    const paginationLink = event.target.closest('[data-pagination-link]');
+    if (paginationLink) {
+        event.preventDefault();
+        const href = paginationLink.getAttribute('href');
+        if (!href || href === '#') return;
+        const pageParam = new URL(href, window.location.href).searchParams.get('page');
+        loadConditionsList(pageParam ? parseInt(pageParam) : 1);
+    }
+
+    const clearFiltersBtn = event.target.closest('[data-clear-filters]');
+    if (clearFiltersBtn) {
+        event.preventDefault();
+        Object.keys(activeFilters).forEach(key => { activeFilters[key] = []; });
+        loadConditionsList(1);
     }
 });
 
@@ -1283,6 +1028,23 @@ document.addEventListener('keydown', function (event) {
         closeEditConditionModal();
         closeComponentConditionModal();
     }
+});
+
+window.addEventListener('popstate', function (event) {
+    const params = new URLSearchParams(window.location.search);
+
+    Object.keys(activeFilters).forEach(key => { activeFilters[key] = []; });
+
+    params.forEach((value, key) => {
+        const cleanKey = key.replace('[]', '');
+        if (cleanKey in activeFilters) {
+            if (!Array.isArray(activeFilters[cleanKey])) activeFilters[cleanKey] = [];
+            activeFilters[cleanKey].push(value);
+        }
+    });
+
+    const page = parseInt(params.get('page') || '1');
+    loadConditionsList(page, false);
 });
 
 async function openComponentConditionModal(conditionId, clientName, elementTypeName, conditionName) {
@@ -1438,17 +1200,7 @@ async function toggleConditionStatus(conditionId) {
             throw new Error(data.message || 'No fue posible cambiar el estado.');
         }
 
-        badge.innerHTML = `
-            <i data-lucide="${data.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-            <span>${data.label}</span>
-        `;
-
-        badge.className = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ' +
-            (data.status
-                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                : 'bg-red-100 text-red-700 hover:bg-red-200');
-
-        badge.setAttribute('onclick', `toggleConditionStatus(${conditionId})`);
+        loadConditionsList(currentPage, false);
 
         showCrudToast(data.message || 'Estado actualizado correctamente.', 'success');
     } catch (error) {
@@ -1457,9 +1209,6 @@ async function toggleConditionStatus(conditionId) {
         showCrudToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
     } finally {
         badge.classList.remove('opacity-70', 'pointer-events-none');
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
     }
 }
 
@@ -1498,15 +1247,7 @@ async function deleteCondition(conditionId) {
             throw new Error(data.message || 'No fue posible eliminar la condición.');
         }
 
-        if (row) {
-            row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-            row.style.opacity = '0';
-            row.style.transform = 'scale(0.98)';
-
-            setTimeout(() => {
-                row.remove();
-            }, 180);
-        }
+        loadConditionsList(currentPage);
 
         showCrudToast(data.message || 'Condición eliminada correctamente.', 'success');
     } catch (error) {
@@ -1602,8 +1343,8 @@ async function handleCreateConditionSubmit(event) {
             throw new Error(data.message || 'No fue posible crear la condición.');
         }
 
-        insertConditionRow(data.condition);
         resetCreateConditionForm();
+        loadConditionsList(1);
 
         showCrudToast(data.message || 'Condición creada correctamente.', 'success');
     } catch (error) {
@@ -1648,7 +1389,7 @@ async function handleEditConditionSubmit(event) {
 
         showCrudToast(data.message || 'Condición actualizada correctamente.', 'success');
         closeEditConditionModal();
-        updateConditionRow(data.condition);
+        loadConditionsList(currentPage);
     } catch (error) {
         showCrudToast(error.message || 'Ocurrió un error al actualizar la condición.', 'error');
     } finally {
@@ -1656,54 +1397,6 @@ async function handleEditConditionSubmit(event) {
     }
 }
 
-function updateConditionRow(condition) {
-    if (!condition || !condition.id) return;
-
-    const codeEl = document.getElementById(`condition-code-${condition.id}`);
-    const nameEl = document.getElementById(`condition-name-${condition.id}`);
-    const descEl = document.getElementById(`condition-description-${condition.id}`);
-    const severityEl = document.getElementById(`condition-severity-${condition.id}`);
-    const colorDotEl = document.getElementById(`condition-color-dot-${condition.id}`);
-    const elementTypeEl = document.getElementById(`condition-element-type-${condition.id}`);
-    const editButton = document.getElementById(`condition-edit-button-${condition.id}`);
-
-    if (codeEl) {
-        codeEl.textContent = condition.code ?? '—';
-    }
-
-    if (nameEl) {
-        nameEl.textContent = condition.name ?? '—';
-    }
-
-    if (descEl) {
-        descEl.textContent =
-            condition.description && String(condition.description).trim() !== ''
-                ? condition.description
-                : '—';
-    }
-
-    if (severityEl) {
-        severityEl.textContent = condition.severity ?? '0';
-    }
-
-    if (colorDotEl) {
-        colorDotEl.style.backgroundColor = condition.color || '#ffffff';
-    }
-
-    if (elementTypeEl) {
-        elementTypeEl.textContent = condition.element_type_name ?? '—';
-    }
-
-    if (editButton) {
-        editButton.dataset.code = condition.code ?? '';
-        editButton.dataset.name = condition.name ?? '';
-        editButton.dataset.description = condition.description ?? '';
-        editButton.dataset.severity = condition.severity ?? '';
-        editButton.dataset.color = condition.color ?? '#ff0000';
-        editButton.dataset.client_id = condition.client_id ?? '';
-        editButton.dataset.element_type_id = condition.element_type_id ?? '';
-    }
-}
 
 function resetCreateConditionForm() {
     const form = document.getElementById('createConditionForm');
@@ -1737,152 +1430,6 @@ function resetCreateConditionForm() {
     }
 }
 
-function insertConditionRow(condition) {
-    if (!condition || !condition.id) return;
-
-    const tbody = document.getElementById('conditionsTableBody');
-    if (!tbody) return;
-
-    const emptyRow = tbody.querySelector('td[colspan]');
-    if (emptyRow) {
-        emptyRow.closest('tr')?.remove();
-    }
-
-    const hasClientColumn = @json($showClientColumn);
-    const canDelete = !(condition.report_details_count > 0);
-
-    const row = document.createElement('tr');
-    row.id = `condition-row-${condition.id}`;
-    row.className = 'hover:bg-slate-50';
-
-    row.innerHTML = `
-        ${hasClientColumn ? `
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-                ${escapeHtml(condition.client_name ?? '—')}
-            </td>
-        ` : ''}
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-element-type-${condition.id}">
-            ${escapeHtml(condition.element_type_name ?? '—')}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-code-${condition.id}">
-            ${escapeHtml(condition.code ?? '—')}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
-            <div class="flex items-center gap-2">
-                <span
-                    class="inline-block h-5 w-5 rounded-full border border-slate-300"
-                    id="condition-color-dot-${condition.id}"
-                    style="background-color: ${escapeHtml(condition.color || '#ffffff')};"
-                ></span>
-                <span id="condition-name-${condition.id}">${escapeHtml(condition.name ?? '—')}</span>
-            </div>
-        </td>
-
-        <td class="px-5 py-3 text-sm text-slate-600" id="condition-description-${condition.id}">
-            ${condition.description && String(condition.description).trim() !== ''
-                ? escapeHtml(condition.description)
-                : '—'}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="condition-severity-${condition.id}">
-            ${escapeHtml(String(condition.severity ?? 0))}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700">
-            ${escapeHtml(String(condition.report_details_count ?? 0))}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm">
-            <button
-                type="button"
-                onclick="toggleConditionStatus(${condition.id})"
-                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${condition.status
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-red-100 text-red-700 hover:bg-red-200'}"
-                id="condition-status-badge-${condition.id}"
-                title="Cambiar estado"
-            >
-                <i data-lucide="${condition.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-                <span>${condition.status ? 'Activo' : 'Inactivo'}</span>
-            </button>
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-right">
-            <div class="flex items-center justify-end gap-2">
-                <button
-                    type="button"
-                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                    onclick="openComponentConditionModal(
-                        '${condition.id}',
-                        ${JSON.stringify(condition.client_name ?? '—')},
-                        ${JSON.stringify(condition.element_type_name ?? '—')},
-                        ${JSON.stringify(condition.name ?? '—')}
-                    )"
-                >
-                    Componentes
-                </button>
-
-                <button
-                    type="button"
-                    id="condition-edit-button-${condition.id}"
-                    class="text-slate-400 transition hover:text-[#d94d33]"
-                    data-code="${escapeHtml(condition.code ?? '')}"
-                    data-name="${escapeHtml(condition.name ?? '')}"
-                    data-description="${escapeHtml(condition.description ?? '')}"
-                    data-severity="${escapeHtml(String(condition.severity ?? ''))}"
-                    data-color="${escapeHtml(condition.color ?? '#ff0000')}"
-                    data-client_id="${escapeHtml(String(condition.client_id ?? ''))}"
-                    data-element_type_id="${escapeHtml(String(condition.element_type_id ?? ''))}"
-                    data-action="${escapeHtml(condition.update_url ?? '')}"
-                    onclick="openEditConditionModal(this)"
-                    title="Editar condición"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                    </svg>
-                </button>
-
-                ${canDelete ? `
-                    <button
-                        type="button"
-                        onclick="deleteCondition(${condition.id})"
-                        class="text-red-500 transition hover:text-red-700"
-                        title="Eliminar condición"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                        </svg>
-                    </button>
-
-                    <form
-                        id="delete-condition-form-${condition.id}"
-                        method="POST"
-                        action="${escapeHtml(condition.destroy_url ?? '')}"
-                        class="hidden"
-                    >
-                        <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
-                        <input type="hidden" name="_method" value="DELETE">
-                    </form>
-                ` : ''}
-            </div>
-        </td>
-    `;
-
-    row.style.opacity = '0';
-    row.style.transform = 'translateY(-6px)';
-    row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-
-    tbody.prepend(row);
-
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-}
 
 function selectAllConditionComponents() {
     document

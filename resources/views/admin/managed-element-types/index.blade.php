@@ -158,202 +158,30 @@
                 </div>
             </div>
             <div>
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    data-element-types-index
+                    data-index-url="{{ route('admin.managed-element-types.index') }}"
+                >
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">Listado de tipos de activos</h3>
 
-                            @if($hasAnyActiveFilter)
-                                <a
-                                    href="{{ route('admin.managed-element-types.index') }}"
-                                    class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                >
-                                    Limpiar filtros
-                                </a>
-                            @endif
+                            <a
+                                href="{{ route('admin.managed-element-types.index') }}"
+                                data-clear-filters
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                            >
+                                Limpiar filtros
+                            </a>
                         </div>
                     </div>
 
-                    <form id="filtersForm" method="GET" class="hidden"></form>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    @if($showClientColumn)
-                                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <div class="flex items-center gap-2">
-                                                <span>Cliente</span>
-                                                <button
-                                                    type="button"
-                                                    onclick="openFilterPopover(event, 'client_ids')"
-                                                    class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('client_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </th>
-                                    @endif
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Nombre</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'names')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('names') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Semáforo
-                                    </th>
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Estado</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'statuses')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody id="elementTypesTableBody" class="divide-y divide-slate-200 bg-white">
-                                @forelse($elementTypes as $elementType)
-                                    @php
-                                        $hasDependencies = (($elementType->components_count ?? 0) + ($elementType->elements_count ?? 0)) > 0;
-                                    @endphp
-
-                                    <tr class="hover:bg-slate-50" id="element-type-row-{{ $elementType->id }}">
-                                        @if($showClientColumn)
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="element-type-client-{{ $elementType->id }}">
-                                            {{ $elementType->client?->name ?? '—' }}
-                                        </td>
-                                        @endif
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="element-type-name-{{ $elementType->id }}">
-                                            {{ $elementType->name }}
-                                        </td>
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            <button
-                                                type="button"
-                                                data-semaphore-toggle
-                                                data-url="{{ route('admin.managed-element-types.toggle-semaphore', $elementType) }}"
-                                                data-enabled="{{ $elementType->has_semaphore ? '1' : '0' }}"
-                                                onclick="toggleElementTypeSemaphore(this)"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $elementType->has_semaphore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200' }}"
-                                                title="Clic para activar o desactivar semáforo semanal"
-                                            >
-                                                <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $elementType->has_semaphore ? 'Sí' : 'No' }}</span>
-                                            </button>
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            <button
-                                                type="button"
-                                                data-status-toggle
-                                                data-url="{{ route('admin.managed-element-types.toggle-status', $elementType) }}"
-                                                data-enabled="{{ $elementType->status ? '1' : '0' }}"
-                                                onclick="toggleElementTypeStatus(this)"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $elementType->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
-                                                title="Clic para activar o inactivar"
-                                            >
-                                                <i data-lucide="{{ $elementType->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $elementType->status ? 'Activo' : 'Inactivo' }}</span>
-                                            </button>
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-right">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    data-edit-element-type
-                                                    data-id="{{ $elementType->id }}"
-                                                    data-client-id="{{ $elementType->client_id }}"
-                                                    data-name="{{ $elementType->name }}"
-                                                    data-has-semaphore="{{ $elementType->has_semaphore ? '1' : '0' }}"
-                                                    data-status="{{ $elementType->status ? '1' : '0' }}"
-                                                    data-action="{{ route('admin.managed-element-types.update', $elementType) }}"
-                                                    onclick="openEditElementTypeModalFromButton(this)"
-                                                    class="text-slate-400 transition hover:text-[#d94d33]"
-                                                    title="Editar tipo de activo"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                    </svg>
-                                                </button>
-
-                                                @if(!$hasDependencies)
-                                                    <button
-                                                        type="button"
-                                                        onclick="deleteElementType({{ $elementType->id }})"
-                                                        class="text-red-500 transition hover:text-red-700"
-                                                        title="Eliminar tipo de activo"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                        </svg>
-                                                    </button>
-
-                                                    <form
-                                                        id="delete-element-type-form-{{ $elementType->id }}"
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-element-types.destroy', $elementType) }}"
-                                                        class="hidden"
-                                                    >
-                                                        @csrf
-                                                        @method('DELETE')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $elementTypes->currentPage() }}">
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="{{ $showClientColumn ? 5 : 4 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                            No hay tipos de activos registrados todavía.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if($elementTypes->hasPages())
-                        <div class="border-t border-slate-200 px-6 py-4">
-                            {{ $elementTypes->links() }}
-                        </div>
-                    @endif
+                    @include('admin.managed-element-types.partials.list', [
+                        'elementTypes' => $elementTypes,
+                        'activeFilters' => $activeFilters,
+                        'showClientColumn' => $showClientColumn,
+                    ])
                 </div>
             </div>
         </div>
@@ -559,14 +387,116 @@
         },
     };
 
-    async function toggleElementTypeSemaphore(button) {
-        const url = button.dataset.url;
+    const activeFilters = @json($activeFilters);
+    let currentPopoverKey = null;
+    let currentPage = {{ $elementTypes->currentPage() }};
 
-        if (!url || button.disabled) {
+    function showElementTypeToast(message, type = 'success') {
+        const container = document.getElementById('elementTypeToastContainer');
+
+        if (!container) {
+            alert(message);
             return;
         }
 
-        const originalHtml = button.innerHTML;
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    async function loadElementTypesList(page = 1, updateHistory = true) {
+        const container = document.querySelector('[data-element-types-index]');
+        if (!container) return;
+
+        const indexUrl = container.dataset.indexUrl;
+        const params = new URLSearchParams();
+
+        Object.entries(activeFilters).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.filter(v => v !== null && v !== '').forEach(v => params.append(`${key}[]`, v));
+            } else if (value !== null && value !== '') {
+                params.set(key, value);
+            }
+        });
+
+        if (page > 1) {
+            params.set('page', page);
+        }
+
+        try {
+            const url = params.toString() ? `${indexUrl}?${params.toString()}` : indexUrl;
+
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                showElementTypeToast(data.message || 'Error al cargar el listado.', 'error');
+                return;
+            }
+
+            const listContainer = document.getElementById('elementTypesListContainer');
+            if (listContainer) {
+                listContainer.outerHTML = data.list_html;
+            }
+
+            updateElementTypeFilterOptions(data.filter_options);
+            currentPage = data.current_page || page;
+
+            const clearBtn = document.querySelector('[data-clear-filters]');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', !data.has_any_active_filter);
+            }
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+
+            if (updateHistory) {
+                const historyUrl = params.toString() ? `${indexUrl}?${params.toString()}` : indexUrl;
+                window.history.pushState({ page }, '', historyUrl);
+            }
+        } catch (error) {
+            showElementTypeToast('Error de red al cargar el listado.', 'error');
+        }
+    }
+
+    function updateElementTypeFilterOptions(newOptions) {
+        if (!newOptions) return;
+
+        if (newOptions.client_ids && filterOptions.client_ids) {
+            filterOptions.client_ids.options = newOptions.client_ids;
+        }
+
+        if (newOptions.names && filterOptions.names) {
+            filterOptions.names.options = Array.isArray(newOptions.names) ? newOptions.names : [];
+        }
+
+        if (newOptions.statuses && filterOptions.statuses) {
+            filterOptions.statuses.options = newOptions.statuses;
+        }
+    }
+
+    async function toggleElementTypeSemaphore(button) {
+        const url = button.dataset.url;
+        if (!url || button.disabled) return;
+
         button.disabled = true;
         button.classList.add('opacity-60', 'cursor-wait');
 
@@ -584,89 +514,22 @@
 
             if (!response.ok || data.success === false) {
                 showElementTypeToast(data.message || 'No fue posible cambiar el estado del semáforo.', 'error');
-                button.innerHTML = originalHtml;
                 return;
             }
 
-            renderSemaphoreButton(button, Boolean(data.has_semaphore));
             showElementTypeToast(data.message || 'Estado del semáforo actualizado.', 'success');
+            await loadElementTypesList(currentPage, false);
         } catch (error) {
-            button.innerHTML = originalHtml;
             showElementTypeToast('Ocurrió un error de red al actualizar el semáforo.', 'error');
         } finally {
             button.disabled = false;
             button.classList.remove('opacity-60', 'cursor-wait');
-
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
         }
-    }
-
-    function renderSemaphoreButton(button, enabled) {
-        button.dataset.enabled = enabled ? '1' : '0';
-
-        button.classList.remove(
-            'bg-emerald-100',
-            'text-emerald-700',
-            'hover:bg-emerald-200',
-            'bg-slate-100',
-            'text-slate-500',
-            'hover:bg-slate-200'
-        );
-
-        if (enabled) {
-            button.classList.add('bg-emerald-100', 'text-emerald-700', 'hover:bg-emerald-200');
-        } else {
-            button.classList.add('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
-        }
-
-        button.innerHTML = `
-            <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
-            <span>${enabled ? 'Sí' : 'No'}</span>
-        `;
-
-        const row = button.closest('tr');
-        const editButton = row?.querySelector('[data-edit-element-type]');
-
-        if (editButton) {
-            editButton.dataset.hasSemaphore = enabled ? '1' : '0';
-        }
-    }
-
-    function showElementTypeToast(message, type = 'success') {
-        const container = document.getElementById('elementTypeToastContainer');
-
-        if (!container) {
-            alert(message);
-            return;
-        }
-
-        const toast = document.createElement('div');
-        const styles = type === 'error'
-            ? 'border-red-200 bg-red-50 text-red-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
-
-        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
-        toast.textContent = message;
-
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
-
-            setTimeout(() => toast.remove(), 350);
-        }, 3500);
     }
 
     async function toggleElementTypeStatus(button) {
         const url = button.dataset.url;
-
-        if (!url || button.disabled) {
-            return;
-        }
-
-        const originalHtml = button.innerHTML;
+        if (!url || button.disabled) return;
 
         button.disabled = true;
         button.classList.add('opacity-60', 'cursor-wait');
@@ -684,80 +547,18 @@
             const data = await response.json();
 
             if (!response.ok || data.success === false) {
-                button.innerHTML = originalHtml;
                 showElementTypeToast(data.message || 'No fue posible cambiar el estado.', 'error');
                 return;
             }
 
-            renderElementTypeStatusButton(button, Boolean(data.status));
             showElementTypeToast(data.message || 'Estado actualizado correctamente.', 'success');
+            await loadElementTypesList(currentPage, false);
         } catch (error) {
-            button.innerHTML = originalHtml;
             showElementTypeToast('Ocurrió un error de red al actualizar el estado.', 'error');
         } finally {
             button.disabled = false;
             button.classList.remove('opacity-60', 'cursor-wait');
-
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
         }
-    }
-
-    function renderElementTypeStatusButton(button, enabled) {
-        button.dataset.enabled = enabled ? '1' : '0';
-
-        button.classList.remove(
-            'bg-green-100',
-            'text-green-700',
-            'hover:bg-green-200',
-            'bg-red-100',
-            'text-red-700',
-            'hover:bg-red-200'
-        );
-
-        if (enabled) {
-            button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
-        } else {
-            button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
-        }
-
-        button.innerHTML = `
-            <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-            <span>${enabled ? 'Activo' : 'Inactivo'}</span>
-        `;
-
-        const row = button.closest('tr');
-        const editButton = row?.querySelector('[data-edit-element-type]');
-
-        if (editButton) {
-            editButton.dataset.status = enabled ? '1' : '0';
-        }
-    }
-
-    function showElementTypeToast(message, type = 'success') {
-        const container = document.getElementById('elementTypeToastContainer');
-
-        if (!container) {
-            alert(message);
-            return;
-        }
-
-        const toast = document.createElement('div');
-        const styles = type === 'error'
-            ? 'border-red-200 bg-red-50 text-red-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
-
-        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
-        toast.textContent = message;
-
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
-
-            setTimeout(() => toast.remove(), 350);
-        }, 3500);
     }
 
     function openEditElementTypeModalFromButton(button) {
@@ -769,32 +570,6 @@
             button.dataset.status,
             button.dataset.action
         );
-    }
-
-    const activeFilters = @json($activeFilters);
-    let currentPopoverKey = null;
-
-    function buildFiltersForm() {
-        const form = document.getElementById('filtersForm');
-        form.innerHTML = '';
-
-        const addHidden = (name, value) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value ?? '';
-            form.appendChild(input);
-        };
-
-        Object.entries(activeFilters).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.filter(item => item !== null && item !== '').forEach(item => {
-                    addHidden(`${key}[]`, item);
-                });
-            } else if (value !== null && value !== '') {
-                addHidden(key, value);
-            }
-        });
     }
 
     function closeFilterPopover() {
@@ -894,7 +669,8 @@
         if (!currentPopoverKey) return;
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
-        submitFilters();
+        closeFilterPopover();
+        loadElementTypesList(1);
     }
 
     function applyCurrentFilter() {
@@ -902,14 +678,14 @@
         const config = filterOptions[currentPopoverKey];
         const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
             .map(cb => cb.value);
-
         activeFilters[config.inputName] = values;
-        submitFilters();
+        closeFilterPopover();
+        loadElementTypesList(1);
     }
 
     function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        closeFilterPopover();
+        loadElementTypesList(1);
     }
 
     function escapeHtml(text) {
@@ -994,61 +770,6 @@
             document.body.classList.remove('overflow-hidden');
         }, 150);
     }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const selectedClient = document.getElementById('selected_client_id');
-
-        if (selectedClient && selectedClient.value) {
-            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
-            });
-        }
-
-        const input = document.getElementById('element_type_name');
-
-        if (!input) return;
-
-        input.addEventListener('input', function () {
-            let value = this.value;
-
-            if (value.length === 0) return;
-
-            this.value = value.charAt(0).toUpperCase() + value.slice(1);
-        });
-
-        const createElementTypeForm = document.getElementById('createElementTypeForm');
-        const editElementTypeForm = document.getElementById('editElementTypeForm');
-
-        if (createElementTypeForm) {
-            createElementTypeForm.addEventListener('submit', handleCreateElementTypeSubmit);
-        }
-
-        if (editElementTypeForm) {
-            editElementTypeForm.addEventListener('submit', handleEditElementTypeSubmit);
-        }
-    });
-
-    document.addEventListener('click', function (event) {
-        const popover = document.getElementById('filterPopover');
-        const modal = document.getElementById('editElementTypeModal');
-
-        if (!popover.classList.contains('hidden')) {
-            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
-                closeFilterPopover();
-            }
-        }
-
-        if (modal.classList.contains('flex') && event.target === modal) {
-            closeEditElementTypeModal();
-        }
-    });
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-            closeFilterPopover();
-            closeEditElementTypeModal();
-        }
-    });
 
     function clearElementTypeAjaxErrors(containerId) {
         const box = document.getElementById(containerId);
@@ -1144,10 +865,9 @@
                 throw new Error(data.message || 'No fue posible crear el tipo de activo.');
             }
 
-            insertElementTypeRow(data.element_type);
             resetCreateElementTypeForm();
-
             showElementTypeToast(data.message || 'Tipo de activo creado correctamente.', 'success');
+            await loadElementTypesList(1);
         } catch (error) {
             showElementTypeToast(error.message || 'Ocurrió un error al crear el tipo de activo.', 'error');
         } finally {
@@ -1187,10 +907,9 @@
                 throw new Error(data.message || 'No fue posible actualizar el tipo de activo.');
             }
 
-            updateElementTypeRow(data.element_type);
             closeEditElementTypeModal();
-
             showElementTypeToast(data.message || 'Tipo de activo actualizado correctamente.', 'success');
+            await loadElementTypesList(currentPage);
         } catch (error) {
             showElementTypeToast(error.message || 'Ocurrió un error al actualizar el tipo de activo.', 'error');
         } finally {
@@ -1200,10 +919,8 @@
 
     async function deleteElementType(elementTypeId) {
         const confirmed = confirm('¿Seguro que deseas eliminar este tipo de activo?');
-
         if (!confirmed) return;
 
-        const row = document.getElementById(`element-type-row-${elementTypeId}`);
         const form = document.getElementById(`delete-element-type-form-${elementTypeId}`);
 
         if (!form) {
@@ -1211,8 +928,7 @@
             return;
         }
 
-        const formData = new FormData(form);
-
+        const row = document.getElementById(`element-type-row-${elementTypeId}`);
         if (row) {
             row.classList.add('opacity-60', 'pointer-events-none');
         }
@@ -1225,7 +941,7 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
-                body: formData,
+                body: new FormData(form),
             });
 
             const data = await parseElementTypeJsonResponse(response);
@@ -1234,20 +950,12 @@
                 throw new Error(data.message || 'No fue posible eliminar el tipo de activo.');
             }
 
-            if (row) {
-                row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-                row.style.opacity = '0';
-                row.style.transform = 'scale(0.98)';
-
-                setTimeout(() => row.remove(), 180);
-            }
-
             showElementTypeToast(data.message || 'Tipo de activo eliminado correctamente.', 'success');
+            await loadElementTypesList(currentPage);
         } catch (error) {
             if (row) {
                 row.classList.remove('opacity-60', 'pointer-events-none');
             }
-
             showElementTypeToast(error.message || 'Ocurrió un error al eliminar el tipo de activo.', 'error');
         }
     }
@@ -1260,7 +968,6 @@
         clearElementTypeAjaxErrors('createElementTypeAjaxErrors');
 
         const selectedClientInput = document.getElementById('selected_client_id');
-
         if (selectedClientInput) {
             selectedClientInput.value = '';
         }
@@ -1270,173 +977,88 @@
         });
     }
 
-    function updateElementTypeRow(elementType) {
-        if (!elementType || !elementType.id) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectedClient = document.getElementById('selected_client_id');
 
-        const row = document.getElementById(`element-type-row-${elementType.id}`);
-        const nameEl = document.getElementById(`element-type-name-${elementType.id}`);
-        const clientEl = document.getElementById(`element-type-client-${elementType.id}`);
-        const editButton = row?.querySelector('[data-edit-element-type]');
-        const semaphoreButton = row?.querySelector('[data-semaphore-toggle]');
-        const statusButton = row?.querySelector('[data-status-toggle]');
-
-        if (nameEl) {
-            nameEl.textContent = elementType.name ?? '—';
+        if (selectedClient && selectedClient.value) {
+            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
+            });
         }
 
-        if (clientEl) {
-            clientEl.textContent = elementType.client_name ?? '—';
+        const input = document.getElementById('element_type_name');
+
+        if (input) {
+            input.addEventListener('input', function () {
+                let value = this.value;
+                if (value.length === 0) return;
+                this.value = value.charAt(0).toUpperCase() + value.slice(1);
+            });
         }
 
-        if (editButton) {
-            editButton.dataset.clientId = elementType.client_id ?? '';
-            editButton.dataset.name = elementType.name ?? '';
-            editButton.dataset.hasSemaphore = elementType.has_semaphore ? '1' : '0';
-            editButton.dataset.status = elementType.status ? '1' : '0';
-            editButton.dataset.action = elementType.update_url ?? '';
+        const createElementTypeForm = document.getElementById('createElementTypeForm');
+        const editElementTypeForm = document.getElementById('editElementTypeForm');
+
+        if (createElementTypeForm) {
+            createElementTypeForm.addEventListener('submit', handleCreateElementTypeSubmit);
         }
 
-        if (semaphoreButton) {
-            semaphoreButton.dataset.url = elementType.toggle_semaphore_url ?? semaphoreButton.dataset.url;
-            renderSemaphoreButton(semaphoreButton, Boolean(elementType.has_semaphore));
+        if (editElementTypeForm) {
+            editElementTypeForm.addEventListener('submit', handleEditElementTypeSubmit);
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        if (paginationLink) {
+            event.preventDefault();
+            const href = paginationLink.getAttribute('href');
+            if (!href || href === '#') return;
+            const url = new URL(href, window.location.origin);
+            const page = parseInt(url.searchParams.get('page') || '1');
+            loadElementTypesList(page);
+            return;
         }
 
-        if (statusButton) {
-            statusButton.dataset.url = elementType.toggle_status_url ?? statusButton.dataset.url;
-            renderElementTypeStatusButton(statusButton, Boolean(elementType.status));
+        const clearBtn = event.target.closest('[data-clear-filters]');
+        if (clearBtn) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key] = [];
+            });
+            loadElementTypesList(1);
+            return;
         }
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
-    }
-
-    function insertElementTypeRow(elementType) {
-        if (!elementType || !elementType.id) return;
-
-        const tbody = document.getElementById('elementTypesTableBody');
-
-        if (!tbody) return;
-
-        const emptyRow = tbody.querySelector('td[colspan]');
-        if (emptyRow) {
-            emptyRow.closest('tr')?.remove();
+        const popover = document.getElementById('filterPopover');
+        if (!popover.classList.contains('hidden')) {
+            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+                closeFilterPopover();
+            }
         }
 
-        const hasClientColumn = @json($showClientColumn);
-        const canDelete = !((Number(elementType.components_count || 0) + Number(elementType.elements_count || 0)) > 0);
-
-        const row = document.createElement('tr');
-        row.id = `element-type-row-${elementType.id}`;
-        row.className = 'hover:bg-slate-50';
-
-        row.innerHTML = `
-            ${hasClientColumn ? `
-                <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="element-type-client-${elementType.id}">
-                    ${escapeHtml(elementType.client_name ?? '—')}
-                </td>
-            ` : ''}
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="element-type-name-${elementType.id}">
-                ${escapeHtml(elementType.name ?? '—')}
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm">
-                <button
-                    type="button"
-                    data-semaphore-toggle
-                    data-url="${escapeHtml(elementType.toggle_semaphore_url ?? '')}"
-                    data-enabled="${elementType.has_semaphore ? '1' : '0'}"
-                    onclick="toggleElementTypeSemaphore(this)"
-                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${elementType.has_semaphore
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
-                    title="Clic para activar o desactivar semáforo semanal"
-                >
-                    <i data-lucide="calendar-days" class="h-3.5 w-3.5"></i>
-                    <span>${elementType.has_semaphore ? 'Sí' : 'No'}</span>
-                </button>
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm">
-                <button
-                    type="button"
-                    data-status-toggle
-                    data-url="${escapeHtml(elementType.toggle_status_url ?? '')}"
-                    data-enabled="${elementType.status ? '1' : '0'}"
-                    onclick="toggleElementTypeStatus(this)"
-                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${elementType.status
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-red-100 text-red-700 hover:bg-red-200'}"
-                    title="Clic para activar o inactivar"
-                >
-                    <i data-lucide="${elementType.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-                    <span>${elementType.status ? 'Activo' : 'Inactivo'}</span>
-                </button>
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-right">
-                <div class="flex items-center justify-end gap-2">
-                    <button
-                        type="button"
-                        data-edit-element-type
-                        data-id="${escapeHtml(String(elementType.id))}"
-                        data-client-id="${escapeHtml(String(elementType.client_id ?? ''))}"
-                        data-name="${escapeHtml(elementType.name ?? '')}"
-                        data-has-semaphore="${elementType.has_semaphore ? '1' : '0'}"
-                        data-status="${elementType.status ? '1' : '0'}"
-                        data-action="${escapeHtml(elementType.update_url ?? '')}"
-                        onclick="openEditElementTypeModalFromButton(this)"
-                        class="text-slate-400 transition hover:text-[#d94d33]"
-                        title="Editar tipo de activo"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                        </svg>
-                    </button>
-
-                    ${canDelete ? `
-                        <button
-                            type="button"
-                            onclick="deleteElementType(${elementType.id})"
-                            class="text-red-500 transition hover:text-red-700"
-                            title="Eliminar tipo de activo"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                            </svg>
-                        </button>
-
-                        <form
-                            id="delete-element-type-form-${elementType.id}"
-                            method="POST"
-                            action="${escapeHtml(elementType.destroy_url ?? '')}"
-                            class="hidden"
-                        >
-                            <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
-                            <input type="hidden" name="_method" value="DELETE">
-                        </form>
-                    ` : ''}
-                </div>
-            </td>
-        `;
-
-        row.style.opacity = '0';
-        row.style.transform = 'translateY(-6px)';
-        row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-
-        tbody.prepend(row);
-
-        requestAnimationFrame(() => {
-            row.style.opacity = '1';
-            row.style.transform = 'translateY(0)';
-        });
-
-        if (window.lucide) {
-            window.lucide.createIcons();
+        const modal = document.getElementById('editElementTypeModal');
+        if (modal.classList.contains('flex') && event.target === modal) {
+            closeEditElementTypeModal();
         }
-    }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeFilterPopover();
+            closeEditElementTypeModal();
+        }
+    });
+
+    window.addEventListener('popstate', function () {
+        const url = new URL(window.location.href);
+
+        activeFilters.client_ids = url.searchParams.getAll('client_ids[]');
+        activeFilters.names = url.searchParams.getAll('names[]');
+        activeFilters.statuses = url.searchParams.getAll('statuses[]');
+
+        const page = parseInt(url.searchParams.get('page') || '1');
+        loadElementTypesList(page, false);
+    });
 </script>
 @endsection

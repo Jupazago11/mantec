@@ -15,7 +15,7 @@ use Illuminate\View\View;
 
 class AdminManagedGroupController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $authUser = auth()->user();
         $authRoleKey = $authUser->role?->key;
@@ -58,33 +58,20 @@ class AdminManagedGroupController extends Controller
             ->values()
             ->all();
 
-        $baseQuery = Group::query()
-            ->with([
-                'client',
-                'elements:id,group_id,name,element_type_id',
-                'elements.elementType:id,name',
-            ])
-            ->withCount('elements')
-            ->whereIn('client_id', $clientIds);
+        $baseQuery = $this->buildGroupBaseQuery($clientIds);
+        $filteredQuery = $this->applyGroupFilters(
+            clone $baseQuery,
+            $selectedClientIds,
+            $selectedNames,
+            $selectedStatuses
+        );
 
-        if (!empty($selectedClientIds)) {
-            $baseQuery->whereIn('client_id', array_map('intval', $selectedClientIds));
-        }
-
-        if (!empty($selectedNames)) {
-            $baseQuery->whereIn('name', $selectedNames);
-        }
-
-        if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
-        }
-
-        $groups = (clone $baseQuery)
+        $groups = (clone $filteredQuery)
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
 
-        $allVisibleGroups = (clone $baseQuery)
+        $allVisibleGroups = (clone $filteredQuery)
             ->orderBy('name')
             ->get();
 
@@ -101,10 +88,16 @@ class AdminManagedGroupController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $statusFilterOptions = collect([
-            ['value' => '1', 'label' => 'Activo'],
-            ['value' => '0', 'label' => 'Inactivo'],
-        ]);
+        $statusFilterOptions = $allVisibleGroups
+            ->pluck('status')
+            ->map(fn ($status) => (string) ((int) $status))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->map(fn ($value) => [
+                'value' => $value,
+                'label' => $value === '1' ? 'Activo' : 'Inactivo',
+            ]);
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
@@ -142,7 +135,7 @@ class AdminManagedGroupController extends Controller
                 'status',
             ]);
 
-        return view('admin.managed-groups.index', [
+        $viewData = [
             'groups' => $groups,
             'clients' => $clients,
             'singleClient' => $singleClient,
@@ -150,7 +143,26 @@ class AdminManagedGroupController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'availableElements' => $availableElements,
-        ]);
+        ];
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-groups.partials.list', array_merge(
+                    $viewData,
+                    ['hasFilter' => $this->hasFilterResolver($activeFilters)]
+                ))->render(),
+                'filter_options' => [
+                    'client_ids' => $clientFilterOptions->values()->all(),
+                    'names' => $nameFilterOptions->values()->all(),
+                    'statuses' => $statusFilterOptions->values()->all(),
+                ],
+                'has_any_active_filter' => $this->hasAnyActiveFilter($activeFilters),
+                'current_page' => $groups->currentPage(),
+            ]);
+        }
+
+        return view('admin.managed-groups.index', $viewData);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -422,6 +434,35 @@ class AdminManagedGroupController extends Controller
             ->all();
     }
 
+    private function buildGroupBaseQuery(array $clientIds)
+    {
+        return Group::query()
+            ->with([
+                'client',
+                'elements:id,group_id,name,element_type_id',
+                'elements.elementType:id,name',
+            ])
+            ->withCount('elements')
+            ->whereIn('client_id', $clientIds);
+    }
+
+    private function applyGroupFilters($query, array $selectedClientIds, array $selectedNames, array $selectedStatuses)
+    {
+        if (!empty($selectedClientIds)) {
+            $query->whereIn('client_id', array_map('intval', $selectedClientIds));
+        }
+
+        if (!empty($selectedNames)) {
+            $query->whereIn('name', $selectedNames);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $query->whereIn('status', array_map(fn ($v) => (int) $v, $selectedStatuses));
+        }
+
+        return $query;
+    }
+
     private function buildRedirectQuery(Request $request): array
     {
         $query = [];
@@ -477,5 +518,33 @@ class AdminManagedGroupController extends Controller
             'toggle_sync_url' => route('admin.managed-groups.toggle-sync', $group),
             'sync_elements_url' => route('admin.managed-groups.elements.sync', $group),
         ];
+    }
+
+    private function hasFilterResolver(array $activeFilters): \Closure
+    {
+        return function (string $key) use ($activeFilters): bool {
+            $value = $activeFilters[$key] ?? null;
+
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+
+            return $value !== null && $value !== '';
+        };
+    }
+
+    private function hasAnyActiveFilter(array $activeFilters): bool
+    {
+        foreach ($activeFilters as $value) {
+            if (is_array($value) && count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0) {
+                return true;
+            }
+
+            if (!is_array($value) && $value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

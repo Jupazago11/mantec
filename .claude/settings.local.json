@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /home/jupazago/Documentos/mantecv1 -iname \"*analisis*\" 2>/dev/null | head -20)",
+      "Read(///wsl.localhost/Ubuntu/home/jupazago/Documentos/**)",
+      "Bash(ls /home/jupazago/Documentos/mantecv1/ 2>/dev/null)",
+      "Bash(mkdir -p /home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/managed-element-types/partials)",
+      "Bash(wsl mkdir *)"
+    ],
+    "additionalDirectories": [
+      "\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\managed-element-types"
+    ]
+  }
+}

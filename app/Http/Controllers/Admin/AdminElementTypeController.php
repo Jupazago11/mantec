@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 
 class AdminElementTypeController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
 
@@ -70,8 +70,7 @@ class AdminElementTypeController extends Controller
             ])->values()
             : collect();
 
-        $nameFilterOptions = ElementType::query()
-            ->whereIn('client_id', $clients->pluck('id'))
+        $nameFilterOptions = (clone $baseQuery)
             ->pluck('name')
             ->filter()
             ->unique()
@@ -94,6 +93,27 @@ class AdminElementTypeController extends Controller
             'names' => $selectedNames,
             'statuses' => $selectedStatuses,
         ];
+
+        $hasAnyActiveFilter = collect($activeFilters)->contains(function ($value) {
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+            return $value !== null && $value !== '';
+        });
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-element-types.partials.list', compact(
+                    'elementTypes',
+                    'activeFilters',
+                    'showClientColumn'
+                ))->render(),
+                'filter_options' => $filterOptions,
+                'has_any_active_filter' => $hasAnyActiveFilter,
+                'current_page' => $elementTypes->currentPage(),
+            ]);
+        }
 
         $preferredClientId = old('client_id');
 

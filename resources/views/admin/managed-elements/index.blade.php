@@ -26,7 +26,7 @@
         $singleClientId = $clients->count() === 1 ? $clients->first()?->id : null;
     @endphp
 
-    <div class="space-y-8">
+    <div class="space-y-8" data-elements-index data-index-url="{{ route('admin.managed-elements.index') }}">
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {{ session('success') }}
@@ -239,19 +239,26 @@
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">Listado de activos</h3>
 
-                            @if($hasAnyActiveFilter)
-                                <a
-                                    href="{{ route('admin.managed-elements.index') }}"
-                                    class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                >
-                                    Limpiar filtros
-                                </a>
-                            @endif
+                            <a
+                                href="{{ route('admin.managed-elements.index') }}"
+                                data-clear-filters
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                            >
+                                Limpiar filtros
+                            </a>
                         </div>
                     </div>
 
                     <form id="filtersForm" method="GET" class="hidden"></form>
 
+                    @include('admin.managed-elements.partials.list', [
+                        'elements' => $elements,
+                        'showClientColumn' => $showClientColumn,
+                        'activeFilters' => $activeFilters,
+                        'hasFilter' => $hasFilter,
+                    ])
+
+                    @if(false)
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200">
                             <thead class="bg-slate-50">
@@ -524,6 +531,7 @@
                         <div class="border-t border-slate-200 px-6 py-4">
                             {{ $elements->links() }}
                         </div>
+                    @endif
                     @endif
                 </div>
             </div>
@@ -902,7 +910,9 @@
     };
 
     const activeFilters = @json($activeFilters);
+    const elementsIndexUrl = document.querySelector('[data-elements-index]')?.dataset.indexUrl || @json(route('admin.managed-elements.index'));
     let currentPopoverKey = null;
+    let isElementsListLoading = false;
 
     function buildFiltersForm() {
         const form = document.getElementById('filtersForm');
@@ -925,6 +935,147 @@
                 addHidden(key, value);
             }
         });
+    }
+
+    function updateElementFilterOptions(options = {}) {
+        Object.entries(options).forEach(([key, values]) => {
+            if (filterOptions[key]) {
+                filterOptions[key].options = Array.isArray(values) ? values : [];
+            }
+        });
+    }
+
+    function buildElementsQueryParams(page = 1) {
+        const params = new URLSearchParams();
+
+        Object.entries(activeFilters).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.filter(item => item !== null && item !== '').forEach(item => {
+                    params.append(`${key}[]`, item);
+                });
+            } else if (value !== null && value !== '') {
+                params.set(key, value);
+            }
+        });
+
+        params.set('page', String(page));
+
+        return params;
+    }
+
+    function currentElementsPage() {
+        const params = new URLSearchParams(window.location.search);
+        return Math.max(1, Number(params.get('page') || '1'));
+    }
+
+    function syncElementActiveFiltersFromLocation() {
+        const params = new URLSearchParams(window.location.search);
+
+        Object.keys(activeFilters).forEach(key => {
+            const values = params.getAll(`${key}[]`);
+
+            if (values.length > 0) {
+                activeFilters[key] = values;
+                return;
+            }
+
+            const scalar = params.get(key);
+            activeFilters[key] = scalar !== null ? scalar : [];
+        });
+    }
+
+    function syncElementRedirectInputs(page = currentElementsPage()) {
+        const forms = [
+            document.getElementById('createElementForm'),
+            document.getElementById('editElementForm'),
+            document.getElementById('componentsForm'),
+        ].filter(Boolean);
+
+        const mapping = {
+            client_ids: 'redirect_client_ids[]',
+            area_ids: 'redirect_area_ids[]',
+            element_type_ids: 'redirect_element_type_ids[]',
+            names: 'redirect_names[]',
+            warehouse_codes: 'redirect_warehouse_codes[]',
+            statuses: 'redirect_statuses[]',
+        };
+
+        forms.forEach(form => {
+            form.querySelectorAll('input[data-redirect-filter], input[data-redirect-page], input[name^="redirect_"]').forEach(input => input.remove());
+
+            Object.entries(mapping).forEach(([key, inputName]) => {
+                const values = Array.isArray(activeFilters[key]) ? activeFilters[key] : [];
+
+                values.filter(value => value !== null && value !== '').forEach(value => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = inputName;
+                    input.value = value;
+                    input.dataset.redirectFilter = '1';
+                    form.appendChild(input);
+                });
+            });
+
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'redirect_page';
+            pageInput.value = String(page);
+            pageInput.dataset.redirectPage = '1';
+            form.appendChild(pageInput);
+        });
+    }
+
+    async function loadElementsList(page = 1, updateHistory = true) {
+        if (isElementsListLoading) {
+            return;
+        }
+
+        const container = document.getElementById('elementsListContainer');
+
+        if (!container) {
+            return;
+        }
+
+        isElementsListLoading = true;
+        closeFilterPopover();
+        container.classList.add('opacity-60', 'pointer-events-none', 'transition', 'duration-150');
+
+        try {
+            const params = buildElementsQueryParams(page);
+            const response = await fetch(`${elementsIndexUrl}?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await parseElementJsonResponse(response);
+
+            if (!response.ok || data?.success === false) {
+                throw new Error(data?.message || 'No fue posible cargar el listado de activos.');
+            }
+
+            container.outerHTML = data.list_html;
+            updateElementFilterOptions(data.filter_options || {});
+            document.querySelector('[data-clear-filters]')?.classList.toggle('hidden', !data.has_any_active_filter);
+
+            if (updateHistory) {
+                const url = new URL(elementsIndexUrl, window.location.origin);
+                url.search = params.toString();
+                window.history.pushState({}, '', url);
+            }
+
+            syncElementRedirectInputs(Number(data.current_page || page));
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        } catch (error) {
+            showElementToast(error.message || 'Ocurrió un error al cargar el listado de activos.', 'error');
+        } finally {
+            isElementsListLoading = false;
+            document.getElementById('elementsListContainer')?.classList.remove('opacity-60', 'pointer-events-none');
+        }
     }
 
     function closeFilterPopover() {
@@ -1025,7 +1176,7 @@
         if (!currentPopoverKey) return;
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
-        submitFilters();
+        loadElementsList(1);
     }
 
     function applyCurrentFilter() {
@@ -1035,12 +1186,11 @@
             .map(cb => cb.value);
 
         activeFilters[config.inputName] = values;
-        submitFilters();
+        loadElementsList(1);
     }
 
     function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        loadElementsList(1);
     }
 
     function escapeHtml(text) {
@@ -1254,6 +1404,8 @@ function closeComponentsModal() {
 }
 
     document.addEventListener('DOMContentLoaded', function () {
+        syncElementActiveFiltersFromLocation();
+        syncElementRedirectInputs();
         const selectedClient = document.getElementById('selected_client_id');
         const editAreaSelect = document.getElementById('edit_element_area_id');
 
@@ -1296,6 +1448,29 @@ function closeComponentsModal() {
         const popover = document.getElementById('filterPopover');
         const editModal = document.getElementById('editElementModal');
         const componentsModal = document.getElementById('componentsModal');
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        const clearFiltersLink = event.target.closest('[data-clear-filters]');
+
+        if (paginationLink) {
+            event.preventDefault();
+
+            if (paginationLink.classList.contains('pointer-events-none')) {
+                return;
+            }
+
+            const url = new URL(paginationLink.href, window.location.origin);
+            loadElementsList(Number(url.searchParams.get('page') || '1'));
+            return;
+        }
+
+        if (clearFiltersLink) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key] = [];
+            });
+            loadElementsList(1);
+            return;
+        }
 
         if (!popover.classList.contains('hidden')) {
             if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
@@ -1318,6 +1493,11 @@ function closeComponentsModal() {
             closeEditElementModal();
             closeComponentsModal();
         }
+    });
+
+    window.addEventListener('popstate', function () {
+        syncElementActiveFiltersFromLocation();
+        loadElementsList(currentElementsPage(), false);
     });
 
     function openComponentsModalFromButton(button) {
@@ -1467,10 +1647,14 @@ async function handleCreateElementSubmit(event) {
         }
 
         showElementToast(data.message || 'Activo creado correctamente.', 'success');
-
-        // Por ahora recargamos para evitar inconsistencias con paginación/filtros.
-        // Si quieres 100% sin recargar, falta agregar insertElementRow().
-        window.location.reload();
+        form.reset();
+        document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        document.getElementById('selected_client_id').value = '';
+        filterCreateAreasByClient('');
+        filterCreateElementTypesByClient('');
+        await loadElementsList(currentElementsPage(), false);
     } catch (error) {
         showElementToast(error.message || 'Ocurrió un error al crear el activo.', 'error');
     } finally {
@@ -1508,10 +1692,9 @@ async function handleEditElementSubmit(event) {
             throw new Error(data.message || 'No fue posible actualizar el activo.');
         }
 
-        updateElementRow(data.element);
         closeEditElementModal();
-
         showElementToast(data.message || 'Activo actualizado correctamente.', 'success');
+        await loadElementsList(currentElementsPage(), false);
     } catch (error) {
         showElementToast(error.message || 'Ocurrió un error al actualizar el activo.', 'error');
     } finally {
@@ -1542,10 +1725,9 @@ async function handleComponentsElementSubmit(event) {
             throw new Error(data.message || 'No fue posible actualizar los componentes.');
         }
 
-        updateElementRow(data.element);
         closeComponentsModal();
-
         showElementToast(data.message || 'Componentes actualizados correctamente.', 'success');
+        await loadElementsList(currentElementsPage(), false);
     } catch (error) {
         showElementToast(error.message || 'Ocurrió un error al actualizar los componentes.', 'error');
     } finally {
@@ -1580,8 +1762,8 @@ async function toggleElementStatus(button) {
             throw new Error(data.message || 'No fue posible cambiar el estado.');
         }
 
-        renderElementStatusButton(button, Boolean(data.status));
         showElementToast(data.message || 'Estado actualizado correctamente.', 'success');
+        await loadElementsList(currentElementsPage(), false);
     } catch (error) {
         button.innerHTML = originalHtml;
         button.className = originalClass;
@@ -1658,14 +1840,8 @@ async function deleteElement(elementId) {
             throw new Error(data.message || 'No fue posible eliminar el activo.');
         }
 
-        if (row) {
-            row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-            row.style.opacity = '0';
-            row.style.transform = 'scale(0.98)';
-            setTimeout(() => row.remove(), 180);
-        }
-
         showElementToast(data.message || 'Activo eliminado correctamente.', 'success');
+        await loadElementsList(currentElementsPage(), false);
     } catch (error) {
         if (row) {
             row.classList.remove('opacity-60', 'pointer-events-none');

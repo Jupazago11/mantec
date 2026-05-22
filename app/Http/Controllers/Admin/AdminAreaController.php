@@ -8,12 +8,13 @@ use App\Models\Client;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminAreaController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
 
@@ -40,32 +41,21 @@ class AdminAreaController extends Controller
             ->values()
             ->all();
 
-        $baseQuery = Area::query()
-            ->with('client')
-            ->withCount(['elements'])
-            ->whereIn('client_id', $clients->pluck('id'));
+        $baseQuery = $this->buildAreaBaseQuery($clients);
+        $filteredQuery = $this->applyAreaFilters(
+            clone $baseQuery,
+            $selectedClientIds,
+            $selectedAreaNames,
+            $selectedStatuses
+        );
 
-        if (!empty($selectedClientIds)) {
-            $baseQuery->whereIn('client_id', $selectedClientIds);
-        }
-
-        if (!empty($selectedAreaNames)) {
-            $baseQuery->whereIn('name', $selectedAreaNames);
-        }
-
-        if (!empty($selectedStatuses)) {
-            $baseQuery->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
-        }
-
-        $areas = (clone $baseQuery)
+        $areas = (clone $filteredQuery)
             ->orderBy('client_id')
             ->orderBy('name')
             ->paginate(8)
             ->withQueryString();
 
-        $allAreasForFilters = Area::query()
-            ->with('client:id,name')
-            ->whereIn('client_id', $clients->pluck('id'))
+        $allAreasForFilters = (clone $filteredQuery)
             ->orderBy('name')
             ->get();
 
@@ -82,10 +72,16 @@ class AdminAreaController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $statusFilterOptions = collect([
-            ['value' => '1', 'label' => 'Activo'],
-            ['value' => '0', 'label' => 'Inactivo'],
-        ]);
+        $statusFilterOptions = $allAreasForFilters
+            ->pluck('status')
+            ->map(fn ($status) => (string) ((int) $status))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->map(fn ($value) => [
+                'value' => $value,
+                'label' => $value === '1' ? 'Activo' : 'Inactivo',
+            ]);
 
         $filterOptions = [
             'client_ids' => $clientFilterOptions,
@@ -117,7 +113,7 @@ class AdminAreaController extends Controller
             $preferredClientId = (string) $clients->first()->id;
         }
 
-        return view('admin.managed-areas.index', [
+        $viewData = [
             'areas' => $areas,
             'clients' => $clients,
             'showClientColumn' => $showClientColumn,
@@ -125,7 +121,27 @@ class AdminAreaController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'preferredClientId' => $preferredClientId,
-        ]);
+        ];
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-areas.partials.list', array_merge(
+                    $viewData,
+                    ['hasFilter' => $this->hasFilterResolver($activeFilters)]
+                ))->render(),
+                'filter_options' => [
+                    'client_ids' => $clientFilterOptions->values()->all(),
+                    'area_names' => $areaNameFilterOptions->values()->all(),
+                    'statuses' => $statusFilterOptions->values()->all(),
+                ],
+                'has_any_active_filter' => $this->hasAnyActiveFilter($activeFilters),
+                'current_page' => $areas->currentPage(),
+                'query' => $request->query(),
+            ]);
+        }
+
+        return view('admin.managed-areas.index', $viewData);
     }
 
 public function store(Request $request): RedirectResponse|JsonResponse
@@ -328,6 +344,31 @@ public function toggleStatus(Request $request, Area $area): RedirectResponse|Jso
             ->get(['clients.id', 'clients.name']);
     }
 
+    private function buildAreaBaseQuery(Collection $clients)
+    {
+        return Area::query()
+            ->with('client')
+            ->withCount(['elements'])
+            ->whereIn('client_id', $clients->pluck('id'));
+    }
+
+    private function applyAreaFilters($query, array $selectedClientIds, array $selectedAreaNames, array $selectedStatuses)
+    {
+        if (!empty($selectedClientIds)) {
+            $query->whereIn('client_id', $selectedClientIds);
+        }
+
+        if (!empty($selectedAreaNames)) {
+            $query->whereIn('name', $selectedAreaNames);
+        }
+
+        if (!empty($selectedStatuses)) {
+            $query->whereIn('status', array_map(fn ($value) => (int) $value, $selectedStatuses));
+        }
+
+        return $query;
+    }
+
     private function buildRedirectQuery(Request $request): array
     {
         $query = [];
@@ -341,6 +382,12 @@ public function toggleStatus(Request $request, Area $area): RedirectResponse|Jso
         foreach ((array) $request->input('redirect_area_names', []) as $value) {
             if ($value !== null && $value !== '') {
                 $query['area_names'][] = $value;
+            }
+        }
+
+        foreach ((array) $request->input('redirect_statuses', []) as $value) {
+            if ($value !== null && $value !== '') {
+                $query['statuses'][] = $value;
             }
         }
 
@@ -374,5 +421,33 @@ private function areaPayload(Area $area): array
         'destroy_url' => route('admin.managed-areas.destroy', $area),
         'toggle_status_url' => route('admin.managed-areas.toggle-status', $area),
     ];
+}
+
+private function hasFilterResolver(array $activeFilters): \Closure
+{
+    return function (string $key) use ($activeFilters): bool {
+        $value = $activeFilters[$key] ?? null;
+
+        if (is_array($value)) {
+            return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+        }
+
+        return $value !== null && $value !== '';
+    };
+}
+
+private function hasAnyActiveFilter(array $activeFilters): bool
+{
+    foreach ($activeFilters as $value) {
+        if (is_array($value) && count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0) {
+            return true;
+        }
+
+        if (!is_array($value) && $value !== null && $value !== '') {
+            return true;
+        }
+    }
+
+    return false;
 }
 }

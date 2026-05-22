@@ -24,7 +24,7 @@
         });
 @endphp
 
-<div class="space-y-8">
+<div class="space-y-8" data-groups-index data-index-url="{{ route('admin.managed-groups.index') }}">
     @if(session('success'))
         <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {{ session('success') }}
@@ -144,244 +144,23 @@
                     <div class="flex items-center justify-between gap-4">
                         <h3 class="text-lg font-semibold text-slate-900">Listado de agrupaciones</h3>
 
-                        @if($hasAnyActiveFilter)
-                            <a
-                                href="{{ route('admin.managed-groups.index') }}"
-                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                                Limpiar filtros
-                            </a>
-                        @endif
+                        <a
+                            href="{{ route('admin.managed-groups.index') }}"
+                            data-clear-filters
+                            class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                        >
+                            Limpiar filtros
+                        </a>
                     </div>
                 </div>
 
                 <form id="filtersForm" method="GET" class="hidden"></form>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200">
-                        <thead class="bg-slate-50">
-                            <tr>
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center gap-2">
-                                        <span>Nombre</span>
-                                        <button
-                                            type="button"
-                                            onclick="openFilterPopover(event, 'names')"
-                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('names') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </th>
-
-                                @if($showClientColumn)
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Cliente</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'client_ids')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('client_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-                                @endif
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Descripción
-                                </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Activos
-                                </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Sincronización
-                                </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    <div class="flex items-center gap-2">
-                                        <span>Estado</span>
-                                        <button
-                                            type="button"
-                                            onclick="openFilterPopover(event, 'statuses')"
-                                            class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </th>
-
-                                <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Acciones
-                                </th>
-                            </tr>
-                        </thead>
-
-                        <tbody id="groupsTableBody" class="divide-y divide-slate-200 bg-white">
-                            @forelse($groups as $group)
-                                @php
-                                    $editPayload = [
-                                        'id' => $group->id,
-                                        'client_id' => $group->client_id,
-                                        'name' => $group->name,
-                                        'description' => $group->description,
-                                        'action' => route('admin.managed-groups.update', $group),
-                                    ];
-
-                                    $selectedElementIds = $group->elements
-                                        ->pluck('id')
-                                        ->map(fn ($id) => (string) $id)
-                                        ->values()
-                                        ->all();
-                                @endphp
-
-                                <tr class="hover:bg-slate-50" id="group-row-{{ $group->id }}">
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="group-name-{{ $group->id }}">
-                                        {{ $group->name }}
-                                    </td>
-
-                                    @if($showClientColumn)
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="group-client-{{ $group->id }}">
-                                            {{ $group->client?->name ?? '—' }}
-                                        </td>
-                                    @endif
-
-                                    <td class="px-5 py-3 text-sm text-slate-700" id="group-description-{{ $group->id }}">
-                                        {{ $group->description ?: '—' }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="group-elements-count-{{ $group->id }}">
-                                        {{ $group->elements_count ?? 0 }}
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                        <button
-                                            type="button"
-                                            data-sync-toggle
-                                            data-url="{{ route('admin.managed-groups.toggle-sync', $group) }}"
-                                            data-enabled="{{ $group->auto_sync ? '1' : '0' }}"
-                                            onclick="toggleGroupSync(this)"
-                                            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $group->auto_sync ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200' }}"
-                                            title="Clic para activar o desactivar la sincronización automática"
-                                        >
-                                            <i data-lucide="{{ $group->auto_sync ? 'refresh-cw-check' : 'refresh-cw-off' }}" class="h-3.5 w-3.5"></i>
-                                            <span>{{ $group->auto_sync ? 'ON' : 'OFF' }}</span>
-                                        </button>
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                        <button
-                                            type="button"
-                                            data-status-toggle
-                                            data-url="{{ route('admin.managed-groups.toggle-status', $group) }}"
-                                            data-enabled="{{ $group->status ? '1' : '0' }}"
-                                            onclick="toggleGroupStatus(this)"
-                                            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $group->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
-                                            title="Clic para activar o inactivar"
-                                        >
-                                            <i data-lucide="{{ $group->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
-                                            <span>{{ $group->status ? 'Activo' : 'Inactivo' }}</span>
-                                        </button>
-                                    </td>
-
-                                    <td class="whitespace-nowrap px-5 py-3 text-right">
-                                        <div class="flex items-center justify-end gap-2">
-                                            <button
-                                                type="button"
-                                                class="text-blue-500 transition hover:text-blue-700"
-                                                title="Asociar activos"
-                                                onclick="openElementsModal(
-                                                    '{{ $group->id }}',
-                                                    '{{ $group->client_id }}',
-                                                    @js($group->name),
-                                                    @js($group->description ?: '—'),
-                                                    '{{ route('admin.managed-groups.elements.sync', $group) }}',
-                                                    @js($selectedElementIds)
-                                                )"
-                                            >
-                                                <i data-lucide="boxes" class="h-4 w-4"></i>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                data-edit-group
-                                                data-id="{{ $group->id }}"
-                                                data-client_id="{{ $group->client_id }}"
-                                                data-name="{{ $group->name }}"
-                                                data-description="{{ $group->description }}"
-                                                data-action="{{ route('admin.managed-groups.update', $group) }}"
-                                                class="text-slate-400 transition hover:text-[#d94d33]"
-                                                onclick="openEditGroupModal(this)"
-                                                title="Editar agrupación"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                </svg>
-                                            </button>
-
-                                            @if(($group->elements_count ?? 0) === 0)
-                                                <button
-                                                    type="button"
-                                                    onclick="deleteGroup({{ $group->id }})"
-                                                    class="text-red-500 transition hover:text-red-700"
-                                                    title="Eliminar agrupación"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                    </svg>
-                                                </button>
-
-                                                <form
-                                                    id="delete-group-form-{{ $group->id }}"
-                                                    method="POST"
-                                                    action="{{ route('admin.managed-groups.destroy', $group) }}"
-                                                    class="hidden"
-                                                >
-                                                    @csrf
-                                                    @method('DELETE')
-
-                                                    @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['names'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_names[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    <input type="hidden" name="redirect_page" value="{{ $groups->currentPage() }}">
-                                                </form>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $showClientColumn ? 7 : 6 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                        No hay agrupaciones registradas todavía.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                @if($groups->hasPages())
-                    <div class="border-t border-slate-200 px-5 py-4">
-                        {{ $groups->links() }}
-                    </div>
-                @endif
+                @include('admin.managed-groups.partials.list', [
+                    'groups' => $groups,
+                    'showClientColumn' => $showClientColumn,
+                    'activeFilters' => $activeFilters,
+                    'hasFilter' => $hasFilter,
+                ])
             </div>
         </div>
     </div>
@@ -705,6 +484,7 @@
 
     const activeFilters = @json($activeFilters);
     let currentPopoverKey = null;
+    let isGroupsListLoading = false;
 
     function handleSingleClientSelection(currentCheckbox) {
         document.querySelectorAll('.group-single-checkbox').forEach(checkbox => {
@@ -884,6 +664,20 @@
         });
     }
 
+    function updateGroupFilterOptions(options = {}) {
+        if (filterOptions.client_ids && Array.isArray(options.client_ids)) {
+            filterOptions.client_ids.options = options.client_ids;
+        }
+
+        if (filterOptions.names && Array.isArray(options.names)) {
+            filterOptions.names.options = options.names;
+        }
+
+        if (filterOptions.statuses && Array.isArray(options.statuses)) {
+            filterOptions.statuses.options = options.statuses;
+        }
+    }
+
     function closeFilterPopover() {
         const popover = document.getElementById('filterPopover');
         popover.classList.add('hidden');
@@ -996,8 +790,97 @@
     }
 
     function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        loadGroupsList(1);
+    }
+
+    function buildGroupsQueryParams(page = 1) {
+        const params = new URLSearchParams();
+
+        Object.entries(activeFilters).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value
+                    .filter(item => item !== null && item !== '')
+                    .forEach(item => params.append(`${key}[]`, item));
+            } else if (value !== null && value !== '') {
+                params.set(key, value);
+            }
+        });
+
+        params.set('page', String(page));
+
+        return params;
+    }
+
+    async function loadGroupsList(page = 1, updateHistory = true) {
+        const module = document.querySelector('[data-groups-index]');
+        const url = module?.dataset.indexUrl;
+        const container = document.getElementById('groupsListContainer');
+
+        if (!url || !container || isGroupsListLoading) {
+            return;
+        }
+
+        const params = buildGroupsQueryParams(page);
+        isGroupsListLoading = true;
+        container.classList.add('opacity-60', 'pointer-events-none');
+
+        try {
+            const response = await fetch(`${url}?${params.toString()}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await parseGroupJsonResponse(response);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible cargar el listado de agrupaciones.');
+            }
+
+            container.outerHTML = data.list_html;
+            updateGroupFilterOptions(data.filter_options || {});
+
+            if (updateHistory) {
+                window.history.pushState({ page }, '', `${url}?${params.toString()}`);
+            }
+
+            syncGroupRedirectInputs(page);
+
+            const clearFiltersLink = document.querySelector('[data-clear-filters]');
+            if (clearFiltersLink) {
+                clearFiltersLink.classList.toggle('hidden', !data.has_any_active_filter);
+            }
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        } catch (error) {
+            showGroupToast(error.message || 'Ocurrió un error al cargar las agrupaciones.', 'error');
+        } finally {
+            const refreshedContainer = document.getElementById('groupsListContainer');
+            refreshedContainer?.classList.remove('opacity-60', 'pointer-events-none');
+            isGroupsListLoading = false;
+        }
+    }
+
+    function currentGroupsPage() {
+        const params = new URLSearchParams(window.location.search);
+        return Number(params.get('page') || '1');
+    }
+
+    function syncGroupActiveFiltersFromLocation() {
+        const params = new URLSearchParams(window.location.search);
+
+        Object.keys(activeFilters).forEach(key => {
+            activeFilters[key] = params.getAll(`${key}[]`);
+        });
+    }
+
+    function syncGroupRedirectInputs(page = currentGroupsPage()) {
+        document.querySelectorAll('input[name="redirect_page"]').forEach(input => {
+            input.value = String(page);
+        });
     }
 
     function escapeHtml(text) {
@@ -1033,12 +916,38 @@
         if (elementsForm) {
             elementsForm.addEventListener('submit', handleElementsGroupSubmit);
         }
+
+        syncGroupRedirectInputs();
     });
 
     document.addEventListener('click', function (event) {
         const popover = document.getElementById('filterPopover');
         const editModal = document.getElementById('editGroupModal');
         const elementsModal = document.getElementById('elementsModal');
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        const clearFiltersLink = event.target.closest('[data-clear-filters]');
+
+        if (paginationLink) {
+            event.preventDefault();
+
+            const href = paginationLink.getAttribute('href');
+            if (!href || href === '#') {
+                return;
+            }
+
+            const page = Number(new URL(href).searchParams.get('page') || '1');
+            loadGroupsList(page);
+            return;
+        }
+
+        if (clearFiltersLink) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key] = [];
+            });
+            loadGroupsList(1);
+            return;
+        }
 
         if (!popover.classList.contains('hidden')) {
             if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
@@ -1061,6 +970,11 @@
             closeEditGroupModal();
             closeElementsModal();
         }
+    });
+
+    window.addEventListener('popstate', function () {
+        syncGroupActiveFiltersFromLocation();
+        loadGroupsList(currentGroupsPage(), false);
     });
 
     function showGroupToast(message, type = 'success') {
@@ -1254,10 +1168,9 @@ async function handleCreateGroupSubmit(event) {
             throw new Error(data.message || 'No fue posible crear la agrupación.');
         }
 
-        insertGroupRow(data.group);
         resetCreateGroupForm();
-
         showGroupToast(data.message || 'Agrupación creada correctamente.', 'success');
+        loadGroupsList(currentGroupsPage(), false);
     } catch (error) {
         showGroupToast(error.message || 'Ocurrió un error al crear la agrupación.', 'error');
     } finally {
@@ -1297,10 +1210,9 @@ async function handleEditGroupSubmit(event) {
             throw new Error(data.message || 'No fue posible actualizar la agrupación.');
         }
 
-        updateGroupRow(data.group);
         closeEditGroupModal();
-
         showGroupToast(data.message || 'Agrupación actualizada correctamente.', 'success');
+        loadGroupsList(currentGroupsPage(), false);
     } catch (error) {
         showGroupToast(error.message || 'Ocurrió un error al actualizar la agrupación.', 'error');
     } finally {
@@ -1378,14 +1290,8 @@ async function deleteGroup(groupId) {
             throw new Error(data.message || 'No fue posible eliminar la agrupación.');
         }
 
-        if (row) {
-            row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-            row.style.opacity = '0';
-            row.style.transform = 'scale(0.98)';
-            setTimeout(() => row.remove(), 180);
-        }
-
         showGroupToast(data.message || 'Agrupación eliminada correctamente.', 'success');
+        loadGroupsList(currentGroupsPage(), false);
     } catch (error) {
         if (row) {
             row.classList.remove('opacity-60', 'pointer-events-none');
@@ -1422,8 +1328,8 @@ async function toggleGroupStatus(button) {
             throw new Error(data.message || 'No fue posible cambiar el estado.');
         }
 
-        renderGroupStatusButton(button, Boolean(data.status));
         showGroupToast(data.message || 'Estado actualizado correctamente.', 'success');
+        loadGroupsList(currentGroupsPage(), false);
     } catch (error) {
         button.innerHTML = originalHtml;
         button.className = originalClass;

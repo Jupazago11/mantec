@@ -182,244 +182,30 @@
                 </div>
             </div>
             <div>
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    data-components-index
+                    data-index-url="{{ route('admin.managed-components.index') }}"
+                >
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">Listado de componentes</h3>
 
-                            @if($hasAnyActiveFilter)
-                                <a
-                                    href="{{ route('admin.managed-components.index') }}"
-                                    class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                >
-                                    Limpiar filtros
-                                </a>
-                            @endif
+                            <a
+                                href="{{ route('admin.managed-components.index') }}"
+                                data-clear-filters
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                            >
+                                Limpiar filtros
+                            </a>
                         </div>
                     </div>
 
-                    <form id="filtersForm" method="GET" class="hidden"></form>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    @if($showClientColumn)
-                                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <div class="flex items-center gap-2">
-                                                <span>Cliente</span>
-                                                <button
-                                                    type="button"
-                                                    onclick="openFilterPopover(event, 'client_ids')"
-                                                    class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('client_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </th>
-                                    @endif
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Tipo de activo</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'element_type_ids')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Componente</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'component_names')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('component_names') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Por defecto
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Relaciones
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Uso
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Estado</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'statuses')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="componentsTableBody" class="divide-y divide-slate-200 bg-white">
-                                @forelse($components as $component)
-                                    @php
-                                        $hasDependencies = (($component->elements_count ?? 0) + ($component->diagnostics_count ?? 0) + ($component->report_details_count ?? 0)) > 0;
-                                    @endphp
-
-                                    <tr class="hover:bg-slate-50" id="component-row-{{ $component->id }}">
-                                        @if($showClientColumn)
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-client-{{ $component->id }}">
-                                            {{ $component->client?->name ?? '—' }}
-                                        </td>
-                                        @endif
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-element-type-{{ $component->id }}">
-                                            {{ $component->elementType?->name ?? '—' }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="component-name-{{ $component->id }}">
-                                            {{ $component->name }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm" id="component-default-{{ $component->id }}">
-                                            <button
-                                                type="button"
-                                                data-default-toggle
-                                                data-url="{{ route('admin.managed-components.toggle-default', $component) }}"
-                                                data-enabled="{{ $component->is_default ? '1' : '0' }}"
-                                                onclick="toggleComponentDefault(this)"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $component->is_default ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200' }}"
-                                                title="Clic para marcar o desmarcar por defecto"
-                                            >
-                                                <i data-lucide="{{ $component->is_default ? 'check-circle-2' : 'circle' }}" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $component->is_default ? 'Sí' : 'No' }}</span>
-                                            </button>
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-diagnostics-count-{{ $component->id }}">
-                                            {{ $component->diagnostics_count ?? 0 }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-report-details-count-{{ $component->id }}">
-                                            {{ $component->report_details_count ?? 0 }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            <button
-                                                type="button"
-                                                data-status-toggle
-                                                data-url="{{ route('admin.managed-components.toggle-status', $component) }}"
-                                                data-enabled="{{ $component->status ? '1' : '0' }}"
-                                                onclick="toggleComponentStatus(this)"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $component->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
-                                                title="{{ $hasDependencies ? 'Clic para activar o inactivar' : 'Este componente puede eliminarse si no tiene uso' }}"
-                                            >
-                                                <i data-lucide="{{ $component->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $component->status ? 'Activo' : 'Inactivo' }}</span>
-                                            </button>
-                                        </td>
-
-                                    <td class="whitespace-nowrap px-5 py-3 text-right">
-                                        <div class="flex items-center justify-end gap-2">
-                                            <button
-                                                type="button"
-                                                class="text-slate-400 transition hover:text-[#d94d33]"
-                                                data-edit-component
-                                                data-id="{{ $component->id }}"
-                                                data-client_id="{{ $component->client_id }}"
-                                                data-element_type_id="{{ $component->element_type_id }}"
-                                                data-name="{{ $component->name }}"
-                                                data-is_default="{{ $component->is_default ? 1 : 0 }}"
-                                                data-action="{{ route('admin.managed-components.update', $component) }}"
-                                                onclick="openEditComponentModal(this)"
-                                                title="Editar componente"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                </svg>
-                                            </button>
-
-                                            @if(!$hasDependencies)
-                                                <button
-                                                    type="button"
-                                                    onclick="deleteComponent({{ $component->id }})"
-                                                    class="text-red-500 transition hover:text-red-700"
-                                                    title="Eliminar componente"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                    </svg>
-                                                </button>
-
-                                                <form
-                                                    id="delete-component-form-{{ $component->id }}"
-                                                    method="POST"
-                                                    action="{{ route('admin.managed-components.destroy', $component) }}"
-                                                    class="hidden"
-                                                >
-                                                    @csrf
-                                                    @method('DELETE')
-
-                                                    @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['component_names'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_component_names[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                        <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                    @endforeach
-                                                    <input type="hidden" name="redirect_page" value="{{ $components->currentPage() }}">
-                                                </form>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="{{ $showClientColumn ? 8 : 7 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                            No hay componentes registrados todavía.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if($components->hasPages())
-                        <div class="border-t border-slate-200 px-6 py-4">
-                            {{ $components->links() }}
-                        </div>
-                    @endif
+                    @include('admin.managed-components.partials.list', [
+                        'components' => $components,
+                        'activeFilters' => $activeFilters,
+                        'showClientColumn' => $showClientColumn,
+                    ])
                 </div>
             </div>
         </div>
@@ -631,28 +417,112 @@
     );
 
     let currentPopoverKey = null;
+    let currentPage = {{ $components->currentPage() }};
 
-    function buildFiltersForm() {
-        const form = document.getElementById('filtersForm');
-        form.innerHTML = '';
+    function showComponentToast(message, type = 'success') {
+        const container = document.getElementById('componentToastContainer');
 
-        const addHidden = (name, value) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value ?? '';
-            form.appendChild(input);
-        };
+        if (!container) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    async function loadComponentsList(page = 1, updateHistory = true) {
+        const container = document.querySelector('[data-components-index]');
+        if (!container) return;
+
+        const indexUrl = container.dataset.indexUrl;
+        const params = new URLSearchParams();
 
         Object.entries(activeFilters).forEach(([key, value]) => {
             if (Array.isArray(value)) {
-                value.filter(item => item !== null && item !== '').forEach(item => {
-                    addHidden(`${key}[]`, item);
-                });
+                value.filter(v => v !== null && v !== '').forEach(v => params.append(`${key}[]`, v));
             } else if (value !== null && value !== '') {
-                addHidden(key, value);
+                params.set(key, value);
             }
         });
+
+        if (page > 1) {
+            params.set('page', page);
+        }
+
+        try {
+            const url = params.toString() ? `${indexUrl}?${params.toString()}` : indexUrl;
+
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                showComponentToast(data.message || 'Error al cargar el listado.', 'error');
+                return;
+            }
+
+            const listContainer = document.getElementById('componentsListContainer');
+            if (listContainer) {
+                listContainer.outerHTML = data.list_html;
+            }
+
+            updateComponentFilterOptions(data.filter_options);
+            currentPage = data.current_page || page;
+
+            const clearBtn = document.querySelector('[data-clear-filters]');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', !data.has_any_active_filter);
+            }
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+
+            if (updateHistory) {
+                const historyUrl = params.toString() ? `${indexUrl}?${params.toString()}` : indexUrl;
+                window.history.pushState({ page }, '', historyUrl);
+            }
+        } catch (error) {
+            showComponentToast('Error de red al cargar el listado.', 'error');
+        }
+    }
+
+    function updateComponentFilterOptions(newOptions) {
+        if (!newOptions) return;
+
+        if (newOptions.client_ids && filterOptions.client_ids) {
+            filterOptions.client_ids.options = newOptions.client_ids;
+        }
+
+        if (newOptions.element_type_ids && filterOptions.element_type_ids) {
+            filterOptions.element_type_ids.options = newOptions.element_type_ids;
+        }
+
+        if (newOptions.component_names && filterOptions.component_names) {
+            filterOptions.component_names.options = Array.isArray(newOptions.component_names) ? newOptions.component_names : [];
+        }
+
+        if (newOptions.statuses && filterOptions.statuses) {
+            filterOptions.statuses.options = newOptions.statuses;
+        }
     }
 
     function closeFilterPopover() {
@@ -751,26 +621,25 @@
 
     function clearCurrentFilter() {
         if (!currentPopoverKey) return;
-
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
-        submitFilters();
+        closeFilterPopover();
+        loadComponentsList(1);
     }
 
     function applyCurrentFilter() {
         if (!currentPopoverKey) return;
-
         const config = filterOptions[currentPopoverKey];
         const values = Array.from(document.querySelectorAll('#filterPopover .filter-check:checked'))
             .map(cb => cb.value);
-
         activeFilters[config.inputName] = values;
-        submitFilters();
+        closeFilterPopover();
+        loadComponentsList(1);
     }
 
     function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        closeFilterPopover();
+        loadComponentsList(1);
     }
 
     function escapeHtml(text) {
@@ -898,84 +767,6 @@
         }, 150);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        const selectedClient = document.getElementById('selected_client_id');
-        const createSelect = document.getElementById('element_type_id');
-        const preferredElementTypeId = @json(old('element_type_id', $preferredElementTypeId ?? ($singleCreateElementType->id ?? '')));
-
-        if (selectedClient && selectedClient.value) {
-            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
-            });
-
-            @if($singleClient)
-                populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
-            @else
-                loadElementTypes(selectedClient.value, 'element_type_id', preferredElementTypeId);
-            @endif
-        } else if (@json((bool) $singleClient)) {
-            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
-        }
-
-        const createComponentForm = document.getElementById('createComponentForm');
-        const editComponentForm = document.getElementById('editComponentForm');
-
-        if (createComponentForm) {
-            createComponentForm.addEventListener('submit', handleCreateComponentSubmit);
-        }
-
-        if (editComponentForm) {
-            editComponentForm.addEventListener('submit', handleEditComponentSubmit);
-        }
-    });
-
-    document.addEventListener('click', function (event) {
-        const popover = document.getElementById('filterPopover');
-        const modal = document.getElementById('editComponentModal');
-
-        if (!popover.classList.contains('hidden')) {
-            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
-                closeFilterPopover();
-            }
-        }
-
-        if (modal.classList.contains('flex') && event.target === modal) {
-            closeEditComponentModal();
-        }
-    });
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-            closeFilterPopover();
-            closeEditComponentModal();
-        }
-    });
-
-    function showComponentToast(message, type = 'success') {
-        const container = document.getElementById('componentToastContainer');
-
-        if (!container) {
-            alert(message);
-            return;
-        }
-
-        const toast = document.createElement('div');
-        const styles = type === 'error'
-            ? 'border-red-200 bg-red-50 text-red-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
-
-        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
-        toast.textContent = message;
-
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
-
-            setTimeout(() => toast.remove(), 350);
-        }, 3500);
-    }
-
     function clearComponentAjaxErrors(containerId) {
         const box = document.getElementById(containerId);
         if (!box) return;
@@ -1070,10 +861,9 @@
                 throw new Error(data.message || 'No fue posible crear el componente.');
             }
 
-            insertComponentRow(data.component);
             resetCreateComponentForm();
-
             showComponentToast(data.message || 'Componente creado correctamente.', 'success');
+            await loadComponentsList(1);
         } catch (error) {
             showComponentToast(error.message || 'Ocurrió un error al crear el componente.', 'error');
         } finally {
@@ -1113,10 +903,9 @@
                 throw new Error(data.message || 'No fue posible actualizar el componente.');
             }
 
-            updateComponentRow(data.component);
             closeEditComponentModal();
-
             showComponentToast(data.message || 'Componente actualizado correctamente.', 'success');
+            await loadComponentsList(currentPage);
         } catch (error) {
             showComponentToast(error.message || 'Ocurrió un error al actualizar el componente.', 'error');
         } finally {
@@ -1126,10 +915,8 @@
 
     async function deleteComponent(componentId) {
         const confirmed = confirm('¿Seguro que deseas eliminar este componente?');
-
         if (!confirmed) return;
 
-        const row = document.getElementById(`component-row-${componentId}`);
         const form = document.getElementById(`delete-component-form-${componentId}`);
 
         if (!form) {
@@ -1137,8 +924,7 @@
             return;
         }
 
-        const formData = new FormData(form);
-
+        const row = document.getElementById(`component-row-${componentId}`);
         if (row) {
             row.classList.add('opacity-60', 'pointer-events-none');
         }
@@ -1151,7 +937,7 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
-                body: formData,
+                body: new FormData(form),
             });
 
             const data = await parseComponentJsonResponse(response);
@@ -1160,31 +946,19 @@
                 throw new Error(data.message || 'No fue posible eliminar el componente.');
             }
 
-            if (row) {
-                row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-                row.style.opacity = '0';
-                row.style.transform = 'scale(0.98)';
-
-                setTimeout(() => row.remove(), 180);
-            }
-
             showComponentToast(data.message || 'Componente eliminado correctamente.', 'success');
+            await loadComponentsList(currentPage);
         } catch (error) {
             if (row) {
                 row.classList.remove('opacity-60', 'pointer-events-none');
             }
-
             showComponentToast(error.message || 'Ocurrió un error al eliminar el componente.', 'error');
         }
     }
 
     async function toggleComponentStatus(button) {
         const url = button.dataset.url;
-
         if (!url || button.disabled) return;
-
-        const originalHtml = button.innerHTML;
-        const originalClass = button.className;
 
         button.disabled = true;
         button.classList.add('opacity-60', 'cursor-wait');
@@ -1205,47 +979,46 @@
                 throw new Error(data.message || 'No fue posible cambiar el estado.');
             }
 
-            renderComponentStatusButton(button, Boolean(data.status));
             showComponentToast(data.message || 'Estado actualizado correctamente.', 'success');
+            await loadComponentsList(currentPage, false);
         } catch (error) {
-            button.innerHTML = originalHtml;
-            button.className = originalClass;
             showComponentToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
         } finally {
             button.disabled = false;
             button.classList.remove('opacity-60', 'cursor-wait');
-
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
         }
     }
 
-    function renderComponentStatusButton(button, enabled) {
-        button.dataset.enabled = enabled ? '1' : '0';
+    async function toggleComponentDefault(button) {
+        const url = button.dataset.url;
+        if (!url || button.disabled) return;
 
-        button.classList.remove(
-            'bg-green-100',
-            'text-green-700',
-            'hover:bg-green-200',
-            'bg-red-100',
-            'text-red-700',
-            'hover:bg-red-200'
-        );
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
 
-        if (enabled) {
-            button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
-        } else {
-            button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
-        }
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
 
-        button.innerHTML = `
-            <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-            <span>${enabled ? 'Activo' : 'Inactivo'}</span>
-        `;
+            const data = await parseComponentJsonResponse(response);
 
-        if (window.lucide) {
-            window.lucide.createIcons();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible cambiar el marcado por defecto.');
+            }
+
+            showComponentToast(data.message || 'Marcado por defecto actualizado.', 'success');
+            await loadComponentsList(currentPage, false);
+        } catch (error) {
+            showComponentToast(error.message || 'Ocurrió un error al cambiar el marcado por defecto.', 'error');
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
         }
     }
 
@@ -1278,263 +1051,89 @@
         }
     }
 
-    function updateComponentRow(component) {
-        if (!component || !component.id) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectedClient = document.getElementById('selected_client_id');
+        const createSelect = document.getElementById('element_type_id');
+        const preferredElementTypeId = @json(old('element_type_id', $preferredElementTypeId ?? ($singleCreateElementType->id ?? '')));
 
-        const row = document.getElementById(`component-row-${component.id}`);
-        const clientEl = document.getElementById(`component-client-${component.id}`);
-        const elementTypeEl = document.getElementById(`component-element-type-${component.id}`);
-        const nameEl = document.getElementById(`component-name-${component.id}`);
-        const defaultEl = document.getElementById(`component-default-${component.id}`);
-        const diagnosticsEl = document.getElementById(`component-diagnostics-count-${component.id}`);
-        const reportDetailsEl = document.getElementById(`component-report-details-count-${component.id}`);
-        const editButton = row?.querySelector('[data-edit-component]');
-        const statusButton = row?.querySelector('[data-status-toggle]');
-        const defaultButton = row?.querySelector('[data-default-toggle]');
-
-        if (clientEl) clientEl.textContent = component.client_name ?? '—';
-        if (elementTypeEl) elementTypeEl.textContent = component.element_type_name ?? '—';
-        if (nameEl) nameEl.textContent = component.name ?? '—';
-        if (defaultEl) {
-            const defaultButton = defaultEl.querySelector('[data-default-toggle]');
-            if (defaultButton) {
-                renderComponentDefaultButton(defaultButton, Boolean(component.is_default));
-            }
-        }
-        if (diagnosticsEl) diagnosticsEl.textContent = String(component.diagnostics_count ?? 0);
-        if (reportDetailsEl) reportDetailsEl.textContent = String(component.report_details_count ?? 0);
-
-        if (editButton) {
-            editButton.dataset.client_id = component.client_id ?? '';
-            editButton.dataset.element_type_id = component.element_type_id ?? '';
-            editButton.dataset.name = component.name ?? '';
-            editButton.dataset.is_default = component.is_default ? '1' : '0';
-            editButton.dataset.action = component.update_url ?? '';
-        }
-
-        if (statusButton) {
-            statusButton.dataset.url = component.toggle_status_url ?? statusButton.dataset.url;
-            renderComponentStatusButton(statusButton, Boolean(component.status));
-        }
-
-        if (defaultButton) {
-            defaultButton.dataset.url = component.toggle_default_url ?? defaultButton.dataset.url;
-            renderComponentDefaultButton(defaultButton, Boolean(component.is_default));
-        }
-    }
-
-    function insertComponentRow(component) {
-        if (!component || !component.id) return;
-
-        const tbody = document.getElementById('componentsTableBody');
-
-        if (!tbody) return;
-
-        const emptyRow = tbody.querySelector('td[colspan]');
-        if (emptyRow) {
-            emptyRow.closest('tr')?.remove();
-        }
-
-        const hasClientColumn = @json($showClientColumn);
-        const hasDependencies =
-            (Number(component.elements_count || 0) +
-                Number(component.diagnostics_count || 0) +
-                Number(component.report_details_count || 0)) > 0;
-
-        const row = document.createElement('tr');
-        row.id = `component-row-${component.id}`;
-        row.className = 'hover:bg-slate-50';
-
-        row.innerHTML = `
-            ${hasClientColumn ? `
-                <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-client-${component.id}">
-                    ${escapeHtml(component.client_name ?? '—')}
-                </td>
-            ` : ''}
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-element-type-${component.id}">
-                ${escapeHtml(component.element_type_name ?? '—')}
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="component-name-${component.id}">
-                ${escapeHtml(component.name ?? '—')}
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm" id="component-default-${component.id}">
-                <button
-                    type="button"
-                    data-default-toggle
-                    data-url="${escapeHtml(component.toggle_default_url ?? '')}"
-                    data-enabled="${component.is_default ? '1' : '0'}"
-                    onclick="toggleComponentDefault(this)"
-                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${component.is_default
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
-                    title="Clic para marcar o desmarcar por defecto"
-                >
-                    <i data-lucide="${component.is_default ? 'check-circle-2' : 'circle'}" class="h-3.5 w-3.5"></i>
-                    <span>${component.is_default ? 'Sí' : 'No'}</span>
-                </button>
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-diagnostics-count-${component.id}">
-                ${escapeHtml(String(component.diagnostics_count ?? 0))}
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="component-report-details-count-${component.id}">
-                ${escapeHtml(String(component.report_details_count ?? 0))}
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-sm">
-                <button
-                    type="button"
-                    data-status-toggle
-                    data-url="${escapeHtml(component.toggle_status_url ?? '')}"
-                    data-enabled="${component.status ? '1' : '0'}"
-                    onclick="toggleComponentStatus(this)"
-                    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${component.status
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-red-100 text-red-700 hover:bg-red-200'}"
-                    title="${hasDependencies ? 'Clic para activar o inactivar' : 'Este componente puede eliminarse si no tiene uso'}"
-                >
-                    <i data-lucide="${component.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-                    <span>${component.status ? 'Activo' : 'Inactivo'}</span>
-                </button>
-            </td>
-
-            <td class="whitespace-nowrap px-5 py-3 text-right">
-                <div class="flex items-center justify-end gap-2">
-                    <button
-                        type="button"
-                        class="text-slate-400 transition hover:text-[#d94d33]"
-                        data-edit-component
-                        data-id="${escapeHtml(String(component.id))}"
-                        data-client_id="${escapeHtml(String(component.client_id ?? ''))}"
-                        data-element_type_id="${escapeHtml(String(component.element_type_id ?? ''))}"
-                        data-name="${escapeHtml(component.name ?? '')}"
-                        data-is_default="${component.is_default ? '1' : '0'}"
-                        data-action="${escapeHtml(component.update_url ?? '')}"
-                        onclick="openEditComponentModal(this)"
-                        title="Editar componente"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                        </svg>
-                    </button>
-
-                    ${!hasDependencies ? `
-                        <button
-                            type="button"
-                            onclick="deleteComponent(${component.id})"
-                            class="text-red-500 transition hover:text-red-700"
-                            title="Eliminar componente"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                            </svg>
-                        </button>
-
-                        <form
-                            id="delete-component-form-${component.id}"
-                            method="POST"
-                            action="${escapeHtml(component.destroy_url ?? '')}"
-                            class="hidden"
-                        >
-                            <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
-                            <input type="hidden" name="_method" value="DELETE">
-                        </form>
-                    ` : ''}
-                </div>
-            </td>
-        `;
-
-        row.style.opacity = '0';
-        row.style.transform = 'translateY(-6px)';
-        row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-
-        tbody.prepend(row);
-
-        requestAnimationFrame(() => {
-            row.style.opacity = '1';
-            row.style.transform = 'translateY(0)';
-        });
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
-    }
-
-    async function toggleComponentDefault(button) {
-        const url = button.dataset.url;
-
-        if (!url || button.disabled) return;
-
-        const originalHtml = button.innerHTML;
-        const originalClass = button.className;
-
-        button.disabled = true;
-        button.classList.add('opacity-60', 'cursor-wait');
-
-        try {
-            const response = await fetch(url, {
-                method: 'PATCH',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
+        if (selectedClient && selectedClient.value) {
+            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+                cb.checked = parseInt(cb.value) === parseInt(selectedClient.value);
             });
 
-            const data = await parseComponentJsonResponse(response);
+            @if($singleClient)
+                populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
+            @else
+                loadElementTypes(selectedClient.value, 'element_type_id', preferredElementTypeId);
+            @endif
+        } else if (@json((bool) $singleClient)) {
+            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
+        }
 
-            if (!response.ok || data.success === false) {
-                throw new Error(data.message || 'No fue posible cambiar el marcado por defecto.');
+        const createComponentForm = document.getElementById('createComponentForm');
+        const editComponentForm = document.getElementById('editComponentForm');
+
+        if (createComponentForm) {
+            createComponentForm.addEventListener('submit', handleCreateComponentSubmit);
+        }
+
+        if (editComponentForm) {
+            editComponentForm.addEventListener('submit', handleEditComponentSubmit);
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        if (paginationLink) {
+            event.preventDefault();
+            const href = paginationLink.getAttribute('href');
+            if (!href || href === '#') return;
+            const url = new URL(href, window.location.origin);
+            const page = parseInt(url.searchParams.get('page') || '1');
+            loadComponentsList(page);
+            return;
+        }
+
+        const clearBtn = event.target.closest('[data-clear-filters]');
+        if (clearBtn) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key] = [];
+            });
+            loadComponentsList(1);
+            return;
+        }
+
+        const popover = document.getElementById('filterPopover');
+        if (!popover.classList.contains('hidden')) {
+            if (!popover.contains(event.target) && !event.target.closest('button[onclick^="openFilterPopover"]')) {
+                closeFilterPopover();
             }
-
-            renderComponentDefaultButton(button, Boolean(data.is_default));
-            showComponentToast(data.message || 'Marcado por defecto actualizado.', 'success');
-        } catch (error) {
-            button.innerHTML = originalHtml;
-            button.className = originalClass;
-            showComponentToast(error.message || 'Ocurrió un error al cambiar el marcado por defecto.', 'error');
-        } finally {
-            button.disabled = false;
-            button.classList.remove('opacity-60', 'cursor-wait');
-
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-        }
-    }
-
-    function renderComponentDefaultButton(button, enabled) {
-        button.dataset.enabled = enabled ? '1' : '0';
-
-        button.classList.remove(
-            'bg-emerald-100',
-            'text-emerald-700',
-            'hover:bg-emerald-200',
-            'bg-slate-100',
-            'text-slate-500',
-            'hover:bg-slate-200'
-        );
-
-        if (enabled) {
-            button.classList.add('bg-emerald-100', 'text-emerald-700', 'hover:bg-emerald-200');
-        } else {
-            button.classList.add('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
         }
 
-        button.innerHTML = `
-            <i data-lucide="${enabled ? 'check-circle-2' : 'circle'}" class="h-3.5 w-3.5"></i>
-            <span>${enabled ? 'Sí' : 'No'}</span>
-        `;
-
-        if (window.lucide) {
-            window.lucide.createIcons();
+        const modal = document.getElementById('editComponentModal');
+        if (modal.classList.contains('flex') && event.target === modal) {
+            closeEditComponentModal();
         }
-    }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeFilterPopover();
+            closeEditComponentModal();
+        }
+    });
+
+    window.addEventListener('popstate', function () {
+        const url = new URL(window.location.href);
+
+        activeFilters.client_ids = url.searchParams.getAll('client_ids[]');
+        activeFilters.element_type_ids = url.searchParams.getAll('element_type_ids[]');
+        activeFilters.component_names = url.searchParams.getAll('component_names[]');
+        activeFilters.statuses = url.searchParams.getAll('statuses[]');
+
+        const page = parseInt(url.searchParams.get('page') || '1');
+        loadComponentsList(page, false);
+    });
 </script>
 @endsection

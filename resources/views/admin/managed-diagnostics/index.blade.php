@@ -3,27 +3,6 @@
 @section('header_title', 'Diagnósticos')
 
 @section('content')
-    @php
-        $hasFilter = function ($key) use ($activeFilters) {
-            $value = $activeFilters[$key] ?? null;
-
-            if (is_array($value)) {
-                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-            }
-
-            return $value !== null && $value !== '';
-        };
-
-        $hasAnyActiveFilter =
-            collect($activeFilters)->contains(function ($value) {
-                if (is_array($value)) {
-                    return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
-                }
-
-                return $value !== null && $value !== '';
-            });
-    @endphp
-
     <div class="space-y-8">
         @if(session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -169,20 +148,6 @@
                             @enderror
                         </div>
 
-                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
-                            <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
-                        @endforeach
-                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                        @endforeach
-                        <input type="hidden" name="redirect_page" value="{{ request('page', 1) }}">
-
                         <div class="pt-2">
                             <button
                                 type="submit"
@@ -195,209 +160,32 @@
                 </div>
             </div>
             <div>
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    data-diagnostics-index
+                    data-index-url="{{ route('admin.managed-diagnostics.index') }}"
+                >
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">
                                 Listado de diagnósticos
                             </h3>
 
-                            @if($hasAnyActiveFilter)
-                                <a
-                                    href="{{ route('admin.managed-diagnostics.index') }}"
-                                    class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                                >
-                                    Limpiar filtros
-                                </a>
-                            @endif
+                            <a
+                                href="{{ route('admin.managed-diagnostics.index') }}"
+                                data-clear-filters
+                                class="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {{ $hasAnyActiveFilter ? '' : 'hidden' }}"
+                            >
+                                Limpiar filtros
+                            </a>
                         </div>
                     </div>
 
-                    <form id="filtersForm" method="GET" class="hidden"></form>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    @if($showClientColumn)
-                                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <div class="flex items-center gap-2">
-                                                <span>Cliente</span>
-                                                <button
-                                                    type="button"
-                                                    onclick="openFilterPopover(event, 'client_ids')"
-                                                    class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('client_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </th>
-                                    @endif
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Tipo de activo</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'element_type_ids')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('element_type_ids') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Nombre</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'diagnostic_names')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('diagnostic_names') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span>Estado</span>
-                                            <button
-                                                type="button"
-                                                onclick="openFilterPopover(event, 'statuses')"
-                                                class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('statuses') ? 'text-[#d94d33]' : 'text-slate-400' }}"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </th>
-
-                                    <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="diagnosticsTableBody" class="divide-y divide-slate-200 bg-white">
-                                @forelse($diagnostics as $diagnostic)
-                                    @php
-                                        $hasDependencies = (($diagnostic->components_count ?? 0) + ($diagnostic->report_details_count ?? 0)) > 0;
-                                    @endphp
-
-                                    <tr class="hover:bg-slate-50" id="diagnostic-row-{{ $diagnostic->id }}">
-                                        @if($showClientColumn)
-                                            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="diagnostic-client-{{ $diagnostic->id }}">
-                                                {{ $diagnostic->client?->name ?? '—' }}
-                                            </td>
-                                        @endif
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="diagnostic-element-type-{{ $diagnostic->id }}">
-                                            {{ $diagnostic->elementType?->name ?? '—' }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900">
-                                            {{ $diagnostic->name }}
-                                        </td>
-
-                                        <td class="whitespace-nowrap px-5 py-3 text-sm">
-                                            <button
-                                                type="button"
-                                                data-status-toggle
-                                                data-url="{{ route('admin.managed-diagnostics.toggle-status', $diagnostic) }}"
-                                                data-enabled="{{ $diagnostic->status ? '1' : '0' }}"
-                                                onclick="toggleDiagnosticStatus(this)"
-                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition {{ $diagnostic->status ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200' }}"
-                                                title="Clic para activar o inactivar"
-                                            >
-                                                <i data-lucide="{{ $diagnostic->status ? 'check-circle-2' : 'x-circle' }}" class="h-3.5 w-3.5"></i>
-                                                <span>{{ $diagnostic->status ? 'Activo' : 'Inactivo' }}</span>
-                                            </button>
-                                        </td>
-                                        <td class="whitespace-nowrap px-5 py-3 text-right">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    data-edit-diagnostic
-                                                    data-id="{{ $diagnostic->id }}"
-                                                    data-client_id="{{ $diagnostic->client_id }}"
-                                                    data-element_type_id="{{ $diagnostic->element_type_id }}"
-                                                    data-name="{{ $diagnostic->name }}"
-                                                    data-status="{{ $diagnostic->status ? 1 : 0 }}"
-                                                    data-action="{{ route('admin.managed-diagnostics.update', $diagnostic) }}"
-                                                    onclick="openEditDiagnosticModal(this)"
-                                                    class="text-slate-400 transition hover:text-[#d94d33]"
-                                                    title="Editar diagnóstico"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                    </svg>
-                                                </button>
-
-                                                @if(!$hasDependencies)
-                                                    <button
-                                                        type="button"
-                                                        onclick="deleteDiagnostic({{ $diagnostic->id }})"
-                                                        class="text-red-500 transition hover:text-red-700"
-                                                        title="Eliminar diagnóstico"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                        </svg>
-                                                    </button>
-
-                                                    <form
-                                                        id="delete-diagnostic-form-{{ $diagnostic->id }}"
-                                                        method="POST"
-                                                        action="{{ route('admin.managed-diagnostics.destroy', $diagnostic) }}"
-                                                        class="hidden"
-                                                    >
-                                                        @csrf
-                                                        @method('DELETE')
-
-                                                        @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        @foreach(($activeFilters['statuses'] ?? []) as $value)
-                                                            <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-                                                        @endforeach
-                                                        <input type="hidden" name="redirect_page" value="{{ $diagnostics->currentPage() }}">
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="{{ $showClientColumn ? 5 : 4 }}" class="px-5 py-10 text-center text-sm text-slate-500">
-                                            No hay diagnósticos registrados todavía.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if($diagnostics->hasPages())
-                        <div class="border-t border-slate-200 px-6 py-4">
-                            {{ $diagnostics->links() }}
-                        </div>
-                    @endif
+                    @include('admin.managed-diagnostics.partials.list', [
+                        'diagnostics' => $diagnostics,
+                        'activeFilters' => $activeFilters,
+                        'showClientColumn' => $showClientColumn,
+                    ])
                 </div>
             </div>
         </div>
@@ -520,20 +308,6 @@
                 </div>
             </div>
 
-            @foreach(($activeFilters['client_ids'] ?? []) as $value)
-                <input type="hidden" name="redirect_client_ids[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['element_type_ids'] ?? []) as $value)
-                <input type="hidden" name="redirect_element_type_ids[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['diagnostic_names'] ?? []) as $value)
-                <input type="hidden" name="redirect_diagnostic_names[]" value="{{ $value }}">
-            @endforeach
-            @foreach(($activeFilters['statuses'] ?? []) as $value)
-                <input type="hidden" name="redirect_statuses[]" value="{{ $value }}">
-            @endforeach
-            <input type="hidden" name="redirect_page" value="{{ $diagnostics->currentPage() }}">
-
             <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                     <button
@@ -586,7 +360,7 @@
     <div id="diagnosticToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
 
 <script>
-    const filterOptions = {
+    let filterOptions = {
         @if($showClientColumn)
         client_ids: {
             type: 'checklist_object',
@@ -617,28 +391,72 @@
 
     const activeFilters = @json($activeFilters);
     let currentPopoverKey = null;
+    let currentPage = {{ $diagnostics->currentPage() }};
 
-    function buildFiltersForm() {
-        const form = document.getElementById('filtersForm');
-        form.innerHTML = '';
+    async function loadDiagnosticsList(page = 1, updateHistory = true) {
+        const container = document.querySelector('[data-diagnostics-index]');
+        const indexUrl = container ? container.dataset.indexUrl : window.location.pathname;
 
-        const addHidden = (name, value) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value ?? '';
-            form.appendChild(input);
-        };
-
+        const params = new URLSearchParams();
         Object.entries(activeFilters).forEach(([key, value]) => {
             if (Array.isArray(value)) {
-                value.filter(item => item !== null && item !== '').forEach(item => {
-                    addHidden(`${key}[]`, item);
-                });
-            } else if (value !== null && value !== '') {
-                addHidden(key, value);
+                value.filter(v => v !== null && v !== '').forEach(v => params.append(`${key}[]`, v));
             }
         });
+        if (page > 1) params.set('page', page);
+
+        const queryString = params.toString();
+        const url = queryString ? `${indexUrl}?${queryString}` : indexUrl;
+        const historyUrl = url;
+
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) return;
+
+            const listContainer = document.getElementById('diagnosticsListContainer');
+            if (listContainer) {
+                listContainer.outerHTML = data.list_html;
+            }
+
+            updateDiagnosticFilterOptions(data.filter_options);
+            currentPage = data.current_page || page;
+
+            const clearBtn = document.querySelector('[data-clear-filters]');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !data.has_any_active_filter);
+
+            if (window.lucide) window.lucide.createIcons();
+
+            if (updateHistory) {
+                window.history.pushState({ page }, '', historyUrl);
+            }
+        } catch (e) {
+            // silent
+        }
+    }
+
+    function updateDiagnosticFilterOptions(newOptions) {
+        if (!newOptions) return;
+
+        if (newOptions.client_ids && filterOptions.client_ids) {
+            filterOptions.client_ids.options = newOptions.client_ids;
+        }
+        if (newOptions.element_type_ids && filterOptions.element_type_ids) {
+            filterOptions.element_type_ids.options = newOptions.element_type_ids;
+        }
+        if (newOptions.diagnostic_names && filterOptions.diagnostic_names) {
+            filterOptions.diagnostic_names.options = newOptions.diagnostic_names;
+        }
+        if (newOptions.statuses && filterOptions.statuses) {
+            filterOptions.statuses.options = newOptions.statuses;
+        }
     }
 
     function closeFilterPopover() {
@@ -825,7 +643,8 @@
 
         const config = filterOptions[currentPopoverKey];
         activeFilters[config.inputName] = [];
-        submitFilters();
+        closeFilterPopover();
+        loadDiagnosticsList(1);
     }
 
     function applyCurrentFilter() {
@@ -836,12 +655,8 @@
             .map(cb => cb.value);
 
         activeFilters[config.inputName] = values;
-        submitFilters();
-    }
-
-    function submitFilters() {
-        buildFiltersForm();
-        document.getElementById('filtersForm').submit();
+        closeFilterPopover();
+        loadDiagnosticsList(1);
     }
 
     function escapeHtml(text) {
@@ -867,60 +682,60 @@
         filterEditDiagnosticElementTypesByClient(clientId);
     }
 
-function openEditDiagnosticModal(btn) {
-    clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
+    function openEditDiagnosticModal(btn) {
+        clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
 
-    const clientId = btn.dataset.client_id ?? '';
-    const elementTypeId = btn.dataset.element_type_id ?? '';
+        const clientId = btn.dataset.client_id ?? '';
+        const elementTypeId = btn.dataset.element_type_id ?? '';
 
-    document.getElementById('editDiagnosticForm').action = btn.dataset.action;
-    document.getElementById('edit_diagnostic_client_id').value = clientId;
-    document.getElementById('edit_diagnostic_name').value = btn.dataset.name ?? '';
-    document.getElementById('edit_diagnostic_status').value = btn.dataset.status ?? '1';
+        document.getElementById('editDiagnosticForm').action = btn.dataset.action;
+        document.getElementById('edit_diagnostic_client_id').value = clientId;
+        document.getElementById('edit_diagnostic_name').value = btn.dataset.name ?? '';
+        document.getElementById('edit_diagnostic_status').value = btn.dataset.status ?? '1';
 
-    document.querySelectorAll('.edit-client-single-checkbox').forEach(cb => {
-        cb.checked = parseInt(cb.value) === parseInt(clientId);
-    });
+        document.querySelectorAll('.edit-client-single-checkbox').forEach(cb => {
+            cb.checked = parseInt(cb.value) === parseInt(clientId);
+        });
 
-    filterEditDiagnosticElementTypesByClient(clientId);
+        filterEditDiagnosticElementTypesByClient(clientId);
 
-    const elementTypeSelect = document.getElementById('edit_diagnostic_element_type_id');
-    if (elementTypeSelect) {
-        elementTypeSelect.value = elementTypeId ?? '';
+        const elementTypeSelect = document.getElementById('edit_diagnostic_element_type_id');
+        if (elementTypeSelect) {
+            elementTypeSelect.value = elementTypeId ?? '';
+        }
+
+        const modal = document.getElementById('editDiagnosticModal');
+        const content = document.getElementById('editDiagnosticModalContent');
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        document.documentElement.classList.add('overflow-hidden');
+        document.body.classList.add('overflow-hidden');
+
+        setTimeout(() => {
+            content?.classList.remove('scale-95', 'opacity-0');
+            content?.classList.add('scale-100', 'opacity-100');
+        }, 10);
     }
 
-    const modal = document.getElementById('editDiagnosticModal');
-    const content = document.getElementById('editDiagnosticModalContent');
+    function closeEditDiagnosticModal() {
+        const modal = document.getElementById('editDiagnosticModal');
+        const content = document.getElementById('editDiagnosticModalContent');
 
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+        clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
 
-    document.documentElement.classList.add('overflow-hidden');
-    document.body.classList.add('overflow-hidden');
+        content?.classList.remove('scale-100', 'opacity-100');
+        content?.classList.add('scale-95', 'opacity-0');
 
-    setTimeout(() => {
-        content?.classList.remove('scale-95', 'opacity-0');
-        content?.classList.add('scale-100', 'opacity-100');
-    }, 10);
-}
+        setTimeout(() => {
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
 
-function closeEditDiagnosticModal() {
-    const modal = document.getElementById('editDiagnosticModal');
-    const content = document.getElementById('editDiagnosticModalContent');
-
-    clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
-
-    content?.classList.remove('scale-100', 'opacity-100');
-    content?.classList.add('scale-95', 'opacity-0');
-
-    setTimeout(() => {
-        modal.classList.remove('flex');
-        modal.classList.add('hidden');
-
-        document.documentElement.classList.remove('overflow-hidden');
-        document.body.classList.remove('overflow-hidden');
-    }, 150);
-}
+            document.documentElement.classList.remove('overflow-hidden');
+            document.body.classList.remove('overflow-hidden');
+        }, 150);
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
         const hiddenClientInput = document.getElementById('create_client_id');
@@ -966,8 +781,24 @@ function closeEditDiagnosticModal() {
             }
         }
 
-        if (modal.classList.contains('flex') && event.target === modal) {
+        if (modal && modal.classList.contains('flex') && event.target === modal) {
             closeEditDiagnosticModal();
+        }
+
+        const paginationLink = event.target.closest('[data-pagination-link]');
+        if (paginationLink) {
+            event.preventDefault();
+            const href = paginationLink.getAttribute('href');
+            if (!href || href === '#') return;
+            const pageParam = new URL(href, window.location.href).searchParams.get('page');
+            loadDiagnosticsList(pageParam ? parseInt(pageParam) : 1);
+        }
+
+        const clearFiltersBtn = event.target.closest('[data-clear-filters]');
+        if (clearFiltersBtn) {
+            event.preventDefault();
+            Object.keys(activeFilters).forEach(key => { activeFilters[key] = []; });
+            loadDiagnosticsList(1);
         }
     });
 
@@ -977,478 +808,307 @@ function closeEditDiagnosticModal() {
             closeEditDiagnosticModal();
         }
     });
-    
-    function showDiagnosticToast(message, type = 'success') {
-    const container = document.getElementById('diagnosticToastContainer');
 
-    if (!container) {
-        alert(message);
-        return;
-    }
+    window.addEventListener('popstate', function (event) {
+        const params = new URLSearchParams(window.location.search);
 
-    const toast = document.createElement('div');
-    const styles = type === 'error'
-        ? 'border-red-200 bg-red-50 text-red-700'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+        Object.keys(activeFilters).forEach(key => { activeFilters[key] = []; });
 
-    toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
-    toast.textContent = message;
+        params.forEach((value, key) => {
+            const cleanKey = key.replace('[]', '');
+            if (cleanKey in activeFilters) {
+                if (!Array.isArray(activeFilters[cleanKey])) activeFilters[cleanKey] = [];
+                activeFilters[cleanKey].push(value);
+            }
+        });
 
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
-
-        setTimeout(() => toast.remove(), 350);
-    }, 3500);
-}
-
-function clearDiagnosticAjaxErrors(containerId) {
-    const box = document.getElementById(containerId);
-    if (!box) return;
-
-    box.classList.add('hidden');
-    box.innerHTML = '';
-}
-
-function renderDiagnosticAjaxErrors(containerId, errors) {
-    const box = document.getElementById(containerId);
-    if (!box) return;
-
-    const messages = [];
-
-    Object.values(errors || {}).forEach((fieldErrors) => {
-        (fieldErrors || []).forEach((message) => messages.push(message));
+        const page = parseInt(params.get('page') || '1');
+        loadDiagnosticsList(page, false);
     });
 
-    if (messages.length === 0) {
+    function showDiagnosticToast(message, type = 'success') {
+        const container = document.getElementById('diagnosticToastContainer');
+
+        if (!container) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        const styles = type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        toast.className = `w-[340px] rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${styles}`;
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+            setTimeout(() => toast.remove(), 350);
+        }, 3500);
+    }
+
+    function clearDiagnosticAjaxErrors(containerId) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+
         box.classList.add('hidden');
         box.innerHTML = '';
-        return;
     }
 
-    box.innerHTML = `
-        <div class="font-semibold">Hay errores en el formulario.</div>
-        <ul class="mt-2 list-disc pl-5">
-            ${messages.map(message => `<li>${escapeHtml(String(message))}</li>`).join('')}
-        </ul>
-    `;
+    function renderDiagnosticAjaxErrors(containerId, errors) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
 
-    box.classList.remove('hidden');
-}
+        const messages = [];
 
-function setDiagnosticFormSubmittingState(form, isSubmitting, loadingText = 'Guardando...') {
-    if (!form) return;
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    if (!submitButton) return;
-
-    if (isSubmitting) {
-        submitButton.dataset.originalText = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.classList.add('opacity-70', 'pointer-events-none');
-        submitButton.innerHTML = loadingText;
-    } else {
-        submitButton.disabled = false;
-        submitButton.classList.remove('opacity-70', 'pointer-events-none');
-        submitButton.innerHTML = submitButton.dataset.originalText || submitButton.innerHTML;
-    }
-}
-
-async function parseDiagnosticJsonResponse(response) {
-    const contentType = response.headers.get('content-type') || '';
-
-    if (!contentType.includes('application/json')) {
-        throw new Error('El servidor no devolvió JSON. Revisa sesión, permisos o respuesta del controlador.');
-    }
-
-    return await response.json();
-}
-
-async function handleCreateDiagnosticSubmit(event) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    clearDiagnosticAjaxErrors('createDiagnosticAjaxErrors');
-    setDiagnosticFormSubmittingState(form, true, 'Guardando...');
-
-    try {
-        const formData = new FormData(form);
-
-        const response = await fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-            body: formData,
+        Object.values(errors || {}).forEach((fieldErrors) => {
+            (fieldErrors || []).forEach((message) => messages.push(message));
         });
 
-        const data = await parseDiagnosticJsonResponse(response);
-
-        if (response.status === 422) {
-            renderDiagnosticAjaxErrors('createDiagnosticAjaxErrors', data.errors || {});
-            showDiagnosticToast(data.message || 'Corrige los errores del formulario.', 'error');
+        if (messages.length === 0) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
             return;
         }
 
-        if (!response.ok || data.success === false) {
-            throw new Error(data.message || 'No fue posible crear el diagnóstico.');
+        box.innerHTML = `
+            <div class="font-semibold">Hay errores en el formulario.</div>
+            <ul class="mt-2 list-disc pl-5">
+                ${messages.map(message => `<li>${escapeHtml(String(message))}</li>`).join('')}
+            </ul>
+        `;
+
+        box.classList.remove('hidden');
+    }
+
+    function setDiagnosticFormSubmittingState(form, isSubmitting, loadingText = 'Guardando...') {
+        if (!form) return;
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (!submitButton) return;
+
+        if (isSubmitting) {
+            submitButton.dataset.originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = loadingText;
+        } else {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-70', 'pointer-events-none');
+            submitButton.innerHTML = submitButton.dataset.originalText || submitButton.innerHTML;
+        }
+    }
+
+    async function parseDiagnosticJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            throw new Error('El servidor no devolvió JSON. Revisa sesión, permisos o respuesta del controlador.');
         }
 
-        insertDiagnosticRow(data.diagnostic);
-        resetCreateDiagnosticForm();
-
-        showDiagnosticToast(data.message || 'Diagnóstico creado correctamente.', 'success');
-    } catch (error) {
-        showDiagnosticToast(error.message || 'Ocurrió un error al crear el diagnóstico.', 'error');
-    } finally {
-        setDiagnosticFormSubmittingState(form, false);
+        return await response.json();
     }
-}
 
-async function handleEditDiagnosticSubmit(event) {
-    event.preventDefault();
+    async function handleCreateDiagnosticSubmit(event) {
+        event.preventDefault();
 
-    const form = event.currentTarget;
-    clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
-    setDiagnosticFormSubmittingState(form, true, 'Actualizando...');
+        const form = event.currentTarget;
+        clearDiagnosticAjaxErrors('createDiagnosticAjaxErrors');
+        setDiagnosticFormSubmittingState(form, true, 'Guardando...');
 
-    try {
-        const formData = new FormData(form);
+        try {
+            const formData = new FormData(form);
 
-        const response = await fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-            body: formData,
-        });
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
 
-        const data = await parseDiagnosticJsonResponse(response);
+            const data = await parseDiagnosticJsonResponse(response);
 
-        if (response.status === 422) {
-            renderDiagnosticAjaxErrors('editDiagnosticAjaxErrors', data.errors || {});
-            showDiagnosticToast(data.message || 'Corrige los errores del formulario.', 'error');
+            if (response.status === 422) {
+                renderDiagnosticAjaxErrors('createDiagnosticAjaxErrors', data.errors || {});
+                showDiagnosticToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible crear el diagnóstico.');
+            }
+
+            resetCreateDiagnosticForm();
+            loadDiagnosticsList(1);
+
+            showDiagnosticToast(data.message || 'Diagnóstico creado correctamente.', 'success');
+        } catch (error) {
+            showDiagnosticToast(error.message || 'Ocurrió un error al crear el diagnóstico.', 'error');
+        } finally {
+            setDiagnosticFormSubmittingState(form, false);
+        }
+    }
+
+    async function handleEditDiagnosticSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        clearDiagnosticAjaxErrors('editDiagnosticAjaxErrors');
+        setDiagnosticFormSubmittingState(form, true, 'Actualizando...');
+
+        try {
+            const formData = new FormData(form);
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
+
+            const data = await parseDiagnosticJsonResponse(response);
+
+            if (response.status === 422) {
+                renderDiagnosticAjaxErrors('editDiagnosticAjaxErrors', data.errors || {});
+                showDiagnosticToast(data.message || 'Corrige los errores del formulario.', 'error');
+                return;
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible actualizar el diagnóstico.');
+            }
+
+            closeEditDiagnosticModal();
+            loadDiagnosticsList(currentPage);
+
+            showDiagnosticToast(data.message || 'Diagnóstico actualizado correctamente.', 'success');
+        } catch (error) {
+            showDiagnosticToast(error.message || 'Ocurrió un error al actualizar el diagnóstico.', 'error');
+        } finally {
+            setDiagnosticFormSubmittingState(form, false);
+        }
+    }
+
+    async function deleteDiagnostic(diagnosticId) {
+        const confirmed = confirm('¿Seguro que deseas eliminar este diagnóstico?');
+
+        if (!confirmed) return;
+
+        const row = document.getElementById(`diagnostic-row-${diagnosticId}`);
+        const form = document.getElementById(`delete-diagnostic-form-${diagnosticId}`);
+
+        if (!form) {
+            showDiagnosticToast('No se encontró el formulario de eliminación.', 'error');
             return;
         }
 
-        if (!response.ok || data.success === false) {
-            throw new Error(data.message || 'No fue posible actualizar el diagnóstico.');
-        }
-
-        updateDiagnosticRow(data.diagnostic);
-        closeEditDiagnosticModal();
-
-        showDiagnosticToast(data.message || 'Diagnóstico actualizado correctamente.', 'success');
-    } catch (error) {
-        showDiagnosticToast(error.message || 'Ocurrió un error al actualizar el diagnóstico.', 'error');
-    } finally {
-        setDiagnosticFormSubmittingState(form, false);
-    }
-}
-
-async function deleteDiagnostic(diagnosticId) {
-    const confirmed = confirm('¿Seguro que deseas eliminar este diagnóstico?');
-
-    if (!confirmed) return;
-
-    const row = document.getElementById(`diagnostic-row-${diagnosticId}`);
-    const form = document.getElementById(`delete-diagnostic-form-${diagnosticId}`);
-
-    if (!form) {
-        showDiagnosticToast('No se encontró el formulario de eliminación.', 'error');
-        return;
-    }
-
-    const formData = new FormData(form);
-
-    if (row) {
-        row.classList.add('opacity-60', 'pointer-events-none');
-    }
-
-    try {
-        const response = await fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-            body: formData,
-        });
-
-        const data = await parseDiagnosticJsonResponse(response);
-
-        if (!response.ok || data.success === false) {
-            throw new Error(data.message || 'No fue posible eliminar el diagnóstico.');
-        }
+        const formData = new FormData(form);
 
         if (row) {
-            row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-            row.style.opacity = '0';
-            row.style.transform = 'scale(0.98)';
-
-            setTimeout(() => row.remove(), 180);
+            row.classList.add('opacity-60', 'pointer-events-none');
         }
 
-        showDiagnosticToast(data.message || 'Diagnóstico eliminado correctamente.', 'success');
-    } catch (error) {
-        if (row) {
-            row.classList.remove('opacity-60', 'pointer-events-none');
-        }
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData,
+            });
 
-        showDiagnosticToast(error.message || 'Ocurrió un error al eliminar el diagnóstico.', 'error');
-    }
-}
+            const data = await parseDiagnosticJsonResponse(response);
 
-async function toggleDiagnosticStatus(button) {
-    const url = button.dataset.url;
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible eliminar el diagnóstico.');
+            }
 
-    if (!url || button.disabled) return;
+            loadDiagnosticsList(currentPage);
 
-    const originalHtml = button.innerHTML;
-    const originalClass = button.className;
+            showDiagnosticToast(data.message || 'Diagnóstico eliminado correctamente.', 'success');
+        } catch (error) {
+            if (row) {
+                row.classList.remove('opacity-60', 'pointer-events-none');
+            }
 
-    button.disabled = true;
-    button.classList.add('opacity-60', 'cursor-wait');
-
-    try {
-        const response = await fetch(url, {
-            method: 'PATCH',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-        });
-
-        const data = await parseDiagnosticJsonResponse(response);
-
-        if (!response.ok || data.success === false) {
-            throw new Error(data.message || 'No fue posible cambiar el estado.');
-        }
-
-        renderDiagnosticStatusButton(button, Boolean(data.status));
-        showDiagnosticToast(data.message || 'Estado actualizado correctamente.', 'success');
-    } catch (error) {
-        button.innerHTML = originalHtml;
-        button.className = originalClass;
-        showDiagnosticToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
-    } finally {
-        button.disabled = false;
-        button.classList.remove('opacity-60', 'cursor-wait');
-
-        if (window.lucide) {
-            window.lucide.createIcons();
+            showDiagnosticToast(error.message || 'Ocurrió un error al eliminar el diagnóstico.', 'error');
         }
     }
-}
 
-function renderDiagnosticStatusButton(button, enabled) {
-    button.dataset.enabled = enabled ? '1' : '0';
+    async function toggleDiagnosticStatus(button) {
+        const url = button.dataset.url;
 
-    button.classList.remove(
-        'bg-green-100',
-        'text-green-700',
-        'hover:bg-green-200',
-        'bg-red-100',
-        'text-red-700',
-        'hover:bg-red-200'
-    );
+        if (!url || button.disabled) return;
 
-    if (enabled) {
-        button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
-    } else {
-        button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
-    }
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
 
-    button.innerHTML = `
-        <i data-lucide="${enabled ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-        <span>${enabled ? 'Activo' : 'Inactivo'}</span>
-    `;
+        try {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
 
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-}
+            const data = await parseDiagnosticJsonResponse(response);
 
-function resetCreateDiagnosticForm() {
-    const form = document.getElementById('createDiagnosticForm');
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'No fue posible cambiar el estado.');
+            }
 
-    if (!form) return;
+            loadDiagnosticsList(currentPage, false);
 
-    form.reset();
-    clearDiagnosticAjaxErrors('createDiagnosticAjaxErrors');
-
-    const hiddenClientInput = document.getElementById('create_client_id');
-    const createElementTypeSelect = document.getElementById('create_element_type_id');
-
-    if (!@json((bool) $singleClient)) {
-        if (hiddenClientInput) {
-            hiddenClientInput.value = '';
+            showDiagnosticToast(data.message || 'Estado actualizado correctamente.', 'success');
+        } catch (error) {
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-wait');
+            showDiagnosticToast(error.message || 'Ocurrió un error al cambiar el estado.', 'error');
         }
+    }
 
-        document.querySelectorAll('.create-client-single-checkbox').forEach(cb => {
-            cb.checked = false;
-        });
+    function resetCreateDiagnosticForm() {
+        const form = document.getElementById('createDiagnosticForm');
 
-        if (createElementTypeSelect) {
-            createElementTypeSelect.value = '';
-            filterCreateDiagnosticElementTypesByClient('', '');
+        if (!form) return;
+
+        form.reset();
+        clearDiagnosticAjaxErrors('createDiagnosticAjaxErrors');
+
+        const hiddenClientInput = document.getElementById('create_client_id');
+        const createElementTypeSelect = document.getElementById('create_element_type_id');
+
+        if (!@json((bool) $singleClient)) {
+            if (hiddenClientInput) {
+                hiddenClientInput.value = '';
+            }
+
+            document.querySelectorAll('.create-client-single-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            if (createElementTypeSelect) {
+                createElementTypeSelect.value = '';
+                filterCreateDiagnosticElementTypesByClient('', '');
+            }
+        } else {
+            const preferredElementTypeId = @json($preferredElementTypeId ?? '');
+            filterCreateDiagnosticElementTypesByClient(@json((string) ($singleClient->id ?? '')), preferredElementTypeId);
         }
-    } else {
-        const preferredElementTypeId = @json($preferredElementTypeId ?? '');
-        filterCreateDiagnosticElementTypesByClient(@json((string) ($singleClient->id ?? '')), preferredElementTypeId);
     }
-}
-
-function updateDiagnosticRow(diagnostic) {
-    if (!diagnostic || !diagnostic.id) return;
-
-    const row = document.getElementById(`diagnostic-row-${diagnostic.id}`);
-    const clientEl = document.getElementById(`diagnostic-client-${diagnostic.id}`);
-    const elementTypeEl = document.getElementById(`diagnostic-element-type-${diagnostic.id}`);
-    const nameEl = document.getElementById(`diagnostic-name-${diagnostic.id}`);
-    const editButton = row?.querySelector('[data-edit-diagnostic]');
-    const statusButton = row?.querySelector('[data-status-toggle]');
-
-    if (clientEl) clientEl.textContent = diagnostic.client_name ?? '—';
-    if (elementTypeEl) elementTypeEl.textContent = diagnostic.element_type_name ?? '—';
-    if (nameEl) nameEl.textContent = diagnostic.name ?? '—';
-
-    if (editButton) {
-        editButton.dataset.client_id = diagnostic.client_id ?? '';
-        editButton.dataset.element_type_id = diagnostic.element_type_id ?? '';
-        editButton.dataset.name = diagnostic.name ?? '';
-        editButton.dataset.status = diagnostic.status ? '1' : '0';
-        editButton.dataset.action = diagnostic.update_url ?? '';
-    }
-
-    if (statusButton) {
-        statusButton.dataset.url = diagnostic.toggle_status_url ?? statusButton.dataset.url;
-        renderDiagnosticStatusButton(statusButton, Boolean(diagnostic.status));
-    }
-}
-
-function insertDiagnosticRow(diagnostic) {
-    if (!diagnostic || !diagnostic.id) return;
-
-    const tbody = document.getElementById('diagnosticsTableBody');
-
-    if (!tbody) return;
-
-    const emptyRow = tbody.querySelector('td[colspan]');
-    if (emptyRow) {
-        emptyRow.closest('tr')?.remove();
-    }
-
-    const hasClientColumn = @json($showClientColumn);
-    const hasDependencies =
-        (Number(diagnostic.components_count || 0) + Number(diagnostic.report_details_count || 0)) > 0;
-
-    const row = document.createElement('tr');
-    row.id = `diagnostic-row-${diagnostic.id}`;
-    row.className = 'hover:bg-slate-50';
-
-    row.innerHTML = `
-        ${hasClientColumn ? `
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="diagnostic-client-${diagnostic.id}">
-                ${escapeHtml(diagnostic.client_name ?? '—')}
-            </td>
-        ` : ''}
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm text-slate-700" id="diagnostic-element-type-${diagnostic.id}">
-            ${escapeHtml(diagnostic.element_type_name ?? '—')}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm font-medium text-slate-900" id="diagnostic-name-${diagnostic.id}">
-            ${escapeHtml(diagnostic.name ?? '—')}
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-sm">
-            <button
-                type="button"
-                data-status-toggle
-                data-url="${escapeHtml(diagnostic.toggle_status_url ?? '')}"
-                data-enabled="${diagnostic.status ? '1' : '0'}"
-                onclick="toggleDiagnosticStatus(this)"
-                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${diagnostic.status
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-red-100 text-red-700 hover:bg-red-200'}"
-                title="Clic para activar o inactivar"
-            >
-                <i data-lucide="${diagnostic.status ? 'check-circle-2' : 'x-circle'}" class="h-3.5 w-3.5"></i>
-                <span>${diagnostic.status ? 'Activo' : 'Inactivo'}</span>
-            </button>
-        </td>
-
-        <td class="whitespace-nowrap px-5 py-3 text-right">
-            <div class="flex items-center justify-end gap-2">
-                <button
-                    type="button"
-                    data-edit-diagnostic
-                    data-id="${escapeHtml(String(diagnostic.id))}"
-                    data-client_id="${escapeHtml(String(diagnostic.client_id ?? ''))}"
-                    data-element_type_id="${escapeHtml(String(diagnostic.element_type_id ?? ''))}"
-                    data-name="${escapeHtml(diagnostic.name ?? '')}"
-                    data-status="${diagnostic.status ? '1' : '0'}"
-                    data-action="${escapeHtml(diagnostic.update_url ?? '')}"
-                    onclick="openEditDiagnosticModal(this)"
-                    class="text-slate-400 transition hover:text-[#d94d33]"
-                    title="Editar diagnóstico"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                    </svg>
-                </button>
-
-                ${!hasDependencies ? `
-                    <button
-                        type="button"
-                        onclick="deleteDiagnostic(${diagnostic.id})"
-                        class="text-red-500 transition hover:text-red-700"
-                        title="Eliminar diagnóstico"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                        </svg>
-                    </button>
-
-                    <form
-                        id="delete-diagnostic-form-${diagnostic.id}"
-                        method="POST"
-                        action="${escapeHtml(diagnostic.destroy_url ?? '')}"
-                        class="hidden"
-                    >
-                        <input type="hidden" name="_token" value="${escapeHtml(document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '')}">
-                        <input type="hidden" name="_method" value="DELETE">
-                    </form>
-                ` : ''}
-            </div>
-        </td>
-    `;
-
-    row.style.opacity = '0';
-    row.style.transform = 'translateY(-6px)';
-    row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-
-    tbody.prepend(row);
-
-    requestAnimationFrame(() => {
-        row.style.opacity = '1';
-        row.style.transform = 'translateY(0)';
-    });
-
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-}
 </script>
 
 @endsection

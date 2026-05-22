@@ -14,7 +14,7 @@ use Illuminate\Http\JsonResponse;
 
 class AdminComponentController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $clients = $this->getScopedClients();
 
@@ -75,10 +75,6 @@ class AdminComponentController extends Controller
             ->paginate(8)
             ->withQueryString();
 
-        $filterOptionsQuery = Component::query()
-            ->with(['client:id,name', 'elementType:id,name'])
-            ->whereIn('client_id', $clients->pluck('id'));
-
         $clientFilterOptions = $showClientColumn
             ? $clients->map(fn ($client) => [
                 'value' => (string) $client->id,
@@ -86,7 +82,7 @@ class AdminComponentController extends Controller
             ])->values()
             : collect();
 
-        $elementTypeFilterOptions = (clone $filterOptionsQuery)
+        $elementTypeFilterOptions = (clone $baseQuery)
             ->get()
             ->map(function ($component) {
                 return [
@@ -98,8 +94,7 @@ class AdminComponentController extends Controller
             ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $componentNameFilterOptions = (clone $filterOptionsQuery)
-            ->get()
+        $componentNameFilterOptions = (clone $baseQuery)
             ->pluck('name')
             ->filter()
             ->unique()
@@ -125,6 +120,27 @@ class AdminComponentController extends Controller
             'statuses' => $selectedStatuses,
         ];
 
+        $hasAnyActiveFilter = collect($activeFilters)->contains(function ($value) {
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($item) => $item !== null && $item !== '')) > 0;
+            }
+            return $value !== null && $value !== '';
+        });
+
+        if ($this->isAjaxRequest($request)) {
+            return response()->json([
+                'success' => true,
+                'list_html' => view('admin.managed-components.partials.list', compact(
+                    'components',
+                    'activeFilters',
+                    'showClientColumn'
+                ))->render(),
+                'filter_options' => $filterOptions,
+                'has_any_active_filter' => $hasAnyActiveFilter,
+                'current_page' => $components->currentPage(),
+            ]);
+        }
+
         $preferredClientId = old('client_id');
 
         if (!$preferredClientId) {
@@ -148,8 +164,6 @@ class AdminComponentController extends Controller
         if (!$preferredElementTypeId) {
             $preferredElementTypeId = session('preferred_component_element_type_id');
         }
-
-
 
         $createElementTypes = collect();
 
