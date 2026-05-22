@@ -14,6 +14,7 @@ use App\Models\MeasurementThicknessDraftLine;
 use App\Models\MeasurementThicknessReport;
 use App\Models\MeasurementThicknessReportLine;
 use App\Models\SystemModule;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -22,9 +23,9 @@ use Illuminate\View\View;
 
 class MeasurementController extends Controller
 {
-    public function index(): View
+    public function index(): RedirectResponse
     {
-        return view('admin.system-modules.measurements.index');
+        return redirect()->route('admin.system-modules.measurements.level-one');
     }
 
     public function levelOne(): View

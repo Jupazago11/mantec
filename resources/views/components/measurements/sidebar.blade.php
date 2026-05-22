@@ -1,7 +1,6 @@
 @php
     $isRoute = fn (...$patterns) => request()->routeIs(...$patterns);
 
-    $dashboardActive = $isRoute('admin.system-modules.measurements.index');
     $levelOneActive = $isRoute('admin.system-modules.measurements.level-one');
     $showActive = $isRoute('admin.system-modules.measurements.show');
 
@@ -26,7 +25,7 @@
     <div class="flex h-full flex-col">
         <div class="flex items-center justify-between border-b border-slate-200 px-6 py-5">
             <div>
-                <a href="{{ route('admin.system-modules.measurements.index') }}" class="text-2xl font-extrabold tracking-tight text-slate-900">
+                <a href="{{ route('admin.system-modules.measurements.level-one') }}" class="text-2xl font-extrabold tracking-tight text-slate-900">
                     Mediciones
                 </a>
 
@@ -61,11 +60,6 @@
             </p>
 
             <nav class="mt-4 space-y-1">
-                <a href="{{ route('admin.system-modules.measurements.index') }}" class="{{ $itemClass($dashboardActive) }}">
-                    <i data-lucide="layout-dashboard" class="{{ $iconClass($dashboardActive) }}"></i>
-                    <span>Inicio</span>
-                </a>
-
                 <a href="{{ route('admin.system-modules.measurements.level-one') }}" class="{{ $itemClass($levelOneActive || $showActive) }}">
                     <i data-lucide="folders" class="{{ $iconClass($levelOneActive || $showActive) }}"></i>
                     <span>Mediciones</span>
