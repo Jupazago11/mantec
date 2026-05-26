@@ -73,8 +73,10 @@ class MeasurementController extends Controller
                 ->get();
         }
 
+        $isReadOnlyMeasurementsUser = in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true);
+
         $sections = $configs
-            ->map(function (ClientElementTypeModule $config) {
+            ->map(function (ClientElementTypeModule $config) use ($isReadOnlyMeasurementsUser) {
                 $elements = Element::query()
                     ->with([
                         'area:id,client_id,name',
@@ -131,7 +133,7 @@ class MeasurementController extends Controller
                     'client_name' => $config->client?->name,
                     'element_type_id' => $config->element_type_id,
                     'element_type_name' => $config->elementType?->name,
-                    'creation_enabled' => (bool) $config->creation_enabled,
+                    'creation_enabled' => $isReadOnlyMeasurementsUser ? false : (bool) $config->creation_enabled,
                     'areas_count' => $areas->count(),
                     'elements_count' => $elements->count(),
                     'areas' => $areas,
@@ -1577,6 +1579,10 @@ class MeasurementController extends Controller
 
         if (in_array($user->role?->key, ['superadmin', 'admin_global'], true)) {
             return true;
+        }
+
+        if (in_array($user->role?->key, ['admin_cliente', 'observador', 'observador_cliente'], true)) {
+            return false;
         }
 
         if (!$user->canCreateInSystemModule('mediciones')) {

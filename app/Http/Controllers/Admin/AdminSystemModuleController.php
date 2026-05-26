@@ -26,6 +26,7 @@ class AdminSystemModuleController extends Controller
         }
 
         $roleKey = $user->role?->key;
+        $isReadOnlyMeasurementsUser = in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true);
 
         if (in_array($roleKey, ['superadmin', 'admin_global'], true)) {
             $configs = ClientElementTypeModule::query()
@@ -55,7 +56,7 @@ class AdminSystemModuleController extends Controller
         }
 
         $cards = $configs
-            ->map(function (ClientElementTypeModule $config) {
+            ->map(function (ClientElementTypeModule $config) use ($isReadOnlyMeasurementsUser) {
                 $elementsCount = Element::query()
                     ->where('client_id', $config->client_id)
                     ->where('element_type_id', $config->element_type_id)
@@ -67,7 +68,7 @@ class AdminSystemModuleController extends Controller
                     'client_name' => $config->client?->name,
                     'element_type_id' => $config->element_type_id,
                     'element_type_name' => $config->elementType?->name,
-                    'creation_enabled' => $config->creation_enabled,
+                    'creation_enabled' => $isReadOnlyMeasurementsUser ? false : $config->creation_enabled,
                     'elements_count' => $elementsCount,
                 ];
             })

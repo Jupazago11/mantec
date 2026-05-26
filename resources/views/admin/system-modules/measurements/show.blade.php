@@ -133,13 +133,17 @@
                             Aún no existe un reporte oficial de informe de estado de banda.
                         </p>
 
-                        <p class="mt-2 text-sm text-slate-500">
-                            Usa el borrador para registrar la información y publicarla cuando esté lista.
-                        </p>
+                        <p
+                            class="mt-2 text-sm text-slate-500"
+                            x-text="canCreateRecords()
+                                ? 'Usa el borrador para registrar la información y publicarla cuando esté lista.'
+                                : 'Puedes consultar el histórico cuando existan registros publicados.'"
+                        ></p>
 
                         <div class="mt-4 flex justify-center gap-2">
                             <button
                                 type="button"
+                                x-show="canCreateRecords()"
                                 @click="openBandStateDraftModal()"
                                 :title="hasBandStateDraft() ? 'Continuar borrador' : 'Crear borrador'"
                                 class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#d94d33] text-white transition hover:bg-[#b83f29]"
@@ -2021,9 +2025,12 @@
                         Aún no existe ningún reporte oficial publicado.
                     </p>
 
-                    <p class="mt-2 text-sm text-slate-500">
-                        Crea o continúa un borrador y publícalo cuando todas las cubiertas estén completas.
-                    </p>
+                    <p
+                        class="mt-2 text-sm text-slate-500"
+                        x-text="canCreateRecords()
+                            ? 'Crea o continúa un borrador y publícalo cuando todas las cubiertas estén completas.'
+                            : 'Puedes consultar el histórico cuando existan registros publicados.'"
+                    ></p>
 
                     <div class="mt-4 flex justify-center gap-2">
                         <button

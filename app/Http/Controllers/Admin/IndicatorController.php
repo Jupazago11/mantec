@@ -664,8 +664,6 @@ class IndicatorController extends Controller
         return in_array($roleKey, [
             'superadmin',
             'admin_global',
-            'admin',
-            'admin_cliente',
         ], true);
     }
 

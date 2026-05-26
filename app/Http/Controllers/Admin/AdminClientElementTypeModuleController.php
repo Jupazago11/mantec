@@ -18,15 +18,20 @@ class AdminClientElementTypeModuleController extends Controller
 {
     public function index(): View
     {
-        abort_unless(auth()->user()?->canManageSystemModule('mediciones'), 403);
+        $user = auth()->user();
+        abort_unless($user?->canManageSystemModule('mediciones'), 403);
+
+        $scopedClientIds = $this->scopedClientIds($user);
 
         $clients = Client::query()
             ->where('status', true)
+            ->when($scopedClientIds !== null, fn ($query) => $query->whereIn('id', $scopedClientIds))
             ->orderBy('name')
             ->get(['id', 'name']);
 
         $elementTypes = ElementType::query()
             ->where('status', true)
+            ->when($scopedClientIds !== null, fn ($query) => $query->whereIn('client_id', $scopedClientIds))
             ->orderBy('name')
             ->get(['id', 'client_id', 'name']);
 
@@ -42,6 +47,7 @@ class AdminClientElementTypeModuleController extends Controller
                 'module:id,name,key',
             ])
             ->where('status', true)
+            ->when($scopedClientIds !== null, fn ($query) => $query->whereIn('client_id', $scopedClientIds))
             ->get()
             ->map(function (ClientElementTypeModule $row) {
                 $relatedElementsCount = Element::query()
@@ -80,7 +86,8 @@ class AdminClientElementTypeModuleController extends Controller
 
     public function store(Request $request): RedirectResponse|JsonResponse
     {
-        abort_unless(auth()->user()?->canManageSystemModule('mediciones'), 403);
+        $user = auth()->user();
+        abort_unless($user?->canManageSystemModule('mediciones'), 403);
 
         $validated = $request->validate([
             'client_id' => ['required', 'integer', 'exists:clients,id'],
@@ -99,6 +106,8 @@ class AdminClientElementTypeModuleController extends Controller
         ], [
             'system_module_id.unique' => 'Ya existe una configuración para este cliente, tipo de activo y módulo.',
         ]);
+
+        abort_unless($this->canManageClientId($user, (int) $validated['client_id']), 403);
 
         $elementType = ElementType::query()->findOrFail($validated['element_type_id']);
 
@@ -169,7 +178,9 @@ class AdminClientElementTypeModuleController extends Controller
 
     public function toggleModuleEnabled(ClientElementTypeModule $clientElementTypeModule): JsonResponse
     {
-        abort_unless(auth()->user()?->canManageSystemModule('mediciones'), 403);
+        $user = auth()->user();
+        abort_unless($user?->canManageSystemModule('mediciones'), 403);
+        abort_unless($this->canManageClientId($user, (int) $clientElementTypeModule->client_id), 403);
 
         $newModuleEnabled = !$clientElementTypeModule->module_enabled;
 
@@ -188,7 +199,9 @@ class AdminClientElementTypeModuleController extends Controller
 
     public function toggleCreationEnabled(ClientElementTypeModule $clientElementTypeModule): JsonResponse
     {
-        abort_unless(auth()->user()?->canManageSystemModule('mediciones'), 403);
+        $user = auth()->user();
+        abort_unless($user?->canManageSystemModule('mediciones'), 403);
+        abort_unless($this->canManageClientId($user, (int) $clientElementTypeModule->client_id), 403);
 
         if (!$clientElementTypeModule->module_enabled) {
             return response()->json([
@@ -207,5 +220,30 @@ class AdminClientElementTypeModuleController extends Controller
             'module_enabled' => $clientElementTypeModule->module_enabled,
             'creation_enabled' => $clientElementTypeModule->creation_enabled,
         ]);
+    }
+
+    private function scopedClientIds($user): ?array
+    {
+        if (!$user || $user->isPowerAdmin()) {
+            return null;
+        }
+
+        return $user->clients()
+            ->pluck('clients.id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function canManageClientId($user, int $clientId): bool
+    {
+        $scopedClientIds = $this->scopedClientIds($user);
+
+        if ($scopedClientIds === null) {
+            return true;
+        }
+
+        return in_array($clientId, $scopedClientIds, true);
     }
 }

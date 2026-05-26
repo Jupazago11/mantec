@@ -1291,7 +1291,13 @@
         }
         async function updateSemaphoreBeltChange(button) {
             const module = document.querySelector('[data-indicators-module]');
+            const canEdit = module?.dataset.canEditSemaphore === '1';
             const route = module?.dataset.semaphoreBeltChangeUpdateRoute;
+
+            if (!canEdit) {
+                showIndicatorToast('No tienes permisos para modificar cambio de banda.', 'error');
+                return;
+            }
 
             if (!route) {
                 showIndicatorToast('No se encontró la ruta para actualizar cambio de banda.', 'error');

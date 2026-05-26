@@ -133,6 +133,10 @@ class User extends Authenticatable
             return true;
         }
 
+        if ($moduleKey === 'mediciones' && $this->role?->key === 'admin') {
+            return true;
+        }
+
         if (!$this->role_id) {
             return false;
         }
@@ -151,6 +155,13 @@ class User extends Authenticatable
     public function canViewSystemModule(string $moduleKey): bool
     {
         if ($this->isPowerAdmin()) {
+            return true;
+        }
+
+        if (
+            $moduleKey === 'mediciones'
+            && in_array($this->role?->key, ['admin', 'admin_cliente', 'observador', 'observador_cliente'], true)
+        ) {
             return true;
         }
 

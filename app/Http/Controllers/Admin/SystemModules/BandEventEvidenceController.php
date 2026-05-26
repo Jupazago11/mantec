@@ -395,7 +395,15 @@ class BandEventEvidenceController extends Controller
             return false;
         }
 
-        if (method_exists($user, 'canCreateSystemModule') && !$user->canCreateSystemModule('mediciones')) {
+        if (in_array($user->role?->key, ['superadmin', 'admin_global'], true)) {
+            return true;
+        }
+
+        if (in_array($user->role?->key, ['admin_cliente', 'observador', 'observador_cliente'], true)) {
+            return false;
+        }
+
+        if (!$user->canCreateInSystemModule('mediciones')) {
             return false;
         }
 

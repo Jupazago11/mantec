@@ -338,6 +338,21 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
                         <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
                         <span>Indicadores</span>
                     </a>
+
+                    @if($showMeasurementsEntry)
+                        <div class="mt-4 space-y-1">
+                            <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                Módulos operativos
+                            </p>
+                            <a
+                                href="{{ route('admin.system-modules.measurements.index') }}"
+                                class="{{ $itemClass($measurementsModuleActive) }}"
+                            >
+                                <i data-lucide="ruler" class="{{ $iconClass($measurementsModuleActive) }}"></i>
+                                <span>Mediciones</span>
+                            </a>
+                        </div>
+                    @endif
                 @endif
             </nav>
         </div>

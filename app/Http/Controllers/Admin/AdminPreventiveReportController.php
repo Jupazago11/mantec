@@ -498,6 +498,8 @@ class AdminPreventiveReportController extends Controller
         $reportDetail->loadMissing([
             'element.area',
             'element.elementType',
+            'condition',
+            'executionStatus',
         ]);
 
         abort_unless(
@@ -1978,11 +1980,26 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
             'La condición seleccionada no pertenece al componente indicado.'
         );
 
+        $newCondition = \App\Models\Condition::query()->findOrFail($validated['condition_id']);
+        $currentConditionWasOk = $reportDetail->condition !== null
+            && $this->executionStatusResolver->isOkCondition($reportDetail->condition);
+        $newConditionIsOk = $this->executionStatusResolver->isOkCondition($newCondition);
+
         $reportDetail->element_id = $validated['element_id'];
         $reportDetail->component_id = $validated['component_id'];
         $reportDetail->diagnostic_id = $validated['diagnostic_id'];
         $reportDetail->condition_id = $validated['condition_id'];
         $reportDetail->recommendation = $validated['recommendation'];
+
+        if ($currentConditionWasOk && !$newConditionIsOk) {
+            $pendingStatus = $this->executionStatusResolver->findPendingStatus();
+
+            if ($pendingStatus) {
+                $reportDetail->execution_status_id = $pendingStatus->id;
+            }
+
+            $reportDetail->execution_date = null;
+        }
 
         if ($validated['date_mode'] === 'new' && !empty($validated['new_date'])) {
             $newDate = \Carbon\Carbon::parse($validated['new_date'])
