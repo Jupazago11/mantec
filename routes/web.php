@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminPreventiveReportController;
 use App\Http\Controllers\Admin\AdminReportEvidenceController;
 use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
 use App\Http\Controllers\Admin\AdminSemaphoreTemplateController;
+use App\Http\Controllers\Admin\GroupReportConfigController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
@@ -182,6 +183,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/managed-groups/{group}', [AdminManagedGroupController::class, 'destroy'])->name('managed-groups.destroy');
         Route::post('/managed-groups/{group}/elements', [AdminManagedGroupController::class, 'syncElements'])->name('managed-groups.elements.sync');
         Route::patch('/managed-groups/{group}/toggle-sync', [AdminManagedGroupController::class, 'toggleSync'])->name('managed-groups.toggle-sync');
+
+        // Configuración de columnas de reporte por agrupación
+        Route::get('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'show'])->name('managed-groups.report-config.show');
+        Route::post('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'save'])->name('managed-groups.report-config.save');
+        Route::delete('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'reset'])->name('managed-groups.report-config.reset');
 
         // Plantillas de semáforo
         Route::get('/semaphore-templates', [AdminSemaphoreTemplateController::class, 'index'])->name('semaphore-templates.index');

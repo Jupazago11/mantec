@@ -571,8 +571,8 @@
             'area_names' => 'Área',
             'element_names' => 'Activo',
             'warehouse_codes' => 'Código bodega',
-            'diagnostic_pairs' => 'Componente / diagnóstico',
-            'recommendation_values' => 'Recomendación',
+            'diagnostic_pairs' => 'Componente',
+            'recommendation_values' => 'Hallazgo',
             'condition_codes' => 'Código condición',
             'orden_values' => 'Orden',
             'aviso_values' => 'Aviso',
@@ -844,163 +844,44 @@
             <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div id="tableScrollContainer" class="table-scroll-container">
                     <table id="preventiveTable" class="preventive-table divide-y divide-slate-200">
+                        @php
+                            $filterKeyMap = [
+                                'area'             => 'area_names',
+                                'element_name'     => 'element_names',
+                                'diagnostic'       => 'diagnostic_pairs',
+                                'recommendation'   => 'recommendation_values',
+                                'recommendation_2' => null,
+                                'evidence'         => null,
+                                'condition'        => 'condition_codes',
+                                'orden'            => 'orden_values',
+                                'aviso'            => 'aviso_values',
+                                'inspector'        => 'inspector_names',
+                                'responsable'      => 'responsable_names',
+                                'report_date'      => 'report_date_range',
+                                'execution_date'   => 'execution_date_range',
+                                'condition_name'   => 'condition_names',
+                                'execution_status' => 'execution_statuses',
+                                'week'             => 'weeks',
+                                'warehouse_code'   => 'warehouse_codes',
+                            ];
+                            $hasActions = $canEditReports || in_array($roleKey, ['superadmin', 'admin_global'], true);
+                        @endphp
                         <thead class="sticky-table-head bg-slate-50">
                             <tr>
-                                <th class="cell-area text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'area_names')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('area_names') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Área
-                                    </button>
-                                </th>
-
-                                <th class="cell-element-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'element_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('element_names') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Nombre del<br>activo
-                                    </button>
-                                </th>
-
-                                @if($showWarehouseColumn)
-                                    <th class="cell-warehouse text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                        <button
-                                            type="button"
-                                            onclick="openFilterPopover(event, 'warehouse_codes')"
-                                            class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('warehouse_codes') ? 'text-slate-900' : 'text-slate-500' }}"
-                                        >
-                                            Código de<br>almacén
-                                        </button>
+                                @foreach($columnConfig as $col)
+                                    @php $fk = $filterKeyMap[$col['column_key']] ?? null; @endphp
+                                    <th class="cell-{{ $col['column_key'] }} whitespace-nowrap text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        @if($fk)
+                                            <button type="button" onclick="openFilterPopover(event, '{{ $fk }}')"
+                                                class="whitespace-nowrap transition hover:text-slate-700 {{ $hasFilter($fk) ? 'text-slate-900' : 'text-slate-500' }}">
+                                                {{ $col['label'] }}
+                                            </button>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
                                     </th>
-                                @endif
+                                @endforeach
 
-                                <th class="cell-diagnostic text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'diagnostic_pairs')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('diagnostic_pairs') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Diagnóstico
-                                    </button>
-                                </th>
-
-                                <th class="cell-recommendation text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'recommendation_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('recommendation_values') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Recomendación
-                                    </button>
-                                </th>
-
-                                <th class="cell-evidence text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    Evidencia
-                                </th>
-
-                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'condition_codes')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('condition_codes') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Condición
-                                    </button>
-                                </th>
-
-                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'orden_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('orden_values') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Orden
-                                    </button>
-                                </th>
-
-                                <th class="cell-short text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'aviso_values')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('aviso_values') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Aviso
-                                    </button>
-                                </th>
-
-                                <th class="cell-inspector text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'inspector_names')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('inspector_names') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Inspector
-                                    </button>
-                                </th>
-
-                                <th class="cell-responsable text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'responsable_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('responsable_names') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Responsable
-                                    </button>
-                                </th>
-
-                                <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'report_date_range')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('report_date_range') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Fecha de<br>reporte
-                                    </button>
-                                </th>
-
-                                <th class="cell-date text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'execution_date_range')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_date_range') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Fecha de<br>ejecución
-                                    </button>
-                                </th>
-
-                                <th class="cell-condition-name text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'condition_names')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('condition_names') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Condición del<br>activo
-                                    </button>
-                                </th>
-
-                                <th class="cell-execution text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'execution_statuses')"
-                                        class="leading-tight text-left transition hover:text-slate-700 {{ $hasFilter('execution_statuses') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Ejecución<br>orden
-                                    </button>
-                                </th>
-
-                                <th class="cell-week text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                    <button
-                                        type="button"
-                                        onclick="openFilterPopover(event, 'weeks')"
-                                        class="leading-tight transition hover:text-slate-700 {{ $hasFilter('weeks') ? 'text-slate-900' : 'text-slate-500' }}"
-                                    >
-                                        Semana
-                                    </button>
-                                </th>
                             </tr>
                         </thead>
 
@@ -1046,196 +927,191 @@
                                     $weekValue = $report->week ?: '—';
                                 @endphp
 
+                                @php
+                                    $recommendation2Text = filled($report->recommendation_2) ? $report->recommendation_2 : '—';
+                                @endphp
                                 <tr class="align-top hover:bg-slate-50">
-                                    <td class="cell-area text-sm text-slate-700">
-                                        {{ $areaName }}
-                                    </td>
+                                    {{-- Todas las columnas vienen del config (incluidas área y nombre) --}}
+                                    @foreach($columnConfig as $col)
+                                        @switch($col['column_key'])
 
-                                    <td class="cell-element-name text-sm font-medium text-slate-900">
-                                        {{ $elementName }}
-                                    </td>
+                                            @case('area')
+                                                <td class="cell-area text-sm text-slate-700">{{ $areaName }}</td>
+                                                @break
 
-                                    @if($showWarehouseColumn)
-                                        <td class="cell-warehouse text-sm text-slate-700">
-                                            {{ $warehouseCode }}
-                                        </td>
-                                    @endif
+                                            @case('element_name')
+                                                <td class="cell-element-name text-sm font-medium text-slate-900">{{ $elementName }}</td>
+                                                @break
 
-                                    <td class="cell-diagnostic text-sm text-slate-700">
-                                        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                            {{ $componentName }}
-                                        </div>
-                                        <div class="mt-1 whitespace-normal break-words">
-                                            {{ $diagnosticName }}
-                                        </div>
-                                    </td>
+                                            @case('diagnostic')
+                                                <td class="cell-diagnostic text-sm text-slate-700">
+                                                    <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ $componentName }}</div>
+                                                    <div class="mt-1 whitespace-normal break-words">{{ $diagnosticName }}</div>
+                                                </td>
+                                                @break
 
-                                    <td class="cell-recommendation text-sm text-slate-700">
-                                        @if($recommendationText !== '—')
-                                            <div lang="es">{{ $recommendationText }}</div>
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
+                                            @case('recommendation')
+                                                <td class="cell-recommendation text-sm text-slate-700">
+                                                    @if($col['can_edit'] || $canEditReports)
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation" data-value="{{ $report->recommendation ?? '' }}">
+                                                            <span class="inline-edit-trigger">{{ $recommendationText }}</span>
+                                                        </div>
+                                                    @elseif($recommendationText !== '—')
+                                                        <div lang="es">{{ $recommendationText }}</div>
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-evidence whitespace-nowrap text-sm text-slate-700">
-                                        @if($report->has_evidence ?? false)
-                                            <a
-                                                href="{{ route('admin.preventive-reports.evidence', ['reportDetail' => $reportId]) }}"
-                                                target="_blank"
-                                                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                                                title="Ver evidencia"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
-                                                </svg>
-                                            </a>
-                                        @else
-                                            <span class="text-slate-400">—</span>
-                                        @endif
-                                    </td>
+                                            @case('recommendation_2')
+                                                <td class="cell-recommendation-2 text-sm text-slate-700">
+                                                    @if($col['can_edit'] || $canEditReports)
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation_2" data-value="{{ $report->recommendation_2 ?? '' }}">
+                                                            <span class="inline-edit-trigger">{{ $recommendation2Text }}</span>
+                                                        </div>
+                                                    @elseif($recommendation2Text !== '—')
+                                                        <div lang="es">{{ $recommendation2Text }}</div>
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-short whitespace-nowrap text-sm text-slate-700">
-                                        {{ $conditionCode }}
-                                    </td>
+                                            @case('evidence')
+                                                <td class="cell-evidence whitespace-nowrap text-sm text-slate-700">
+                                                    @if($report->has_evidence ?? false)
+                                                        <a href="{{ route('admin.preventive-reports.evidence', ['reportDetail' => $reportId]) }}" target="_blank"
+                                                            class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" title="Ver evidencia">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v12.5A2.75 2.75 0 0 1 17.25 21H6.75A2.75 2.75 0 0 1 4 18.25V5.75Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.19l3.47-3.47a1.75 1.75 0 0 1 2.474 0l1.056 1.055 2.72-2.72a1.75 1.75 0 0 1 2.475 0l.803.803V5.75c0-.69-.56-1.25-1.25-1.25H6.75Zm11.75 6.932-1.863-1.863a.25.25 0 0 0-.354 0l-3.78 3.78-2.117-2.116a.25.25 0 0 0-.353 0L5.5 15.76v2.49c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.818ZM9.25 8A1.75 1.75 0 1 0 9.25 11.5 1.75 1.75 0 0 0 9.25 8Z"/>
+                                                            </svg>
+                                                        </a>
+                                                    @else
+                                                        <span class="text-slate-400">—</span>
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-short text-sm text-slate-700">
-                                        @if($canInlineEditOrderAviso)
-                                            <div
-                                                class="inline-editable"
-                                                data-report-id="{{ $reportId }}"
-                                                data-field="orden"
-                                                data-value="{{ $report->orden ?? '' }}"
-                                            >
-                                                <span class="inline-edit-trigger">
-                                                    {{ $ordenValue }}
-                                                </span>
-                                            </div>
-                                        @else
-                                            <span class="whitespace-nowrap">{{ $ordenValue }}</span>
-                                        @endif
-                                    </td>
+                                            @case('condition')
+                                                <td class="cell-short whitespace-nowrap text-sm text-slate-700">{{ $conditionCode }}</td>
+                                                @break
 
-                                    <td class="cell-short text-sm text-slate-700">
-                                        @if($canInlineEditOrderAviso)
-                                            <div
-                                                class="inline-editable"
-                                                data-report-id="{{ $reportId }}"
-                                                data-field="aviso"
-                                                data-value="{{ $report->aviso ?? '' }}"
-                                            >
-                                                <span class="inline-edit-trigger">
-                                                    {{ $avisoValue }}
-                                                </span>
-                                            </div>
-                                        @else
-                                            <span class="whitespace-nowrap">{{ $avisoValue }}</span>
-                                        @endif
-                                    </td>
+                                            @case('orden')
+                                                <td class="cell-short text-sm text-slate-700">
+                                                    @if($col['can_edit'] || $canInlineEditOrderAviso)
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="orden" data-value="{{ $report->orden ?? '' }}">
+                                                            <span class="inline-edit-trigger">{{ $ordenValue }}</span>
+                                                        </div>
+                                                    @else
+                                                        <span class="whitespace-nowrap">{{ $ordenValue }}</span>
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-inspector text-sm text-slate-700">
-                                        {{ $inspectorName }}
-                                    </td>
+                                            @case('aviso')
+                                                <td class="cell-short text-sm text-slate-700">
+                                                    @if($col['can_edit'] || $canInlineEditOrderAviso)
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="aviso" data-value="{{ $report->aviso ?? '' }}">
+                                                            <span class="inline-edit-trigger">{{ $avisoValue }}</span>
+                                                        </div>
+                                                    @else
+                                                        <span class="whitespace-nowrap">{{ $avisoValue }}</span>
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-responsable text-sm text-slate-700">
-                                        {{ $responsableName }}
-                                    </td>
+                                            @case('inspector')
+                                                <td class="cell-inspector text-sm text-slate-700">{{ $inspectorName }}</td>
+                                                @break
 
-                                    <td class="cell-date text-sm text-slate-700">
-                                        <div>{{ $reportDateText }}</div>
-                                        @if($reportTimeText)
-                                            <div class="text-[11px] text-slate-500">{{ $reportTimeText }}</div>
-                                        @endif
-                                    </td>
+                                            @case('responsable')
+                                                <td class="cell-responsable text-sm text-slate-700">{{ $responsableName }}</td>
+                                                @break
 
-                                    <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $reportId }}">
-                                        <div id="execution-date-content-{{ $reportId }}">
-                                            @if($report->executed && $canInlineEditExecutionDate)
-                                                <div
-                                                    class="inline-date-editable"
-                                                    data-report-id="{{ $reportId }}"
-                                                    data-value="{{ $report->execution_date ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d') : now()->toDateString() }}"
-                                                >
-                                                    <span class="inline-date-trigger">
-                                                        {{ $executionDateText }}
+                                            @case('report_date')
+                                                <td class="cell-date text-sm text-slate-700">
+                                                    <div>{{ $reportDateText }}</div>
+                                                    @if($reportTimeText)<div class="text-[11px] text-slate-500">{{ $reportTimeText }}</div>@endif
+                                                </td>
+                                                @break
+
+                                            @case('execution_date')
+                                                <td class="cell-date text-sm text-slate-700" id="execution-date-{{ $reportId }}">
+                                                    <div id="execution-date-content-{{ $reportId }}">
+                                                        @if($report->executed && $canInlineEditExecutionDate)
+                                                            <div class="inline-date-editable" data-report-id="{{ $reportId }}"
+                                                                data-value="{{ $report->execution_date ? \Carbon\Carbon::parse($report->execution_date)->format('Y-m-d') : now()->toDateString() }}">
+                                                                <span class="inline-date-trigger">{{ $executionDateText }}</span>
+                                                            </div>
+                                                        @else
+                                                            {{ $executionDateText }}
+                                                        @endif
+                                                    </div>
+                                                </td>
+                                                @break
+
+                                            @case('condition_name')
+                                                <td class="cell-condition-name text-sm text-slate-700">
+                                                    <span class="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800"
+                                                        style="background-color: {{ $conditionBg }}">
+                                                        {{ $conditionText }}
                                                     </span>
-                                                </div>
-                                            @else
-                                                {{ $executionDateText }}
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td class="cell-condition-name text-sm text-slate-700">
-                                        <span
-                                            class="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800"
-                                            style="background-color: {{ $conditionBg }}"
-                                        >
-                                            {{ $conditionText }}
-                                        </span>
-                                    </td>
+                                                </td>
+                                                @break
 
-                                    <td class="cell-execution text-sm text-slate-700">
-                                        @if(!$isReadOnly && !$isExecutionOk)
-                                            <button
-                                                type="button"
-                                                onclick="toggleExecution({{ $reportId }})"
-                                                class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold transition {{ $executionBadgeClasses }}"
-                                                id="execution-badge-{{ $reportId }}"
-                                            >
-                                                {{ $executionLabel }}
-                                            </button>
-                                        @else
-                                            <span
-                                                id="execution-badge-{{ $reportId }}"
-                                                class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold {{ $executionBadgeClasses }}"
-                                            >
-                                                {{ $executionLabel }}
-                                            </span>
-                                        @endif
-                                    </td>
+                                            @case('execution_status')
+                                                <td class="cell-execution text-sm text-slate-700">
+                                                    @if(!$isReadOnly && !$isExecutionOk)
+                                                        <button type="button" onclick="toggleExecution({{ $reportId }})"
+                                                            class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold transition {{ $executionBadgeClasses }}"
+                                                            id="execution-badge-{{ $reportId }}">
+                                                            {{ $executionLabel }}
+                                                        </button>
+                                                    @else
+                                                        <span id="execution-badge-{{ $reportId }}"
+                                                            class="inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-[11px] font-semibold {{ $executionBadgeClasses }}">
+                                                            {{ $executionLabel }}
+                                                        </span>
+                                                    @endif
+                                                </td>
+                                                @break
 
-                                    <td class="cell-week whitespace-nowrap text-sm text-slate-700">
-                                        <div class="flex items-start gap-2">
-                                            
-                                            {{-- NUMERO DE SEMANA --}}
-                                            <span class="mt-[2px]">{{ $weekValue }}</span>
+                                            @case('week')
+                                                <td class="cell-week whitespace-nowrap text-sm text-slate-700">
+                                                    <div class="flex items-center gap-2">
+                                                        <span>{{ $weekValue }}</span>
+                                                        <div class="flex flex-col items-center gap-1">
+                                                            @if($canEditReports)
+                                                                <button type="button" onclick="openEditReportModal({{ $reportId }})"
+                                                                    class="text-slate-400 hover:text-[#d94d33] transition" title="Editar reporte">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
+                                                                    </svg>
+                                                                </button>
+                                                            @endif
+                                                            @if(in_array($roleKey, ['superadmin', 'admin_global'], true))
+                                                                <button type="button" onclick="toggleReportStatus({{ $reportId }})"
+                                                                    class="text-red-500 hover:text-red-700 transition" title="Ocultar reporte">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
+                                                                    </svg>
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                @break
 
-                                            {{-- ICONOS --}}
-                                            <div class="flex flex-col items-center gap-1">
-                                                
-                                                {{-- EDITAR --}}
-                                                @if($canEditReports)
-                                                    <button
-                                                        type="button"
-                                                        onclick="openEditReportModal({{ $reportId }})"
-                                                        class="text-slate-400 hover:text-[#d94d33] transition"
-                                                        title="Editar reporte"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                d="M16.862 4.487l1.651-1.651a2.121 2.121 0 113 3l-1.651 1.651M4 20h4l10.586-10.586a2 2 0 00-2.828-2.828L5.172 17.172A2 2 0 004 18.586V20z" />
-                                                        </svg>
-                                                    </button>
-                                                @endif
+                                            @case('warehouse_code')
+                                                <td class="cell-warehouse text-sm text-slate-700">{{ $report->warehouse_code ?: '—' }}</td>
+                                                @break
 
-                                                {{-- ELIMINAR --}}
-                                                @if(in_array($roleKey, ['superadmin', 'admin_global'], true))
-                                                    <button
-                                                        type="button"
-                                                        onclick="toggleReportStatus({{ $reportId }})"
-                                                        class="text-red-500 hover:text-red-700 transition"
-                                                        title="Ocultar reporte"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                d="M6 7h12M9 7V4h6v3M10 11v6M14 11v6M5 7l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13" />
-                                                        </svg>
-                                                    </button>
-                                                @endif
+                                            @default
+                                                <td class="text-sm text-slate-400">—</td>
+                                        @endswitch
+                                    @endforeach
 
-                                            </div>
-                                        </div>
-                                    </td>
                                 </tr>
                             @empty
                                 <tr>
@@ -1313,7 +1189,7 @@
                 </div>
 
                 <div>
-                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Diagnóstico</label>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Componente</label>
                     <select
                         id="edit-diagnostic"
                         class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
@@ -1364,12 +1240,12 @@
                 </div>
 
                 <div class="md:col-span-2">
-                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Recomendación</label>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Hallazgo</label>
                     <textarea
                         id="edit-recommendation"
                         rows="4"
                         class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
-                        placeholder="Escribe la recomendación actualizada..."
+                        placeholder="Escribe el hallazgo actualizado..."
                     ></textarea>
                 </div>
             </div>
@@ -1399,8 +1275,8 @@
             area_names: 'Área',
             element_names: 'Nombre del activo',
             warehouse_codes: 'Código de almacén',
-            diagnostic_pairs: 'Diagnóstico',
-            recommendation_values: 'Recomendación',
+            diagnostic_pairs: 'Componente',
+            recommendation_values: 'Hallazgo',
             condition_codes: 'Condición',
             orden_values: 'Orden',
             aviso_values: 'Aviso',
@@ -2557,7 +2433,7 @@ function closeEditReportModal() {
 async function reloadElementsByArea(areaId, selectedElementId = null) {
     fillSelect(editElement, [], null, 'Cargando activos...');
     fillSelect(editComponent, [], null, 'Seleccione un componente');
-    fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+    fillSelect(editDiagnostic, [], null, 'Seleccione un componente');
     fillSelect(editCondition, [], null, 'Seleccione una condición');
 
     if (!areaId) {
@@ -2582,7 +2458,7 @@ async function reloadElementsByArea(areaId, selectedElementId = null) {
 
         async function reloadComponentsByElement(elementId, selectedComponentId = null) {
             fillSelect(editComponent, [], null, 'Cargando componentes...');
-            fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+            fillSelect(editDiagnostic, [], null, 'Seleccione un componente');
             fillSelect(editCondition, [], null, 'Seleccione una condición');
 
             if (!elementId) {
@@ -2599,19 +2475,19 @@ async function reloadElementsByArea(areaId, selectedElementId = null) {
         }
 
         async function reloadDiagnosticsByComponent(componentId, selectedDiagnosticId = null) {
-            fillSelect(editDiagnostic, [], null, 'Cargando diagnósticos...');
+            fillSelect(editDiagnostic, [], null, 'Cargando componentes...');
 
             if (!componentId) {
-                fillSelect(editDiagnostic, [], null, 'Seleccione un diagnóstico');
+                fillSelect(editDiagnostic, [], null, 'Seleccione un componente');
                 return;
             }
 
             const data = await fetchJsonOrFail(
                 "{{ route('admin.preventive-report-data.diagnostics-by-component', ['component' => '__COMPONENT__']) }}".replace('__COMPONENT__', componentId),
-                'No fue posible cargar los diagnósticos.'
+                'No fue posible cargar los componentes.'
             );
 
-            fillSelect(editDiagnostic, data || [], selectedDiagnosticId, 'Seleccione un diagnóstico');
+            fillSelect(editDiagnostic, data || [], selectedDiagnosticId, 'Seleccione un componente');
         }
 
         if (editArea) {
@@ -2640,7 +2516,7 @@ async function reloadElementsByArea(areaId, selectedElementId = null) {
                     await reloadDiagnosticsByComponent(this.value, null);
                     await reloadConditionsByComponent(this.value, null);
                 } catch (error) {
-                    showInlineToast(error.message || 'Error cargando diagnósticos o condiciones.', 'error');
+                    showInlineToast(error.message || 'Error cargando componentes o condiciones.', 'error');
                 }
             });
         }

@@ -1,6 +1,6 @@
 @extends('layouts.admin')
-@section('title', 'Diagnósticos')
-@section('header_title', 'Diagnósticos')
+@section('title', 'Componentes')
+@section('header_title', 'Componentes')
 
 @section('content')
     <div class="space-y-8">
@@ -30,9 +30,9 @@
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h3 class="text-lg font-semibold text-slate-900">Nuevo diagnóstico</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Nuevo componente</h3>
                     <p class="mt-1 text-sm text-slate-500">
-                        Registra un diagnóstico para uno de tus clientes.
+                        Registra un componente para uno de tus clientes.
                     </p>
                     <div id="createDiagnosticAjaxErrors" class="mt-4 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
                     <form
@@ -130,7 +130,7 @@
 
                         <div>
                             <label class="mb-2 block text-sm font-medium text-slate-700">
-                                Nombre del diagnóstico
+                                Nombre del componente
                             </label>
 
                             <input
@@ -153,7 +153,7 @@
                                 type="submit"
                                 class="w-full rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b63c28]"
                             >
-                                Crear diagnóstico
+                                Crear componente
                             </button>
                         </div>
                     </form>
@@ -168,7 +168,7 @@
                     <div class="border-b border-slate-200 px-6 py-4">
                         <div class="flex items-center justify-between gap-4">
                             <h3 class="text-lg font-semibold text-slate-900">
-                                Listado de diagnósticos
+                                Listado de componentes
                             </h3>
 
                             <a
@@ -203,10 +203,10 @@
         <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
             <div>
                 <h3 class="text-base font-bold text-slate-900 sm:text-lg">
-                    Editar diagnóstico
+                    Editar componente
                 </h3>
                 <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">
-                    Actualiza el diagnóstico seleccionado.
+                    Actualiza el componente seleccionado.
                 </p>
             </div>
 

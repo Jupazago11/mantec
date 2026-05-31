@@ -147,6 +147,15 @@
 
                                 <button
                                     type="button"
+                                    class="text-[#d94d33] transition hover:text-[#b83f29]"
+                                    title="Configurar columnas de reporte"
+                                    onclick="openReportConfigModal('{{ $group->id }}', @js($group->name), '{{ route('admin.managed-groups.report-config.show', $group) }}', '{{ route('admin.managed-groups.report-config.save', $group) }}', '{{ route('admin.managed-groups.report-config.reset', $group) }}')"
+                                >
+                                    <i data-lucide="settings-2" class="h-4 w-4"></i>
+                                </button>
+
+                                <button
+                                    type="button"
                                     data-edit-group
                                     data-id="{{ $group->id }}"
                                     data-client_id="{{ $group->client_id }}"

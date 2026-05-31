@@ -13,8 +13,8 @@
             'element_type_names' => 'Tipo de activo',
             'area_names' => 'Área',
             'element_names' => 'Activo',
-            'diagnostic_pairs' => 'Componente / diagnóstico',
-            'recommendation_values' => 'Recomendación',
+            'diagnostic_pairs' => 'Componente',
+            'recommendation_values' => 'Hallazgo',
             'condition_codes' => 'Código condición',
             'orden_values' => 'Orden',
             'aviso_values' => 'Aviso',
@@ -205,7 +205,7 @@
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
-                                        <span>Diagnóstico</span>
+                                        <span>Componente</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'diagnostic_pairs')"
                                             class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('diagnostic_pairs') ? 'text-[#d94d33]' : 'text-slate-400' }}">
@@ -218,7 +218,7 @@
 
                                 <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <div class="flex items-center gap-2">
-                                        <span>Recomendación</span>
+                                        <span>Hallazgo</span>
                                         <button type="button"
                                             onclick="openFilterPopover(event, 'recommendation_values')"
                                             class="rounded p-1 transition hover:bg-slate-200 {{ $hasFilter('recommendation_values') ? 'text-[#d94d33]' : 'text-slate-400' }}">
@@ -567,13 +567,13 @@
             },
             diagnostic_pairs: {
                 type: 'checklist_object',
-                title: 'Diagnóstico',
+                title: 'Componente',
                 inputName: 'diagnostic_pairs',
                 options: @json($filterOptions['diagnostic_pairs']),
             },
             recommendation_values: {
                 type: 'checklist',
-                title: 'Recomendación',
+                title: 'Hallazgo',
                 inputName: 'recommendation_values',
                 options: @json($filterOptions['recommendation_values']),
             },

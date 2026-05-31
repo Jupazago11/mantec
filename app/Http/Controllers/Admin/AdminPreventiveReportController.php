@@ -9,6 +9,7 @@ use App\Models\ExecutionStatus;
 use App\Models\ReportDetail;
 use App\Models\User;
 use App\Services\Execution\ExecutionStatusResolver;
+use App\Services\GroupReportConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -19,6 +20,7 @@ class AdminPreventiveReportController extends Controller
 {
     public function __construct(
         private readonly ExecutionStatusResolver $executionStatusResolver,
+        private readonly GroupReportConfigService $groupReportConfigService,
     ) {
     }
 
@@ -1161,6 +1163,13 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         'weeks' => (array) $request->input('weeks', []),
     ];
 
+    // Para superadmin/admin_global/admin la config no restringe edición,
+    // pero sí controla visibilidad y orden de columnas.
+    $columnConfig = $this->groupReportConfigService->resolveForRole(
+        (int) $group->id,
+        $roleKey
+    );
+
     return view('admin.reports.preventive.show', [
         'group' => $group->loadMissing('client'),
         'reports' => $reports,
@@ -1176,6 +1185,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         'canInlineEditOrderAviso' => $roleKey === 'admin_cliente',
         'canInlineEditExecutionDate' => in_array($roleKey, ['superadmin', 'admin_global', 'admin', 'admin_cliente'], true),
         'canEditReports' => in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
+        'columnConfig' => $columnConfig,
     ]);
 }
 
@@ -1380,16 +1390,35 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         ]);
     }
 
+    /**
+     * Edición inline de campos de un ReportDetail desde la vista de reportes por agrupación.
+     *
+     * IMPORTANTE — distinción de roles:
+     *   - superadmin / admin_global / admin: editan vía el modal de edición completa
+     *     (openEditReportModal → editData → adminEdit). NO usan este endpoint.
+     *   - admin_cliente / observador / observador_cliente: usan este endpoint para editar
+     *     campos puntuales (hallazgo, recomendación, orden, aviso, fecha de ejecución).
+     *     El permiso de cada campo se valida contra la configuración de la agrupación
+     *     (GroupReportConfigService::resolveForRole) — si el admin deshabilitó la edición
+     *     de ese campo para ese rol en esa agrupación, este endpoint retorna 403.
+     *
+     * Campos soportados: orden, aviso, recommendation (hallazgo), recommendation_2 (recomendación).
+     * Fecha de ejecución usa su propio endpoint: admin.preventive-reports.execution-date.update.
+     */
     public function inlineUpdate(\App\Models\ReportDetail $reportDetail, \Illuminate\Http\Request $request)
     {
-        $user = auth()->user();
+        $user    = auth()->user();
         $roleKey = $user->role?->key;
 
-        abort_unless($roleKey === 'admin_cliente', 403, 'No tienes permisos para editar este campo.');
+        abort_unless(
+            in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true),
+            403,
+            'No tienes permisos para editar este campo.'
+        );
 
         $validated = $request->validate([
-            'field' => ['required', 'string', 'in:orden,aviso'],
-            'value' => ['nullable', 'string', 'max:255'],
+            'field' => ['required', 'string', 'in:orden,aviso,recommendation,recommendation_2'],
+            'value' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $field = $validated['field'];
@@ -1409,14 +1438,27 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             'No autorizado para editar este reporte.'
         );
 
+        // Verificar que el rol tiene permiso de edición para este campo en la agrupación del reporte
+        $groupId = (int) ($report->element?->group_id ?? 0);
+        abort_unless($groupId > 0, 403, 'No fue posible determinar la agrupación del reporte.');
+
+        $columns     = $this->groupReportConfigService->resolveForRole($groupId, $roleKey);
+        $colConfig   = collect($columns)->firstWhere('column_key', $field);
+
+        abort_unless(
+            $colConfig && $colConfig['can_edit'],
+            403,
+            'No tienes permisos para editar este campo en esta agrupación.'
+        );
+
         $report->{$field} = $value;
         $report->save();
 
         return response()->json([
             'success' => true,
-            'field' => $field,
-            'value' => $report->{$field} ?? '',
-            'message' => ucfirst($field) . ' actualizado correctamente.',
+            'field'   => $field,
+            'value'   => $report->{$field} ?? '',
+            'message' => 'Campo actualizado correctamente.',
         ]);
     }
 

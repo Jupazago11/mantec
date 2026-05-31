@@ -245,12 +245,12 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
 
                             <a href="{{ route('admin.managed-diagnostics.index') }}" class="{{ $itemClass($diagnosticsActive) }}">
                                 <i data-lucide="clipboard-check" class="{{ $iconClass($diagnosticsActive) }}"></i>
-                                <span>Diagnósticos</span>
+                                <span>Componentes</span>
                             </a>
 
                             <a href="{{ route('admin.managed-component-diagnostics.index') }}" class="{{ $itemClass($componentDiagnosticsActive) }}">
                                 <i data-lucide="git-merge" class="{{ $iconClass($componentDiagnosticsActive) }}"></i>
-                                <span>Componentes - Diagnósticos</span>
+                                <span>Componentes - Relaciones</span>
                             </a>
 
                             <a href="{{ route('admin.managed-conditions.index') }}" class="{{ $itemClass($conditionsActive) }}">

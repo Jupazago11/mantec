@@ -130,13 +130,13 @@
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Diagnóstico</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Componente</label>
                             <select
                                 name="diagnostic_id"
                                 id="diagnostic_id"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             >
-                                <option value="">Seleccione un diagnóstico</option>
+                                <option value="">Seleccione un componente</option>
                             </select>
                         </div>
 
@@ -190,7 +190,7 @@
                     </div>
 
                     <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Recomendación</label>
+                        <label class="mb-2 block text-sm font-medium text-slate-700">Hallazgo</label>
                         <textarea
                             name="recommendation"
                             rows="4"
@@ -226,7 +226,7 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <h3 class="text-lg font-semibold text-slate-900">Diagnósticos pendientes</h3>
+                        <h3 class="text-lg font-semibold text-slate-900">Componentes pendientes</h3>
                         <p class="mt-1 text-sm text-slate-500">
                             Semana actual
                         </p>
@@ -359,7 +359,7 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
     resetSelect(areaSelect, 'Seleccione un área');
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(diagnosticSelect, 'Seleccione un componente');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -412,7 +412,7 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
 async function loadElements(preserveElementId = null) {
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(diagnosticSelect, 'Seleccione un componente');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -449,7 +449,7 @@ async function loadElements(preserveElementId = null) {
 
 async function loadComponents() {
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(diagnosticSelect, 'Seleccione un componente');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -507,7 +507,7 @@ async function loadConditions() {
 }
 
 async function loadDiagnostics() {
-    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
+    resetSelect(diagnosticSelect, 'Seleccione un componente');
     updateBeltChangeVisibility();
 
     if (!componentSelect || !componentSelect.value || !elementSelect || !elementSelect.value) {
@@ -521,7 +521,7 @@ async function loadDiagnostics() {
         );
 
         if (!response.ok) {
-            throw new Error(`Error cargando diagnósticos: ${response.status}`);
+            throw new Error(`Error cargando componentes: ${response.status}`);
         }
 
         const diagnostics = await response.json();
@@ -569,7 +569,7 @@ async function loadPending() {
                 `).join('')
                 : `
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                        No hay diagnósticos pendientes para este activo en la semana actual.
+                        No hay componentes pendientes para este activo en la semana actual.
                     </div>
                 `;
         }

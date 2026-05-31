@@ -457,6 +457,94 @@
         </button>
     </div>
 </div>
+{{-- MODAL CONFIGURACIÓN DE COLUMNAS --}}
+<div
+    id="reportConfigModal"
+    class="fixed left-0 top-0 z-[9999] hidden h-[100dvh] w-[100vw] items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6"
+>
+    <div
+        id="reportConfigModalContent"
+        class="flex w-full max-w-2xl scale-95 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white opacity-0 shadow-2xl transition duration-200 ease-out"
+        style="max-height: calc(100dvh - 2rem);"
+    >
+        {{-- Header --}}
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 sm:text-lg">Configurar columnas</h3>
+                <p id="reportConfigGroupName" class="mt-0.5 text-xs text-slate-500"></p>
+            </div>
+            <button
+                type="button"
+                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onclick="closeReportConfigModal()"
+            >✕</button>
+        </div>
+
+        {{-- Body --}}
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+
+            {{-- Estado de carga --}}
+            <div id="reportConfigLoading" class="flex items-center justify-center py-12 text-sm text-slate-400">
+                Cargando configuración...
+            </div>
+
+            {{-- Contenido real --}}
+            <div id="reportConfigBody" class="hidden space-y-4">
+
+                {{-- Selector de rol --}}
+                <div class="flex items-center gap-3">
+                    <label class="shrink-0 text-sm font-semibold text-slate-700">Ver permisos de:</label>
+                    <select
+                        id="reportConfigRoleSelect"
+                        class="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
+                        onchange="renderReportConfigColumns()"
+                    >
+                        <option value="admin_cliente">Administrador cliente</option>
+                        <option value="observador">Observador</option>
+                        <option value="observador_cliente">Observador cliente</option>
+                    </select>
+                </div>
+
+                {{-- Lista sortable --}}
+                <div id="reportConfigColumnList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        {{-- Footer --}}
+        <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+            <div id="reportConfigError" class="mb-3 hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                    type="button"
+                    id="reportConfigResetBtn"
+                    onclick="resetReportConfig()"
+                    class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 sm:w-auto"
+                >
+                    <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
+                    Restablecer predeterminados
+                </button>
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <button
+                        type="button"
+                        onclick="closeReportConfigModal()"
+                        class="inline-flex w-full justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        id="reportConfigSaveBtn"
+                        onclick="saveReportConfig()"
+                        class="inline-flex w-full justify-center rounded-xl bg-[#d94d33] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b83f29] sm:w-auto"
+                    >
+                        Guardar configuración
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="groupToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
 <script>
     const filterOptions = {
@@ -1385,6 +1473,231 @@ function resetCreateGroupForm() {
         document.querySelectorAll('.group-single-checkbox').forEach(cb => cb.checked = false);
     }
 }
+
+// =====================================================
+// MODAL: CONFIGURACIÓN DE COLUMNAS POR AGRUPACIÓN
+// =====================================================
+
+let reportConfigColumns = [];
+let reportConfigSaveUrl = '';
+let reportConfigResetUrl = '';
+let reportConfigSortable = null;
+
+function openReportConfigModal(groupId, groupName, loadUrl, saveUrl, resetUrl) {
+    reportConfigSaveUrl  = saveUrl;
+    reportConfigResetUrl = resetUrl;
+
+    document.getElementById('reportConfigGroupName').textContent = groupName;
+    document.getElementById('reportConfigLoading').classList.remove('hidden');
+    document.getElementById('reportConfigBody').classList.add('hidden');
+    document.getElementById('reportConfigError').classList.add('hidden');
+
+    const modal   = document.getElementById('reportConfigModal');
+    const content = document.getElementById('reportConfigModalContent');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.documentElement.classList.add('overflow-hidden');
+    document.body.classList.add('overflow-hidden');
+
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+
+    fetch(loadUrl, {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) throw new Error(data.message || 'Error al cargar la configuración.');
+            reportConfigColumns = data.columns;
+            document.getElementById('reportConfigLoading').classList.add('hidden');
+            document.getElementById('reportConfigBody').classList.remove('hidden');
+            renderReportConfigColumns();
+            if (window.lucide) window.lucide.createIcons();
+        })
+        .catch(err => {
+            document.getElementById('reportConfigLoading').textContent = err.message || 'No se pudo cargar la configuración.';
+        });
+}
+
+function closeReportConfigModal() {
+    const modal   = document.getElementById('reportConfigModal');
+    const content = document.getElementById('reportConfigModalContent');
+
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+
+    setTimeout(() => {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        document.documentElement.classList.remove('overflow-hidden');
+        document.body.classList.remove('overflow-hidden');
+        if (reportConfigSortable) { reportConfigSortable.destroy(); reportConfigSortable = null; }
+    }, 150);
+}
+
+function renderReportConfigColumns() {
+    const roleKey = document.getElementById('reportConfigRoleSelect').value;
+    const list    = document.getElementById('reportConfigColumnList');
+
+    const ALWAYS_VISIBLE_KEYS = ['area', 'element_name', 'week'];
+
+    list.innerHTML = reportConfigColumns.map((col, idx) => {
+        const isAlwaysVisible = ALWAYS_VISIBLE_KEYS.includes(col.column_key);
+        const isEditable = ['recommendation', 'recommendation_2', 'orden', 'aviso', 'execution_date'].includes(col.column_key);
+        const canEdit    = col[`can_edit_${roleKey}`] ?? false;
+
+        const togglesHtml = isAlwaysVisible
+            ? `<div class="flex shrink-0 items-center gap-4">
+                <span class="flex items-center gap-1.5 text-xs text-slate-300 w-16" title="Esta columna siempre es visible">
+                    <input type="checkbox" class="h-4 w-4 rounded border-slate-200 cursor-not-allowed" checked disabled>
+                    <span>Visible</span>
+                </span>
+                <span class="w-16 invisible"></span>
+               </div>`
+            : `<div class="flex shrink-0 items-center gap-4">
+                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 w-16" title="Mostrar columna">
+                    <input
+                        type="checkbox"
+                        class="rc-visible h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                        ${col.visible ? 'checked' : ''}
+                        onchange="updateReportConfigColumn('${escapeHtml(col.column_key)}', 'visible', this.checked)"
+                    >
+                    <span>Visible</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 w-16 ${isEditable ? '' : 'invisible'}"
+                       title="Permitir edición a ${roleKey.replace('_', ' ')}">
+                    <input
+                        type="checkbox"
+                        class="rc-editable h-4 w-4 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
+                        ${canEdit ? 'checked' : ''}
+                        ${isEditable ? `onchange="updateReportConfigColumn('${escapeHtml(col.column_key)}', 'can_edit_${roleKey}', this.checked)"` : ''}
+                    >
+                    <span>Editable</span>
+                </label>
+               </div>`;
+
+        return `
+        <div class="report-config-row flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+             data-key="${escapeHtml(col.column_key)}"
+             data-idx="${idx}">
+            <span class="drag-handle cursor-grab touch-none text-slate-300 hover:text-slate-500 active:cursor-grabbing">
+                <i data-lucide="grip-vertical" class="h-5 w-5 pointer-events-none"></i>
+            </span>
+            <span class="flex-1 text-sm font-medium text-slate-800">${escapeHtml(col.label)}</span>
+            ${togglesHtml}
+        </div>`;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+
+    if (reportConfigSortable) reportConfigSortable.destroy();
+
+    if (window.Sortable) {
+        reportConfigSortable = new Sortable(list, {
+            animation: 150,
+            handle: '.drag-handle',
+            ghostClass: 'opacity-40',
+            onEnd() {
+                const newOrder = [];
+                list.querySelectorAll('.report-config-row').forEach(row => {
+                    const key = row.dataset.key;
+                    const col = reportConfigColumns.find(c => c.column_key === key);
+                    if (col) newOrder.push(col);
+                });
+                reportConfigColumns = newOrder;
+            },
+        });
+    }
+}
+
+function updateReportConfigColumn(key, field, value) {
+    const col = reportConfigColumns.find(c => c.column_key === key);
+    if (col) col[field] = value;
+}
+
+async function saveReportConfig() {
+    const btn = document.getElementById('reportConfigSaveBtn');
+    const errBox = document.getElementById('reportConfigError');
+    errBox.classList.add('hidden');
+
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(reportConfigSaveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            },
+            body: JSON.stringify({ columns: reportConfigColumns }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || 'No fue posible guardar la configuración.');
+        }
+
+        showGroupToast(data.message || 'Configuración guardada correctamente.', 'success');
+    } catch (err) {
+        errBox.textContent = err.message || 'Error al guardar.';
+        errBox.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function resetReportConfig() {
+    if (!confirm('¿Restablecer la configuración predeterminada para esta agrupación?')) return;
+
+    const btn = document.getElementById('reportConfigResetBtn');
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(reportConfigResetUrl, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            },
+            body: new URLSearchParams({ _method: 'DELETE' }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || 'No fue posible restablecer la configuración.');
+        }
+
+        reportConfigColumns = data.columns;
+        renderReportConfigColumns();
+        showGroupToast(data.message || 'Configuración restablecida.', 'success');
+    } catch (err) {
+        showGroupToast(err.message || 'Error al restablecer.', 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// Cerrar modal al hacer clic fuera
+document.addEventListener('click', function(event) {
+    const configModal = document.getElementById('reportConfigModal');
+    if (configModal?.classList.contains('flex') && event.target === configModal) {
+        closeReportConfigModal();
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeReportConfigModal();
+    }
+});
 
 function updateGroupRow(group) {
     if (!group || !group.id) return;

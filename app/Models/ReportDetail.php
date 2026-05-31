@@ -44,6 +44,7 @@ class ReportDetail extends Model
         'condition_id',
         'observation',
         'recommendation',
+        'recommendation_2',
         'orden',
         'aviso',
         'is_belt_change',
