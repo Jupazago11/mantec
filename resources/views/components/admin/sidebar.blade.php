@@ -30,6 +30,21 @@
 
     $modulesConfigActive = $isRoute('admin.client-element-type-modules.*');
     $measurementsModuleActive = $isRoute('admin.system-modules.measurements.*');
+    $paradasActive = $isRoute('admin.paradas.*');
+    $pendientesActive = $isRoute('admin.pendientes.*');
+
+    // admin ve Paradas/Pendientes solo si tiene paradas creadas en sus clientes
+    $adminCanSeeParadas = false;
+    if ($isOperationalAdmin) {
+        if ($isPowerAdmin || $role === 'admin') {
+            if ($isPowerAdmin) {
+                $adminCanSeeParadas = \App\Models\Parada::exists();
+            } else {
+                $adminClientIds = $user->clients()->pluck('clients.id');
+                $adminCanSeeParadas = \App\Models\Parada::whereIn('client_id', $adminClientIds)->exists();
+            }
+        }
+    }
 
     $itemClass = function (bool $active) {
         return $active
@@ -148,6 +163,12 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
                         <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
                         <span>Indicadores</span>
                     </a>
+                    @if($adminCanSeeParadas)
+                    <a href="{{ route('admin.pendientes.index') }}" class="{{ $itemClass($pendientesActive) }}">
+                        <i data-lucide="clipboard-list" class="{{ $iconClass($pendientesActive) }}"></i>
+                        <span>Pendientes</span>
+                    </a>
+                    @endif
 
                     {{-- Solo superadmin y admin_global --}}
                     @if($isPowerAdmin)
@@ -194,6 +215,13 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
                             <i data-lucide="settings" class="{{ $iconClass($elementsActive) }}"></i>
                             <span>Activos</span>
                         </a>
+
+                        @if($adminCanSeeParadas || $isPowerAdmin)
+                        <a href="{{ route('admin.paradas.index') }}" class="{{ $itemClass($paradasActive) }}">
+                            <i data-lucide="calendar-x-2" class="{{ $iconClass($paradasActive) }}"></i>
+                            <span>Paradas</span>
+                        </a>
+                        @endif
                     </div>
 
                     <div
@@ -338,7 +366,6 @@ $showMeasurementsEntry = $canViewMeasurementsByRole && $hasMeasurementsEnabledCo
                         <i data-lucide="bar-chart-3" class="{{ $iconClass($indicatorsActive) }}"></i>
                         <span>Indicadores</span>
                     </a>
-
                     @if($showMeasurementsEntry)
                         <div class="mt-4 space-y-1">
                             <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">

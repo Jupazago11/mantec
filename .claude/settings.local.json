@@ -5,10 +5,12 @@
       "Read(///wsl.localhost/Ubuntu/home/jupazago/Documentos/**)",
       "Bash(ls /home/jupazago/Documentos/mantecv1/ 2>/dev/null)",
       "Bash(mkdir -p /home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/managed-element-types/partials)",
-      "Bash(wsl mkdir *)"
+      "Bash(wsl mkdir *)",
+      "Bash(mkdir -p \"/mnt/wsl/Ubuntu/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/pendientes/partials\")"
     ],
     "additionalDirectories": [
-      "\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\managed-element-types"
+      "\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\managed-element-types",
+      "\\mnt\\wsl\\Ubuntu\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\pendientes"
     ]
   }
 }

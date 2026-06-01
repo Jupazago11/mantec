@@ -1022,10 +1022,6 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         })
     );
 
-    $showWarehouseColumn = $reports->getCollection()
-        ->pluck('warehouse_code')
-        ->filter(fn ($value) => $value !== null && $value !== '' && $value !== '—')
-        ->isNotEmpty();
 
     $optionsRows = $optionsQuery
         ->orderByDesc('created_at')
@@ -1179,7 +1175,6 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         'roleKey' => $roleKey,
         'activeFilters' => $activeFilters,
         'filterOptions' => $filterOptions,
-        'showWarehouseColumn' => $showWarehouseColumn,
         'totalGenerated' => $totalReportsGenerated,
         'totalFiltered' => $totalReportsFiltered,
         'canInlineEditOrderAviso' => $roleKey === 'admin_cliente',
@@ -1286,7 +1281,8 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
                 'component_id' => $report->component_id,
                 'diagnostic_id' => $report->diagnostic_id,
                 'condition_id' => $report->condition_id,
-                'recommendation' => $report->recommendation ?? '',
+                'recommendation'   => $report->recommendation ?? '',
+                'recommendation_2' => $report->recommendation_2 ?? '',
                 'report_date' => optional($report->created_at)?->format('Y-m-d'),
                 'inspector_name' => $report->user?->name ?? '—',
             ],
@@ -1947,7 +1943,8 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
             'component_id' => ['required', 'integer'],
             'diagnostic_id' => ['required', 'integer'],
             'condition_id' => ['required', 'integer'],
-            'recommendation' => ['nullable', 'string'],
+            'recommendation'   => ['nullable', 'string'],
+            'recommendation_2' => ['nullable', 'string'],
             'date_mode' => ['required', 'in:keep,new'],
             'new_date' => ['nullable', 'date'],
         ]);
@@ -2030,8 +2027,9 @@ public function getElementsByArea(\App\Models\Area $area, Request $request)
         $reportDetail->element_id = $validated['element_id'];
         $reportDetail->component_id = $validated['component_id'];
         $reportDetail->diagnostic_id = $validated['diagnostic_id'];
-        $reportDetail->condition_id = $validated['condition_id'];
-        $reportDetail->recommendation = $validated['recommendation'];
+        $reportDetail->condition_id    = $validated['condition_id'];
+        $reportDetail->recommendation   = $validated['recommendation'];
+        $reportDetail->recommendation_2 = $validated['recommendation_2'] ?? null;
 
         if ($currentConditionWasOk && !$newConditionIsOk) {
             $pendingStatus = $this->executionStatusResolver->findPendingStatus();

@@ -81,4 +81,9 @@ class Client extends Model
         return $this->hasMany(ClientElementTypeModule::class);
     }
 
+    public function paradas(): HasMany
+    {
+        return $this->hasMany(Parada::class);
+    }
+
 }

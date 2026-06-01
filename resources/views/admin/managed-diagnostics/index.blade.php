@@ -4,29 +4,6 @@
 
 @section('content')
     <div class="space-y-8">
-        @if(session('success'))
-            <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if(session('error'))
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <div class="font-semibold">Hay errores en el formulario.</div>
-                <ul class="mt-2 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -34,7 +11,6 @@
                     <p class="mt-1 text-sm text-slate-500">
                         Registra un componente para uno de tus clientes.
                     </p>
-                    <div id="createDiagnosticAjaxErrors" class="mt-4 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
                     <form
                         id="createDiagnosticForm"
                         method="POST"
@@ -225,8 +201,6 @@
             @method('PUT')
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-                <div id="editDiagnosticAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
-
                 <div class="space-y-4">
                     @if($showClientColumn)
                         <div>
@@ -935,8 +909,8 @@
             const data = await parseDiagnosticJsonResponse(response);
 
             if (response.status === 422) {
-                renderDiagnosticAjaxErrors('createDiagnosticAjaxErrors', data.errors || {});
-                showDiagnosticToast(data.message || 'Corrige los errores del formulario.', 'error');
+                const msgs = Object.values(data.errors || {}).flat().join(' ');
+                showDiagnosticToast(msgs || data.message || 'Corrige los errores del formulario.', 'error');
                 return;
             }
 
@@ -1082,31 +1056,29 @@
 
     function resetCreateDiagnosticForm() {
         const form = document.getElementById('createDiagnosticForm');
-
         if (!form) return;
 
-        form.reset();
+        // Preservar cliente y tipo de activo seleccionados
+        const clientId      = document.getElementById('create_client_id')?.value ?? '';
+        const elementTypeId = document.getElementById('create_element_type_id')?.value ?? '';
+
+        // Solo limpiar el campo nombre
+        const nameInput = document.getElementById('create_diagnostic_name');
+        if (nameInput) nameInput.value = '';
+
         clearDiagnosticAjaxErrors('createDiagnosticAjaxErrors');
 
-        const hiddenClientInput = document.getElementById('create_client_id');
-        const createElementTypeSelect = document.getElementById('create_element_type_id');
-
-        if (!@json((bool) $singleClient)) {
-            if (hiddenClientInput) {
-                hiddenClientInput.value = '';
-            }
-
+        // Restaurar checkboxes de cliente
+        if (!@json((bool) $singleClient) && clientId) {
             document.querySelectorAll('.create-client-single-checkbox').forEach(cb => {
-                cb.checked = false;
+                cb.checked = String(cb.value) === String(clientId);
             });
+        }
 
-            if (createElementTypeSelect) {
-                createElementTypeSelect.value = '';
-                filterCreateDiagnosticElementTypesByClient('', '');
-            }
-        } else {
-            const preferredElementTypeId = @json($preferredElementTypeId ?? '');
-            filterCreateDiagnosticElementTypesByClient(@json((string) ($singleClient->id ?? '')), preferredElementTypeId);
+        // Restaurar tipo de activo
+        const createElementTypeSelect = document.getElementById('create_element_type_id');
+        if (createElementTypeSelect && clientId) {
+            filterCreateDiagnosticElementTypesByClient(clientId, elementTypeId);
         }
     }
 </script>

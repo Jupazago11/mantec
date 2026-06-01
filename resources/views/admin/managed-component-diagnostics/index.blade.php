@@ -4,23 +4,6 @@
 
 @section('content')
     <div class="space-y-8">
-        @if(session('success'))
-            <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <div class="font-semibold">Hay errores en el formulario.</div>
-                <ul class="mt-2 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -97,8 +80,9 @@
                             </div>
                         </div>
 
-                        <button
+                                        <button
                             type="submit"
+                            id="cdSubmitBtn"
                             class="inline-flex w-full items-center justify-center rounded-xl bg-[#d94d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b83f29]"
                         >
                             Guardar asignación
@@ -387,31 +371,102 @@
         }
     }
 
+    // ── Toast ──────────────────────────────────────────────
+    function showCdToast(msg, type = 'success') {
+        let container = document.getElementById('cdToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'cdToastContainer';
+            container.className = 'fixed bottom-5 right-5 z-[99999] space-y-3';
+            document.body.appendChild(container);
+        }
+        const t = document.createElement('div');
+        t.className = `w-80 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
+            type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`;
+        t.textContent = msg;
+        container.appendChild(t);
+        setTimeout(() => t.remove(), 3500);
+    }
+
+    // ── Submit AJAX ───────────────────────────────────────
+    async function handleCdSubmit(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        const btn  = document.getElementById('cdSubmitBtn');
+
+        if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+        // Guardar selección actual antes de enviar
+        const savedClientId      = getClientId();
+        const savedElementTypeId = getElementTypeId();
+        const savedComponentId   = getComponentId();
+
+        try {
+            const formData = new FormData(form);
+            // Asegurar que component_id va en el body (viene del select con name)
+            const resp = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                },
+                body: formData,
+            });
+
+            const data = await resp.json();
+
+            if (resp.status === 422) {
+                const msgs = Object.values(data.errors ?? {}).flat().join(' ');
+                showCdToast(msgs || data.message || 'Error de validación.', 'error');
+                return;
+            }
+
+            if (!resp.ok || data.success === false) throw new Error(data.message || 'Error al guardar.');
+
+            showCdToast(data.message || 'Diagnósticos asignados correctamente.');
+
+            // Solo refrescar el estado marcado de los diagnósticos — los selects ya están correctos
+            await loadAssigned();
+
+        } catch (err) {
+            showCdToast(err.message || 'Ocurrió un error.', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Guardar asignación';
+            }
+        }
+    }
+
+    // ── Init ──────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', async function () {
         const elementTypeSelect = document.getElementById('element_type_id');
-        const componentSelect = document.getElementById('component_id');
+        const componentSelect   = document.getElementById('component_id');
         const preferredElementTypeId = document.getElementById('preferred_element_type_id')?.value ?? '';
-        const preferredComponentId = document.getElementById('preferred_component_id')?.value ?? '';
+        const preferredComponentId   = document.getElementById('preferred_component_id')?.value ?? '';
 
         if (elementTypeSelect) {
-            elementTypeSelect.addEventListener('change', async function () {
-                await loadComponents('');
-            });
+            elementTypeSelect.addEventListener('change', () => loadComponents(''));
         }
-
         if (componentSelect) {
             componentSelect.addEventListener('change', loadAssigned);
         }
 
-        const currentClientId = getClientId();
+        // Interceptar submit con AJAX
+        const form = document.querySelector('form[action="{{ route('admin.managed-component-diagnostics.store') }}"]');
+        if (form) form.addEventListener('submit', handleCdSubmit);
 
+        const currentClientId = getClientId();
         if (currentClientId) {
             markSingleClientCheckbox(currentClientId);
-
             try {
                 await loadTypes(preferredElementTypeId, preferredComponentId);
-            } catch (error) {
-                console.error(error);
+            } catch (e) {
                 resetDiagnostics('Ocurrió un error al cargar la información.');
             }
         } else {

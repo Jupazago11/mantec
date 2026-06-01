@@ -30,6 +30,11 @@ class Area extends Model
         return $this->hasMany(Element::class);
     }
 
+    public function paradas()
+    {
+        return $this->belongsToMany(Parada::class, 'parada_areas');
+    }
+
     public function hasDependencies(): bool
     {
         return $this->elements()->exists();

@@ -331,7 +331,7 @@
 
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <div class="flex items-center gap-2">
-                                            <span>Almacén</span>
+                                            <span>Ubicación Técnica</span>
                                             <button
                                                 type="button"
                                                 onclick="openFilterPopover(event, 'warehouse_codes')"
@@ -897,7 +897,7 @@
         },
         warehouse_codes: {
             type: 'checklist',
-            title: 'Código almacén',
+            title: 'Ubicación Técnica',
             inputName: 'warehouse_codes',
             options: @json($filterOptions['warehouse_codes']),
         },

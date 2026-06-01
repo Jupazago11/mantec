@@ -25,6 +25,8 @@ use App\Http\Controllers\Admin\AdminReportEvidenceController;
 use App\Http\Controllers\Admin\AdminClientElementTypeModuleController;
 use App\Http\Controllers\Admin\AdminSemaphoreTemplateController;
 use App\Http\Controllers\Admin\GroupReportConfigController;
+use App\Http\Controllers\Admin\ParadaController;
+use App\Http\Controllers\Admin\PendientesController;
 use App\Http\Controllers\Admin\AdminSystemModuleController;
 use App\Http\Controllers\Admin\IndicatorController;
 use App\Http\Controllers\Admin\SystemModules\MeasurementController;
@@ -188,6 +190,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'show'])->name('managed-groups.report-config.show');
         Route::post('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'save'])->name('managed-groups.report-config.save');
         Route::delete('/managed-groups/{group}/report-config', [GroupReportConfigController::class, 'reset'])->name('managed-groups.report-config.reset');
+
+        // Paradas
+        Route::get('/paradas', [ParadaController::class, 'index'])->name('paradas.index');
+        Route::post('/paradas', [ParadaController::class, 'store'])->name('paradas.store');
+        Route::put('/paradas/{parada}', [ParadaController::class, 'update'])->name('paradas.update');
+        Route::delete('/paradas/{parada}', [ParadaController::class, 'destroy'])->name('paradas.destroy');
+        Route::get('/paradas/areas-by-client', [ParadaController::class, 'areasByClient'])->name('paradas.areas-by-client');
+
+        // Pendientes
+        Route::get('/pendientes', [PendientesController::class, 'index'])->name('pendientes.index');
 
         // Plantillas de semáforo
         Route::get('/semaphore-templates', [AdminSemaphoreTemplateController::class, 'index'])->name('semaphore-templates.index');

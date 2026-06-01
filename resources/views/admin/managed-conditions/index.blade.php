@@ -6,29 +6,6 @@
 @section('content')
     <div class="space-y-8">
 
-        @if(session('success'))
-            <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if(session('error'))
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <div class="font-semibold">Hay errores en el formulario.</div>
-                <ul class="mt-2 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -36,7 +13,6 @@
                     <p class="mt-1 text-sm text-slate-500">
                         Registra una nueva condición para uno de tus clientes y un tipo de activo específico.
                     </p>
-                    <div id="createConditionAjaxErrors" class="hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
                     <form id="createConditionForm" method="POST" action="{{ route('admin.managed-conditions.store') }}" class="mt-6 space-y-5">
                         @csrf
 
@@ -272,8 +248,6 @@
             @method('PUT')
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-                <div id="editConditionAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
-
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     @if($showClientColumn)
                         <div class="md:col-span-2">
@@ -1334,8 +1308,8 @@ async function handleCreateConditionSubmit(event) {
         const data = await response.json();
 
         if (response.status === 422) {
-            renderAjaxErrors('createConditionAjaxErrors', data.errors || {});
-            showCrudToast('Corrige los errores del formulario.', 'error');
+            const msgs = Object.values(data.errors || {}).flat().join(' ');
+            showCrudToast(msgs || data.message || 'Corrige los errores del formulario.', 'error');
             return;
         }
 
@@ -1378,8 +1352,8 @@ async function handleEditConditionSubmit(event) {
         const data = await response.json();
 
         if (response.status === 422) {
-            renderAjaxErrors('editConditionAjaxErrors', data.errors || {});
-            showCrudToast('Corrige los errores del formulario.', 'error');
+            const msgs = Object.values(data.errors || {}).flat().join(' ');
+            showCrudToast(msgs || data.message || 'Corrige los errores del formulario.', 'error');
             return;
         }
 
@@ -1402,31 +1376,35 @@ function resetCreateConditionForm() {
     const form = document.getElementById('createConditionForm');
     if (!form) return;
 
+    // Preservar cliente y tipo de activo antes del reset
+    const clientId      = document.getElementById('selected_client_id')?.value ?? '';
+    const elementTypeId = document.getElementById('create_element_type_id')?.value ?? '';
+
+    // Resetear solo campos de datos (nombre, código, descripción, criticidad, color)
     form.reset();
     clearAjaxErrors('createConditionAjaxErrors');
 
-    const selectedClientInput = document.getElementById('selected_client_id');
-    if (selectedClientInput) {
-        selectedClientInput.value = '';
+    // Restaurar color al default (form.reset() ya lo hace si tiene value en el HTML)
+    const colorInput   = document.getElementById('create_color_input');
+    const colorPreview = document.getElementById('create_color_preview');
+    if (colorInput)   colorInput.value   = '#ff0000';
+    if (colorPreview) colorPreview.value = '#ff0000';
+
+    // Restaurar cliente
+    if (!@json((bool) $singleClient)) {
+        const selectedClientInput = document.getElementById('selected_client_id');
+        if (selectedClientInput) selectedClientInput.value = clientId;
+
+        document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+            cb.checked = clientId !== '' && String(cb.value) === String(clientId);
+        });
     }
 
-    document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-        cb.checked = false;
-    });
-
+    // Restaurar tipo de activo
     const createElementType = document.getElementById('create_element_type_id');
     if (createElementType) {
-        createElementType.value = '';
-        filterElementTypesByClient('create_element_type_id', '');
-    }
-
-    const colorInput = document.getElementById('create_color_input');
-    const colorPreview = document.getElementById('create_color_preview');
-    if (colorInput) {
-        colorInput.value = '#ff0000';
-    }
-    if (colorPreview) {
-        colorPreview.value = '#ff0000';
+        filterElementTypesByClient('create_element_type_id', clientId);
+        if (elementTypeId) createElementType.value = elementTypeId;
     }
 }
 

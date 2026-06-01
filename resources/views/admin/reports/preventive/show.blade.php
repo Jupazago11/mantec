@@ -85,9 +85,9 @@
             }
 
             .preventive-table .cell-element-name {
-                width: 95px;
-                min-width: 95px;
-                max-width: 95px;
+                width: 82px;
+                min-width: 82px;
+                max-width: 82px;
                 white-space: normal;
                 line-height: 1.1rem;
                 overflow-wrap: break-word;
@@ -103,9 +103,12 @@
             }
 
             .preventive-table .cell-diagnostic {
-                width: 122px;
-                min-width: 122px;
-                max-width: 122px;
+                width: 100px;
+                min-width: 80px;
+                max-width: 100px;
+                white-space: normal;
+                overflow-wrap: break-word;
+                line-height: 1.15rem;
             }
 
             .preventive-table .cell-recommendation {
@@ -226,9 +229,9 @@
             }
 
             .preventive-table.compact-mode .cell-diagnostic {
-                width: 112px;
-                min-width: 112px;
-                max-width: 112px;
+                width: 88px;
+                min-width: 72px;
+                max-width: 88px;
             }
 
             .preventive-table.compact-mode .cell-recommendation {
@@ -370,14 +373,36 @@
 
             .preventive-table thead th {
                 vertical-align: middle;
+                white-space: normal;
+                overflow-wrap: break-word;
+                word-break: break-word;
             }
+
+            /* ── Anchos de columna para <th> (column_key con guiones bajos) ── */
+            .preventive-table .cell-area            { min-width: 75px;  width: 92px;  }
+            .preventive-table .cell-element_name    { min-width: 72px; width: 88px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-diagnostic      { min-width: 80px; width: 100px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-recommendation  { min-width: 90px;  width: 150px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-recommendation_2{ min-width: 100px; width: 150px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-evidence        { min-width: 80px;  width: 92px;  }
+            .preventive-table .cell-condition       { min-width: 80px;  width: 90px;  }
+            .preventive-table .cell-orden           { min-width: 60px;  width: 82px;  }
+            .preventive-table .cell-aviso           { min-width: 60px;  width: 82px;  }
+            .preventive-table .cell-inspector       { min-width: 85px;  width: 110px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-responsable     { min-width: 90px;  width: 118px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-report_date     { min-width: 95px;  width: 100px; white-space: normal; }
+            .preventive-table .cell-execution_date  { min-width: 95px;  width: 105px; white-space: normal; }
+            .preventive-table .cell-condition_name  { min-width: 110px; width: 120px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-execution_status{ min-width: 95px;  width: 105px; white-space: normal; overflow-wrap: break-word; }
+            .preventive-table .cell-week            { min-width: 52px;  width: 52px;  }
+            .preventive-table .cell-warehouse_code  { min-width: 100px; width: 110px; white-space: normal; overflow-wrap: break-word; }
 
             .preventive-table th > div {
                 display: flex;
                 align-items: center;
                 justify-content: flex-start;
                 gap: 4px;
-                min-height: 32px;
+                min-height: 22px;
                 max-width: 100%;
             }
 
@@ -394,6 +419,7 @@
                 line-height: 1.05rem;
                 white-space: normal;
                 overflow-wrap: break-word;
+                word-break: break-word;
                 cursor: pointer;
             }
 
@@ -570,7 +596,7 @@
         $filterLabelMap = [
             'area_names' => 'Área',
             'element_names' => 'Activo',
-            'warehouse_codes' => 'Código bodega',
+            'warehouse_codes' => 'Ubicación Técnica',
             'diagnostic_pairs' => 'Componente',
             'recommendation_values' => 'Hallazgo',
             'condition_codes' => 'Código condición',
@@ -643,8 +669,6 @@
             })
             ->filter()
             ->values();
-
-        $showWarehouseColumn = $showWarehouseColumn ?? false;
 
         $pageWindow = 2;
         $startPage = max(1, $reports->currentPage() - $pageWindow);
@@ -870,10 +894,10 @@
                             <tr>
                                 @foreach($columnConfig as $col)
                                     @php $fk = $filterKeyMap[$col['column_key']] ?? null; @endphp
-                                    <th class="cell-{{ $col['column_key'] }} whitespace-nowrap text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="cell-{{ $col['column_key'] }} text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                                         @if($fk)
                                             <button type="button" onclick="openFilterPopover(event, '{{ $fk }}')"
-                                                class="whitespace-nowrap transition hover:text-slate-700 {{ $hasFilter($fk) ? 'text-slate-900' : 'text-slate-500' }}">
+                                                class="transition hover:text-slate-700 {{ $hasFilter($fk) ? 'text-slate-900' : 'text-slate-500' }}">
                                                 {{ $col['label'] }}
                                             </button>
                                         @else
@@ -1243,9 +1267,19 @@
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Hallazgo</label>
                     <textarea
                         id="edit-recommendation"
-                        rows="4"
+                        rows="3"
                         class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
                         placeholder="Escribe el hallazgo actualizado..."
+                    ></textarea>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Recomendación</label>
+                    <textarea
+                        id="edit-recommendation-2"
+                        rows="3"
+                        class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-[#d94d33] focus:outline-none focus:ring-2 focus:ring-[#d94d33]/20"
+                        placeholder="Escribe la recomendación actualizada..."
                     ></textarea>
                 </div>
             </div>
@@ -1274,7 +1308,7 @@
         const FILTER_LABELS = {
             area_names: 'Área',
             element_names: 'Nombre del activo',
-            warehouse_codes: 'Código de almacén',
+            warehouse_codes: 'Ubicación Técnica',
             diagnostic_pairs: 'Componente',
             recommendation_values: 'Hallazgo',
             condition_codes: 'Condición',
@@ -2292,9 +2326,8 @@ async function openEditReportModal(reportId) {
         await reloadDiagnosticsByComponent(data.report.component_id, data.report.diagnostic_id);
         await reloadConditionsByComponent(data.report.component_id, data.report.condition_id);
 
-        if (editRecommendation) {
-            editRecommendation.value = data.report.recommendation || '';
-        }
+        if (editRecommendation)  editRecommendation.value  = data.report.recommendation   || '';
+        if (editRecommendation2) editRecommendation2.value = data.report.recommendation_2 || '';
 
         if (editNewDate) {
             editNewDate.value = data.report.report_date || new Date().toISOString().slice(0, 10);
@@ -2332,7 +2365,8 @@ function closeEditReportModal() {
         const editElement = document.getElementById('edit-element');
         const editComponent = document.getElementById('edit-component');
         const editDiagnostic = document.getElementById('edit-diagnostic');
-        const editRecommendation = document.getElementById('edit-recommendation');
+        const editRecommendation  = document.getElementById('edit-recommendation');
+        const editRecommendation2 = document.getElementById('edit-recommendation-2');
         const editCondition = document.getElementById('edit-condition');
         const editNewDate = document.getElementById('edit-new-date');
 
@@ -2391,9 +2425,8 @@ function closeEditReportModal() {
             fillSelect(editDiagnostic, [], null, '');
             fillSelect(editCondition, [], null, '');
 
-            if (editRecommendation) {
-                editRecommendation.value = '';
-            }
+            if (editRecommendation)  editRecommendation.value  = '';
+            if (editRecommendation2) editRecommendation2.value = '';
 
             if (editNewDate) {
                 editNewDate.value = '';
@@ -2533,7 +2566,8 @@ async function reloadElementsByArea(areaId, selectedElementId = null) {
                 component_id: editComponent.value,
                 diagnostic_id: editDiagnostic.value,
                 condition_id: editCondition.value,
-                recommendation: editRecommendation.value,
+                recommendation:   editRecommendation.value,
+                recommendation_2: editRecommendation2?.value ?? '',
                 date_mode: dateMode,
                 new_date: editNewDate.value,
             };

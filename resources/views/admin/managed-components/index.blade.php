@@ -30,29 +30,6 @@
     @endphp
 
     <div class="space-y-8">
-        @if(session('success'))
-            <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if(session('error'))
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <div class="font-semibold">Hay errores en el formulario.</div>
-                <ul class="mt-2 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
             <div>
                 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -60,7 +37,6 @@
                     <p class="mt-1 text-sm text-slate-500">
                         Registra un nuevo componente para uno de tus clientes.
                     </p>
-                    <div id="createComponentAjaxErrors" class="mt-4 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
                     <form
                         id="createComponentForm"
                         method="POST"
@@ -244,8 +220,6 @@
             @method('PUT')
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-                <div id="editComponentAjaxErrors" class="mb-3 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
-
                 <div class="space-y-4">
                     @if($singleClient)
                         <div>
@@ -852,8 +826,8 @@
             const data = await parseComponentJsonResponse(response);
 
             if (response.status === 422) {
-                renderComponentAjaxErrors('createComponentAjaxErrors', data.errors || {});
-                showComponentToast(data.message || 'Corrige los errores del formulario.', 'error');
+                const msgs = Object.values(data.errors || {}).flat().join(' ');
+                showComponentToast(msgs || data.message || 'Corrige los errores del formulario.', 'error');
                 return;
             }
 
@@ -894,8 +868,8 @@
             const data = await parseComponentJsonResponse(response);
 
             if (response.status === 422) {
-                renderComponentAjaxErrors('editComponentAjaxErrors', data.errors || {});
-                showComponentToast(data.message || 'Corrige los errores del formulario.', 'error');
+                const msgs = Object.values(data.errors || {}).flat().join(' ');
+                showComponentToast(msgs || data.message || 'Corrige los errores del formulario.', 'error');
                 return;
             }
 
@@ -1024,30 +998,34 @@
 
     function resetCreateComponentForm() {
         const form = document.getElementById('createComponentForm');
-
         if (!form) return;
 
-        form.reset();
+        // Preservar cliente y tipo de activo antes del reset
+        const clientId      = document.getElementById('selected_client_id')?.value ?? '';
+        const elementTypeId = document.getElementById('element_type_id')?.value ?? '';
+
+        // Limpiar solo campos de texto/datos
+        const nameInput = document.getElementById('component_name');
+        if (nameInput) nameInput.value = '';
+
+        const isDefaultSelect = document.getElementById('component_is_default');
+        if (isDefaultSelect) isDefaultSelect.value = '0';
+
         clearComponentAjaxErrors('createComponentAjaxErrors');
 
-        const selectedClientInput = document.getElementById('selected_client_id');
-        const createSelect = document.getElementById('element_type_id');
-
-        if (selectedClientInput && !@json((bool) $singleClient)) {
-            selectedClientInput.value = '';
-        }
-
         if (!@json((bool) $singleClient)) {
-            document.querySelectorAll('.client-single-checkbox').forEach(cb => {
-                cb.checked = false;
-            });
-
-            if (createSelect) {
-                createSelect.innerHTML = '<option value="">Seleccione un tipo de activo</option>';
+            if (clientId) {
+                // Restaurar hidden input y checkbox
+                document.getElementById('selected_client_id').value = clientId;
+                document.querySelectorAll('.client-single-checkbox').forEach(cb => {
+                    cb.checked = String(cb.value) === String(clientId);
+                });
+                // Restaurar tipos de activo con la selección previa
+                loadElementTypes(clientId, 'element_type_id', elementTypeId);
             }
         } else {
-            const preferredElementTypeId = @json($singleCreateElementType->id ?? '');
-            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, preferredElementTypeId);
+            const createSelect = document.getElementById('element_type_id');
+            populateElementTypeSelect(createSelect, preloadedCreateElementTypes, elementTypeId);
         }
     }
 

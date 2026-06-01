@@ -38,7 +38,7 @@ class GroupReportConfigService
         ['key' => 'condition_name',   'label' => 'Condición del activo'],
         ['key' => 'execution_status', 'label' => 'Ejecución orden'],
         ['key' => 'week',             'label' => 'Semana'],
-        ['key' => 'warehouse_code',   'label' => 'Código de almacén'],
+        ['key' => 'warehouse_code',   'label' => 'Ubicación Técnica'],
     ];
 
     // Permisos de edición predeterminados (refleja el comportamiento actual del backend)

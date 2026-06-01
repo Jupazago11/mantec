@@ -106,7 +106,7 @@ class AdminComponentDiagnosticController extends Controller
         );
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'component_id' => ['required', 'integer', 'exists:components,id'],
@@ -136,15 +136,27 @@ class AdminComponentDiagnosticController extends Controller
                 ->count();
 
             if ($validDiagnosticCount !== $diagnosticIds->count()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Uno o más diagnósticos no pertenecen al cliente y tipo de activo del componente.',
+                    ], 422);
+                }
+
                 return back()
-                    ->withErrors([
-                        'diagnostics' => 'Uno o más diagnósticos no pertenecen al cliente y tipo de activo del componente seleccionado.',
-                    ])
+                    ->withErrors(['diagnostics' => 'Uno o más diagnósticos no pertenecen al cliente y tipo de activo del componente seleccionado.'])
                     ->withInput();
             }
         }
 
         $component->diagnostics()->sync($diagnosticIds->all());
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Diagnósticos asignados correctamente.',
+            ]);
+        }
 
         return redirect()
             ->route('admin.managed-component-diagnostics.index')
