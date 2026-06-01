@@ -130,13 +130,13 @@
                         </div>
 
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-slate-700">Componente</label>
+                            <label class="mb-2 block text-sm font-medium text-slate-700">Diagnóstico</label>
                             <select
                                 name="diagnostic_id"
                                 id="diagnostic_id"
                                 class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#d94d33] focus:ring-1 focus:ring-[#d94d33]"
                             >
-                                <option value="">Seleccione un componente</option>
+                                <option value="">Seleccione un diagnóstico</option>
                             </select>
                         </div>
 
@@ -359,7 +359,7 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
     resetSelect(areaSelect, 'Seleccione un área');
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un componente');
+    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -412,7 +412,7 @@ async function loadAreas(preserveAreaId = null, preserveElementId = null) {
 async function loadElements(preserveElementId = null) {
     resetSelect(elementSelect, 'Seleccione un activo');
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un componente');
+    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -449,7 +449,7 @@ async function loadElements(preserveElementId = null) {
 
 async function loadComponents() {
     resetSelect(componentSelect, 'Seleccione un componente');
-    resetSelect(diagnosticSelect, 'Seleccione un componente');
+    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
     resetSelect(conditionSelect, 'Seleccione una condición');
     updateBeltChangeVisibility();
 
@@ -507,7 +507,7 @@ async function loadConditions() {
 }
 
 async function loadDiagnostics() {
-    resetSelect(diagnosticSelect, 'Seleccione un componente');
+    resetSelect(diagnosticSelect, 'Seleccione un diagnóstico');
     updateBeltChangeVisibility();
 
     if (!componentSelect || !componentSelect.value || !elementSelect || !elementSelect.value) {
