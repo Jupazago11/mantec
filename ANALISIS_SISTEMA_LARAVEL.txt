@@ -3,7 +3,7 @@ ANÁLISIS INTEGRAL DEL SISTEMA LARAVEL — ManTec
 Fecha de análisis: 2026-05-20
 Framework: Laravel 13.0 | PHP 8.3+ | PostgreSQL
 ==================================================
-
+claude --allow-dangerously-skip-permissions
 ==================================================
 1. RESUMEN GENERAL DEL SISTEMA
 ==================================================

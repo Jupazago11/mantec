@@ -9,12 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('ALTER TABLE components ALTER COLUMN code DROP NOT NULL;');
+        Schema::table('components', function (Blueprint $table) {
+            $table->string('code')->nullable()->change();
+        });
     }
 
     public function down(): void
     {
-        DB::statement("UPDATE components SET code = '' WHERE code IS NULL;");
-        DB::statement('ALTER TABLE components ALTER COLUMN code SET NOT NULL;');
+        Schema::table('components', function (Blueprint $table) {
+            $table->string('code')->nullable(false)->change();
+        });
     }
 };

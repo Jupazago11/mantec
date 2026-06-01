@@ -1,0 +1,16 @@
+ARRANCAR MANTEC EN LOCAL
+========================
+
+1. Abrir Docker Desktop (Windows)
+
+2. En terminal WSL (Ubuntu):
+   cd ~/proyectos/Mantec
+   ./vendor/bin/sail up -d
+
+3. En otra terminal WSL (Ubuntu) — dejar corriendo:
+   export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 && cd ~/proyectos/Mantec && npm run dev
+
+4. Abrir: http://localhost:8080
+
+PARAR TODO:
+   ./vendor/bin/sail down

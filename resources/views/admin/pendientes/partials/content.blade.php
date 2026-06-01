@@ -274,10 +274,64 @@
             </div>
             @endif
 
+            {{-- FILTROS --}}
+            @php
+                $filterAreas = collect($tree)->pluck('name')->sort()->values();
+                $filterTypes = collect($tree)
+                    ->flatMap(fn($a) => collect($a['elements'])->pluck('type'))
+                    ->filter()->unique()->sort()->values();
+            @endphp
+            <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2 shrink-0">
+                        <i data-lucide="search" class="h-4 w-4 text-slate-400"></i>
+                        <span class="text-sm font-semibold text-slate-700">Filtrar</span>
+                    </div>
+
+                    <input type="text" id="f-name" placeholder="Nombre del activo..."
+                           class="min-w-40 flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 placeholder-slate-400
+                                  focus:border-[#d94d33] focus:outline-none focus:ring-1 focus:ring-[#d94d33]">
+
+                    <select id="f-area"
+                            class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700
+                                   focus:border-[#d94d33] focus:outline-none focus:ring-1 focus:ring-[#d94d33]">
+                        <option value="">Todas las áreas</option>
+                        @foreach($filterAreas as $fa)
+                            <option value="{{ $fa }}">{{ $fa }}</option>
+                        @endforeach
+                    </select>
+
+                    @if($filterTypes->isNotEmpty())
+                    <select id="f-type"
+                            class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700
+                                   focus:border-[#d94d33] focus:outline-none focus:ring-1 focus:ring-[#d94d33]">
+                        <option value="">Todos los tipos</option>
+                        @foreach($filterTypes as $ft)
+                            <option value="{{ $ft }}">{{ $ft }}</option>
+                        @endforeach
+                    </select>
+                    @endif
+
+                    <button id="f-clear"
+                            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-100">
+                        <i data-lucide="x" class="h-3.5 w-3.5"></i>
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+
             {{-- ÁRBOL --}}
             <div class="space-y-3">
+
+                <div id="f-no-results" hidden
+                     class="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                    <i data-lucide="search-x" class="mx-auto h-10 w-10 text-slate-300"></i>
+                    <p class="mt-3 text-sm text-slate-500">No se encontraron activos con los filtros aplicados.</p>
+                </div>
+
                 @foreach($tree as $area)
-                <details class="group/area overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <details class="group/area overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                         data-area-name="{{ $area['name'] }}">
                     <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50
                                    [&::-webkit-details-marker]:hidden">
                         <div class="flex items-center gap-3">
@@ -302,7 +356,9 @@
 
                     <div class="border-t border-slate-100">
                         @foreach($area['elements'] as $element)
-                        <details class="group/el border-b border-slate-100 last:border-0">
+                        <details class="group/el border-b border-slate-100 last:border-0"
+                                 data-element-name="{{ $element['name'] }}"
+                                 data-element-type="{{ $element['type'] ?? '' }}">
                             <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 pl-14 transition hover:bg-slate-50
                                            [&::-webkit-details-marker]:hidden">
                                 <div class="flex items-center gap-2">

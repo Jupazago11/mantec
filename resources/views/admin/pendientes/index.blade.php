@@ -12,7 +12,6 @@
 <script>
 (function () {
     const CONTENT = document.getElementById('pendientes-content');
-    let _refreshTimer = null;
 
     /* ── Transición de salida ─────────────────────────────── */
     function fadeOut() {
@@ -32,16 +31,6 @@
         CONTENT.style.opacity       = '1';
         CONTENT.style.transform     = 'translateY(0)';
         CONTENT.style.pointerEvents = '';
-    }
-
-    /* ── Auto-refresco: activa/cancela según estado de parada ─ */
-    function syncRefreshTimer() {
-        clearInterval(_refreshTimer);
-        _refreshTimer = null;
-
-        if (CONTENT.querySelector('[data-parada-activa]')) {
-            _refreshTimer = setInterval(() => navigateTo(window.location.href), 60_000);
-        }
     }
 
     /* ── Navegación sin recarga ───────────────────────────── */
@@ -69,7 +58,7 @@
             history.pushState({}, '', url);
 
             fadeIn();
-            syncRefreshTimer();  // activa o cancela el intervalo según el nuevo contenido
+            initFilter();
         } catch (_) {
             window.location.href = url;
         }
@@ -86,8 +75,59 @@
     /* ── Botón atrás/adelante ────────────────────────────── */
     window.addEventListener('popstate', () => navigateTo(window.location.href));
 
-    /* ── Activar timer en la carga inicial si ya hay parada activa ── */
-    syncRefreshTimer();
+    /* ── Filtro del árbol de pendientes ──────────────────── */
+    function initFilter() {
+        const nameInput = document.getElementById('f-name');
+        const areaSelect = document.getElementById('f-area');
+        const typeSelect = document.getElementById('f-type');
+        const clearBtn = document.getElementById('f-clear');
+        const noResults = document.getElementById('f-no-results');
+
+        if (!nameInput) return;
+
+        function applyFilter() {
+            const nameQ = nameInput.value.trim().toLowerCase();
+            const areaQ = areaSelect ? areaSelect.value : '';
+            const typeQ = typeSelect ? typeSelect.value : '';
+            const hasFilter = nameQ || areaQ || typeQ;
+            let totalVisible = 0;
+
+            document.querySelectorAll('[data-area-name]').forEach(areaEl => {
+                if (areaQ && areaEl.dataset.areaName !== areaQ) {
+                    areaEl.hidden = true;
+                    return;
+                }
+
+                let visibleEls = 0;
+                areaEl.querySelectorAll('[data-element-name]').forEach(elEl => {
+                    const nameMatch = !nameQ || elEl.dataset.elementName.toLowerCase().includes(nameQ);
+                    const typeMatch = !typeQ || elEl.dataset.elementType === typeQ;
+                    elEl.hidden = !(nameMatch && typeMatch);
+                    if (!elEl.hidden) visibleEls++;
+                });
+
+                areaEl.hidden = visibleEls === 0;
+                if (!areaEl.hidden) totalVisible += visibleEls;
+            });
+
+            if (noResults) noResults.hidden = !hasFilter || totalVisible > 0;
+        }
+
+        nameInput.addEventListener('input', applyFilter);
+        if (areaSelect) areaSelect.addEventListener('change', applyFilter);
+        if (typeSelect) typeSelect.addEventListener('change', applyFilter);
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                nameInput.value = '';
+                if (areaSelect) areaSelect.value = '';
+                if (typeSelect) typeSelect.value = '';
+                applyFilter();
+            });
+        }
+    }
+
+    initFilter();
 })();
 </script>
 @endpush
