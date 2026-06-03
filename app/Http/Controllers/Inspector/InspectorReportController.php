@@ -721,6 +721,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             ->where('component_id', $component->id)
             ->where('diagnostic_id', $validated['diagnostic_id'])
             ->where('created_at', '>=', now()->subHours(24))
+            ->where('status', true)
             ->latest('created_at')
             ->first();
 
@@ -746,9 +747,13 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
             } elseif ($newRecommendation !== '') {
                 $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
 
-                $updateData['recommendation'] = $currentRecommendation !== ''
-                    ? $currentRecommendation . PHP_EOL . $newRecommendation
+                $entry = ($user->id !== $existingReport->user_id)
+                    ? $user->name . ': ' . $newRecommendation
                     : $newRecommendation;
+
+                $updateData['recommendation'] = $currentRecommendation !== ''
+                    ? $currentRecommendation . PHP_EOL . PHP_EOL . $entry
+                    : $entry;
             }
 
             if ($isOkCondition) {

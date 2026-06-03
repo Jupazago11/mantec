@@ -96,6 +96,7 @@ class InspectorSyncController extends Controller
             ->where('diagnostic_id', $validated['diagnostic_id'])
             ->where('week', $validated['week'])
             ->where('year', $validated['year'])
+            ->where('status', true)
             ->first();
 
         if ($existing) {
@@ -105,17 +106,10 @@ class InspectorSyncController extends Controller
 
             $finalRecommendation = $currentRecommendation;
 
-            if ($incomingRecommendation !== '') {
-                $existingLines = collect(preg_split("/\r\n|\n|\r/", $currentRecommendation))
-                    ->map(fn ($line) => trim($line))
-                    ->filter()
-                    ->values();
-
-                if (!$existingLines->contains($incomingRecommendation)) {
-                    $finalRecommendation = $currentRecommendation === ''
-                        ? $incomingRecommendation
-                        : $currentRecommendation . PHP_EOL . $incomingRecommendation;
-                }
+            if ($incomingRecommendation !== '' && !str_contains($currentRecommendation, $incomingRecommendation)) {
+                $finalRecommendation = $currentRecommendation === ''
+                    ? $incomingRecommendation
+                    : $currentRecommendation . PHP_EOL . PHP_EOL . $incomingRecommendation;
             }
 
             $existing->update([

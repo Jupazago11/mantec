@@ -270,8 +270,15 @@ Métodos principales:
     1. Valida cadena de propiedad: cliente→grupo→área→elemento→componente→diagnóstico→condición
     2. Lógica especial 'belt_change': marca cambio de banda, resetea diagnóstico de desgaste
     3. Condición 'detenido': copia recommendation del último reporte no-detenido del elemento
-    4. Fusión de duplicados en 24h: si existe reporte del mismo elemento+componente en 24h,
-       actualiza el existente en lugar de crear uno nuevo
+    4. Fusión de duplicados en 24h: si existe reporte activo (status=true) del mismo
+       elemento+componente+diagnóstico en las últimas 24h (de CUALQUIER inspector),
+       actualiza el existente en lugar de crear uno nuevo.
+       Reportes ocultos (status=false) son ignorados → se crea un registro nuevo visible.
+       Lógica de concatenación del campo recommendation:
+         - Inspector distinto al dueño → agrega "NombreInspector: texto" (línea en blanco como separador)
+         - Mismo inspector dueño → agrega texto sin prefijo (línea en blanco como separador)
+         - Campo vacío → no modifica la recomendación existente
+         - Permite construir un historial acumulativo en texto libre para N inspectores
     5. Upload de archivos a Cloudflare R2 con ruta generada por ReportFilePathBuilder
 
 AJAX endpoints (todos POST):
@@ -836,7 +843,9 @@ RESPONSIVE DESIGN:
 13. Sistema aplica lógica especial:
     - Si is_belt_change: marca y resetea diagnóstico
     - Si detenido: copia última recomendación
-    - Si duplicado en 24h: actualiza en lugar de crear
+    - Si duplicado en 24h (mismo elemento+componente+diagnóstico, cualquier inspector,
+        solo si status=true): actualiza y concatena recommendation con prefijo de nombre
+        si es inspector distinto. Si el reporte existente está oculto, crea uno nuevo.
 14. ReportDetail.booted() auto-asigna execution_status
 15. Archivos subidos a Cloudflare R2
 16. Redirección a lista de reportes
@@ -1261,6 +1270,12 @@ InspectorSyncController.php (~166 líneas)
   Valida cadena completa: inspector→cliente→grupo→área→elemento→componente→diagnóstico→condición.
   Calcula execution_status automáticamente (misma lógica que el web).
   Devuelve el ReportDetail creado/actualizado en JSON.
+  Diferencias clave vs web:
+    - Busca duplicado filtrando por user_id (mismo inspector) + semana+año (no 24h)
+    - Sin cruce entre inspectores: cada inspector solo actualiza sus propios reportes
+    - Protección anti-duplicado vía str_contains: evita concatenar el mismo texto
+      si la app Android reintenta el envío en modo offline (resync)
+    - Separador entre entradas: línea en blanco (PHP_EOL . PHP_EOL)
 
 InspectorSyncFileController.php (~87 líneas)
   Responsabilidad: Upload de archivos de evidencia desde la app.
@@ -2899,12 +2914,16 @@ PASO 3 — LÓGICA ESPECIAL DE CONDICIÓN 'DETENIDO'
 
 PASO 4 — LÓGICA DE FUSIÓN EN 24 HORAS
   Si el inspector (o la app) genera un ReportDetail para el mismo
-  (element_id + component_id) dentro de las últimas 24 horas, el sistema NO
-  crea un registro nuevo — actualiza el existente.
+  (element_id + component_id + diagnostic_id) dentro de las últimas 24 horas, el sistema NO
+  crea un registro nuevo — actualiza el existente, concatenando la recomendación.
+  Condición: el reporte existente debe tener status=true (visible). Si está oculto,
+  se ignora y se crea un registro nuevo.
+  Lógica de concatenación (separador: línea en blanco):
+    - Inspector distinto al dueño del reporte → "NombreInspector: texto"
+    - Mismo inspector dueño → texto sin prefijo
   Propósito: evitar duplicados cuando un inspector corrige un registro recién creado,
-  o cuando la app sincroniza un reporte que ya fue enviado parcialmente.
-  El resultado es que en la tabla report_details no pueden existir dos registros
-  del mismo elemento+componente con menos de 24h de diferencia del mismo inspector.
+  construir historial acumulativo cuando varios inspectores revisan el mismo activo,
+  y evitar concatenar sobre reportes que el admin decidió ocultar.
 
 PASO 5 — AUTO-ASIGNACIÓN DE ESTADO DE EJECUCIÓN
   Al guardar cualquier ReportDetail (via modelo booted() hook):
