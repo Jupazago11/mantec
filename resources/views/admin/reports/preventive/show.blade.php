@@ -642,6 +642,10 @@
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
             ]);
+        $exportExcelUrl = route(
+            'admin.preventive-reports.group.export',
+            array_merge(['group' => $group->id], request()->except('page'))
+        );
 
         $activeFilterBadges = collect($activeFilters)
             ->map(function ($value, $key) use ($filterLabelMap) {
@@ -840,6 +844,19 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onclick="openExportConfirmModal()"
+                        class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7l-4-4Z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6M9 17h6M10 9h1"/>
+                        </svg>
+                        Descargar Excel
+                    </button>
+
                     <a
                         href="{{ route('admin.dashboard') }}"
                         class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
@@ -1158,6 +1175,51 @@
             ></div>
         </div>
     </div>
+    <div
+        id="exportConfirmModal"
+        class="fixed inset-0 z-[210] hidden items-center justify-center bg-slate-900/55 px-4 py-6 opacity-0 backdrop-blur-[2px] transition duration-200 ease-out"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exportConfirmTitle"
+        aria-describedby="exportConfirmDescription"
+    >
+        <div id="exportConfirmPanel" class="w-full max-w-md scale-95 rounded-3xl border border-slate-200 bg-white p-6 opacity-0 shadow-2xl transition duration-200 ease-out">
+            <div class="flex items-start gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7l-4-4Z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4h4"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 11v6M9 14l3 3 3-3"/>
+                    </svg>
+                </div>
+
+                <div class="min-w-0">
+                    <h3 id="exportConfirmTitle" class="text-lg font-semibold text-slate-900">Confirmar descarga</h3>
+                    <p id="exportConfirmDescription" class="mt-2 text-sm leading-6 text-slate-600">
+                        Se descargará el Excel con los filtros y columnas visibles de esta agrupación en este momento.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                    type="button"
+                    onclick="closeExportConfirmModal()"
+                    class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                    Cancelar
+                </button>
+
+                <button
+                    type="button"
+                    onclick="confirmExportDownload()"
+                    class="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                    Descargar ahora
+                </button>
+            </div>
+        </div>
+    </div>
     <div id="inlineToast" class="inline-toast"></div>
     <div id="editReportModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-[2px]">
     <div class="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
@@ -1328,6 +1390,51 @@
         const filtersForm = document.getElementById('filtersForm');
         const filterPopover = document.getElementById('filterPopover');
         const applyDateRangeBtn = document.getElementById('applyDateRangeBtn');
+        const exportExcelUrl = @json($exportExcelUrl);
+        const exportConfirmModal = document.getElementById('exportConfirmModal');
+        const exportConfirmPanel = document.getElementById('exportConfirmPanel');
+
+        function openExportConfirmModal() {
+            if (!exportConfirmModal || !exportConfirmPanel) {
+                window.location.href = exportExcelUrl;
+                return;
+            }
+
+            document.body.classList.add('overflow-hidden');
+            exportConfirmModal.classList.remove('hidden');
+            exportConfirmModal.classList.add('flex');
+
+            requestAnimationFrame(() => {
+                exportConfirmModal.classList.remove('opacity-0');
+                exportConfirmModal.classList.add('opacity-100');
+                exportConfirmPanel.classList.remove('opacity-0', 'scale-95');
+                exportConfirmPanel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        function closeExportConfirmModal() {
+            if (!exportConfirmModal || !exportConfirmPanel) {
+                return;
+            }
+
+            exportConfirmModal.classList.remove('opacity-100');
+            exportConfirmModal.classList.add('opacity-0');
+            exportConfirmPanel.classList.remove('opacity-100', 'scale-100');
+            exportConfirmPanel.classList.add('opacity-0', 'scale-95');
+
+            window.setTimeout(() => {
+                document.body.classList.remove('overflow-hidden');
+                exportConfirmModal.classList.add('hidden');
+                exportConfirmModal.classList.remove('flex');
+            }, 180);
+        }
+
+        function confirmExportDownload() {
+            closeExportConfirmModal();
+            window.setTimeout(() => {
+                window.location.href = exportExcelUrl;
+            }, 120);
+        }
 
         function normalizeScalarArray(values) {
             if (!Array.isArray(values)) {
@@ -1776,6 +1883,11 @@
         }
 
         document.addEventListener('click', function (event) {
+            if (exportConfirmModal && !exportConfirmModal.classList.contains('hidden') && event.target === exportConfirmModal) {
+                closeExportConfirmModal();
+                return;
+            }
+
             if (!filterPopover || filterPopover.classList.contains('hidden')) {
                 return;
             }
@@ -1790,6 +1902,9 @@
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
+                if (exportConfirmModal && !exportConfirmModal.classList.contains('hidden')) {
+                    closeExportConfirmModal();
+                }
                 closeFilterPopover();
             }
         });

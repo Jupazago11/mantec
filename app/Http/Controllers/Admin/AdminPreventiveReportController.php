@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\ArrayExport;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\ExecutionStatus;
+use App\Models\Group;
 use App\Models\ReportDetail;
 use App\Models\User;
 use App\Services\Execution\ExecutionStatusResolver;
@@ -14,7 +16,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdminPreventiveReportController extends Controller
 {
@@ -484,6 +488,286 @@ class AdminPreventiveReportController extends Controller
             'isReadOnly' => $this->isReadOnlyRole($user),
             'roleKey' => $user->role?->key,
         ]);
+    }
+
+    public function exportGeneral(Client $client, Request $request)
+    {
+        $user = Auth::user();
+
+        $allowedClientIds = $this->getAllowedClientIds($user);
+
+        abort_unless(
+            in_array((int) $client->id, $allowedClientIds, true),
+            403,
+            'No autorizado para exportar reportes de este cliente.'
+        );
+
+        $year = (int) $request->input('year', now()->year);
+
+        $query = ReportDetail::query()
+            ->with([
+                'user',
+                'element.area.client',
+                'element.elementType',
+                'component',
+                'diagnostic',
+                'condition',
+                'executionStatus',
+            ])
+            ->withCount('files')
+            ->where('status', true)
+            ->where('year', $year)
+            ->whereHas('element', function ($query) use ($user, $client) {
+                $query->whereHas('area', function ($areaQuery) use ($client) {
+                    $areaQuery->where('client_id', $client->id);
+                });
+
+                if ($this->mustRestrictByElementTypes($user)) {
+                    $allowedElementTypeIds = $this->getAllowedElementTypeIdsForClient($user, (int) $client->id);
+
+                    if (empty($allowedElementTypeIds)) {
+                        $query->whereRaw('1 = 0');
+                        return;
+                    }
+
+                    $query->whereIn('element_type_id', $allowedElementTypeIds);
+                }
+
+                if ($this->mustRestrictByAreas($user)) {
+                    $allowedAreaMap = $this->getAllowedAreaIdsGroupedByElementType($user, (int) $client->id);
+
+                    if (empty($allowedAreaMap)) {
+                        $query->whereRaw('1 = 0');
+                        return;
+                    }
+
+                    $query->where(function ($outer) use ($allowedAreaMap) {
+                        foreach ($allowedAreaMap as $elementTypeId => $areaIds) {
+                            $outer->orWhere(function ($inner) use ($elementTypeId, $areaIds) {
+                                $inner->where('element_type_id', (int) $elementTypeId)
+                                    ->whereIn('area_id', $areaIds);
+                            });
+                        }
+                    });
+                }
+            });
+
+        $this->applyFilters($query, $request);
+
+        $reports = $query
+            ->orderByDesc('week')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $rows = $reports->map(function (ReportDetail $report) {
+            $report->responsable_names = $this->resolveAdminClienteResponsables($report);
+
+            return [
+                $report->element?->elementType?->name ?? '',
+                $report->element?->area?->name ?? '',
+                $report->element?->name ?? '',
+                trim(($report->component?->name ?? '') . ' | ' . ($report->diagnostic?->name ?? ''), ' |'),
+                $this->normalizeExportText($report->recommendation),
+                ((int) ($report->files_count ?? 0)) > 0 ? 'Sí' : 'No',
+                $report->condition?->code ?? '',
+                $report->orden ?? '',
+                $report->aviso ?? '',
+                $report->user?->name ?? '',
+                $report->responsable_names ?? '',
+                $this->formatExportDateTime($report->created_at),
+                $this->formatExportDate($report->execution_date),
+                $report->condition?->name ?? '',
+                trim((string) ($report->executionStatus?->name ?? 'PENDIENTE')),
+                (string) ($report->week ?? ''),
+            ];
+        })->all();
+
+        $filename = sprintf(
+            'reporte-preventivo-general-%s-%s.xlsx',
+            Str::slug($client->name),
+            $year
+        );
+
+        return Excel::download(
+            new ArrayExport([
+                'Tipo de activo',
+                'Área',
+                'Nombre del activo',
+                'Componente',
+                'Hallazgo',
+                'Evidencia',
+                'Condición',
+                'Orden',
+                'Aviso',
+                'Inspector',
+                'Responsable',
+                'Fecha de reporte',
+                'Fecha de ejecución',
+                'Condición del activo',
+                'Ejecución orden',
+                'Semana',
+            ], $rows, $this->buildExportOptions([
+                'element_type_name',
+                'area',
+                'element_name',
+                'diagnostic',
+                'recommendation',
+                'evidence',
+                'condition',
+                'orden',
+                'aviso',
+                'inspector',
+                'responsable',
+                'report_date',
+                'execution_date',
+                'condition_name',
+                'execution_status',
+                'week',
+            ], $reports)),
+            $filename
+        );
+    }
+
+    public function exportGroup(Group $group, Request $request)
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            in_array($roleKey, [
+                'superadmin',
+                'admin_global',
+                'admin',
+                'admin_cliente',
+                'observador',
+                'observador_cliente',
+            ], true),
+            403,
+            'No tienes permisos para exportar este reporte.'
+        );
+
+        $allowedClientIds = match ($roleKey) {
+            'superadmin', 'admin_global', 'observador' => Client::query()
+                ->where('status', true)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+
+            default => $user->clients()
+                ->where('clients.status', true)
+                ->pluck('clients.id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+        };
+
+        abort_unless(
+            in_array((int) $group->client_id, $allowedClientIds, true),
+            403,
+            'No tienes acceso a esta agrupación.'
+        );
+
+        if (in_array($roleKey, ['admin_cliente', 'observador_cliente'], true)) {
+            abort_unless(
+                $user->groups()
+                    ->where('groups.id', $group->id)
+                    ->where('groups.client_id', $group->client_id)
+                    ->exists(),
+                403,
+                'No tienes acceso a esta agrupación.'
+            );
+        }
+
+        $dateFrom = $request->input('date_from', now()->startOfYear()->toDateString());
+        $dateTo = $request->input('date_to', now()->toDateString());
+
+        abort_unless($dateFrom && $dateTo, 422, 'Debes enviar date_from y date_to.');
+        abort_unless($dateTo >= $dateFrom, 422, 'La fecha final no puede ser menor que la fecha inicial.');
+
+        $dateFromStart = \Carbon\Carbon::parse($dateFrom)->startOfDay();
+        $dateToEnd = \Carbon\Carbon::parse($dateTo)->endOfDay();
+
+        $query = ReportDetail::query()
+            ->with([
+                'user:id,name',
+                'element:id,name,code,warehouse_code,area_id,element_type_id,group_id',
+                'element.area:id,name,client_id',
+                'component:id,name',
+                'diagnostic:id,name',
+                'condition:id,name,code,color',
+                'executionStatus:id,code,name',
+            ])
+            ->withCount('files')
+            ->where('status', true)
+            ->whereHas('element', function ($elementQuery) use ($group) {
+                $elementQuery->where('group_id', $group->id);
+            })
+            ->whereBetween('created_at', [$dateFromStart, $dateToEnd]);
+
+        $this->applyGroupFilters($query, $request);
+
+        $responsablesByArea = $this->getResponsablesByGroupAreaMap(
+            (int) $group->client_id,
+            (int) $group->id
+        );
+
+        $reports = $query
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($report) use ($responsablesByArea) {
+                $element = $report->element;
+                $area = $element?->area;
+                $component = $report->component;
+                $diagnostic = $report->diagnostic;
+                $condition = $report->condition;
+                $inspector = $report->user;
+                $executionStatus = $report->executionStatus;
+
+                $statusName = trim((string) ($executionStatus?->name ?? ''));
+                $statusUpper = mb_strtoupper($statusName);
+
+                $report->area_name = $area?->name ?: '';
+                $report->element_name = $element?->name ?: '';
+                $report->warehouse_code = $element?->warehouse_code ?: '';
+                $report->component_name = $component?->name ?: '';
+                $report->diagnostic_name = $diagnostic?->name ?: '';
+                $report->condition_code = $condition?->code ?: '';
+                $report->condition_name = $condition?->name ?: '';
+                $report->inspector_name = $inspector?->name ?: '';
+                $report->responsable_name = $responsablesByArea->get((int) ($element?->area_id ?? 0), '');
+                $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
+                $report->executed = $this->executionStatusResolver->isDoneStatusName($statusUpper);
+                $report->is_execution_ok = $this->executionStatusResolver->isOkStatusName($statusUpper);
+                $report->report_date = optional($report->created_at)?->format('Y-m-d');
+                $report->has_evidence = ((int) ($report->files_count ?? 0)) > 0;
+
+                return $report;
+            });
+
+        $columnConfig = $this->groupReportConfigService->resolveForRole(
+            (int) $group->id,
+            $roleKey
+        );
+
+        $columnKeys = collect($columnConfig)->pluck('column_key')->all();
+        $headings = collect($columnConfig)->pluck('label')->all();
+        $rows = $reports->map(function ($report) use ($columnConfig) {
+            return collect($columnConfig)
+                ->map(fn (array $column) => $this->mapGroupExportValue($report, $column['column_key']))
+                ->all();
+        })->all();
+
+        $filename = sprintf(
+            'reporte-preventivo-%s-%s-%s.xlsx',
+            Str::slug($group->client?->name ?? 'cliente'),
+            Str::slug($group->name),
+            $dateFrom . '_a_' . $dateTo
+        );
+
+        return Excel::download(
+            new ArrayExport($headings, $rows, $this->buildExportOptions($columnKeys, $reports)),
+            $filename
+        );
     }
 
     public function toggleExecution(\App\Models\ReportDetail $reportDetail)
@@ -2180,6 +2464,202 @@ private function normalizeExecutionStatusName($value): string
     }
 
     return 'PENDIENTE';
+}
+
+private function mapGroupExportValue($report, string $columnKey): string
+{
+    return match ($columnKey) {
+        'area' => (string) ($report->area_name ?? ''),
+        'element_name' => (string) ($report->element_name ?? ''),
+        'diagnostic' => trim(
+            ((string) ($report->component_name ?? '')) . ' | ' . ((string) ($report->diagnostic_name ?? '')),
+            ' |'
+        ),
+        'recommendation' => $this->normalizeExportText($report->recommendation ?? null),
+        'recommendation_2' => $this->normalizeExportText($report->recommendation_2 ?? null),
+        'evidence' => ($report->has_evidence ?? false) ? 'Sí' : 'No',
+        'condition' => (string) ($report->condition_code ?? ''),
+        'orden' => (string) ($report->orden ?? ''),
+        'aviso' => (string) ($report->aviso ?? ''),
+        'inspector' => (string) ($report->inspector_name ?? ''),
+        'responsable' => (string) ($report->responsable_name ?? ''),
+        'report_date' => $this->formatExportDateTime($report->created_at ?? null),
+        'execution_date' => $this->formatExportDate(($report->executed ?? false) ? ($report->execution_date ?? null) : null),
+        'condition_name' => (string) ($report->condition_name ?? ''),
+        'execution_status' => (string) ($report->execution_status_name ?? 'PENDIENTE'),
+        'week' => (string) ($report->week ?? ''),
+        'warehouse_code' => (string) ($report->warehouse_code ?? ''),
+        default => '',
+    };
+}
+
+private function normalizeExportText($value): string
+{
+    $text = trim((string) ($value ?? ''));
+
+    return $text === '' ? '' : (string) preg_replace("/\r\n|\r|\n/", "\n", $text);
+}
+
+private function formatExportDate($value): string
+{
+    if (blank($value)) {
+        return '';
+    }
+
+    return \Carbon\Carbon::parse($value)->format('Y-m-d');
+}
+
+private function formatExportDateTime($value): string
+{
+    if (blank($value)) {
+        return '';
+    }
+
+    return \Carbon\Carbon::parse($value)->format('Y-m-d H:i');
+}
+
+private function buildExportOptions(array $columnKeys, Collection $reports): array
+{
+    $widthMap = [
+        'element_type_name' => 22,
+        'area' => 20,
+        'element_name' => 20,
+        'warehouse_code' => 18,
+        'diagnostic' => 32,
+        'recommendation' => 58,
+        'recommendation_2' => 58,
+        'evidence' => 12,
+        'condition' => 14,
+        'orden' => 14,
+        'aviso' => 14,
+        'inspector' => 22,
+        'responsable' => 22,
+        'report_date' => 18,
+        'execution_date' => 16,
+        'condition_name' => 24,
+        'execution_status' => 20,
+        'week' => 10,
+    ];
+
+    $wrappableKeys = [
+        'area',
+        'element_name',
+        'warehouse_code',
+        'diagnostic',
+        'recommendation',
+        'recommendation_2',
+        'inspector',
+        'responsable',
+        'condition_name',
+    ];
+
+    $centeredKeys = [
+        'element_type_name',
+        'evidence',
+        'condition',
+        'orden',
+        'aviso',
+        'report_date',
+        'execution_date',
+        'condition_name',
+        'execution_status',
+        'week',
+    ];
+
+    $columnIndexByKey = collect(array_values($columnKeys))
+        ->mapWithKeys(fn ($key, $index) => [$key => $index + 1])
+        ->all();
+
+    $cellStyles = [];
+
+    foreach ($reports->values() as $index => $report) {
+        $rowNumber = $index + 2;
+
+        if (isset($columnIndexByKey['condition_name'])) {
+            $fill = $this->normalizeExcelColor($report->condition_color ?? $report->condition?->color ?? null);
+
+            $cellStyles[] = [
+                'row' => $rowNumber,
+                'column' => $columnIndexByKey['condition_name'],
+                'fill' => $fill,
+                'font_color' => $this->contrastExcelFontColor($fill),
+                'bold' => true,
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+            ];
+        }
+
+        if (isset($columnIndexByKey['execution_status'])) {
+            $executionStyle = $this->executionStatusExcelStyle($report->execution_status_name ?? $report->executionStatus?->name ?? null);
+
+            $cellStyles[] = [
+                'row' => $rowNumber,
+                'column' => $columnIndexByKey['execution_status'],
+                'fill' => $executionStyle['fill'],
+                'font_color' => $executionStyle['font_color'],
+                'bold' => true,
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+            ];
+        }
+    }
+
+    return [
+        'header_row_height' => 34,
+        'column_widths' => collect($columnIndexByKey)
+            ->mapWithKeys(fn ($index, $key) => isset($widthMap[$key]) ? [$index => $widthMap[$key]] : [])
+            ->all(),
+        'wrap_columns' => collect($wrappableKeys)
+            ->map(fn ($key) => $columnIndexByKey[$key] ?? null)
+            ->filter()
+            ->values()
+            ->all(),
+        'center_columns' => collect($centeredKeys)
+            ->map(fn ($key) => $columnIndexByKey[$key] ?? null)
+            ->filter()
+            ->values()
+            ->all(),
+        'cell_styles' => $cellStyles,
+    ];
+}
+
+private function normalizeExcelColor(?string $color, string $default = 'FFE2E8F0'): string
+{
+    $normalized = strtoupper(trim((string) $color));
+
+    if ($normalized === '') {
+        return $default;
+    }
+
+    $normalized = ltrim($normalized, '#');
+
+    if (strlen($normalized) === 6) {
+        return 'FF' . $normalized;
+    }
+
+    if (strlen($normalized) === 8) {
+        return $normalized;
+    }
+
+    return $default;
+}
+
+private function contrastExcelFontColor(string $argbColor): string
+{
+    $rgb = substr($argbColor, -6);
+    $red = hexdec(substr($rgb, 0, 2));
+    $green = hexdec(substr($rgb, 2, 2));
+    $blue = hexdec(substr($rgb, 4, 2));
+    $luminance = (($red * 299) + ($green * 587) + ($blue * 114)) / 1000;
+
+    return $luminance < 145 ? 'FFFFFFFF' : 'FF000000';
+}
+
+private function executionStatusExcelStyle($statusName): array
+{
+    return match ($this->normalizeExecutionStatusName($statusName)) {
+        'REALIZADO' => ['fill' => 'FFC6EFCE', 'font_color' => 'FF0F5132'],
+        'OK' => ['fill' => 'FFD9EAF7', 'font_color' => 'FF1D4ED8'],
+        default => ['fill' => 'FFFDE9A9', 'font_color' => 'FF7C5700'],
+    };
 }
 
 private function buildFilterOptionsFromValues(

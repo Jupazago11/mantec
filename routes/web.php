@@ -215,7 +215,9 @@ Route::middleware('auth')->group(function () {
 
         // Reportes preventivos / evidencias
         Route::get('/preventive-reports/group/{group}', [AdminPreventiveReportController::class, 'showByGroup'])->name('preventive-reports.group');
+        Route::get('/preventive-reports/group/{group}/export-excel', [AdminPreventiveReportController::class, 'exportGroup'])->name('preventive-reports.group.export');
         Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('preventive-reports.general');
+        Route::get('/preventive-reports/general/{client}/export-excel', [AdminPreventiveReportController::class, 'exportGeneral'])->name('preventive-reports.general.export');
         Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])->name('preventive-reports.evidence');
         Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('preventive-reports.toggle-execution');
         Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('report-evidence.open');
