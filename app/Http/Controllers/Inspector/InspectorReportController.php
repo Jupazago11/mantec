@@ -12,6 +12,7 @@ use App\Models\Diagnostic;
 use App\Models\Element;
 use App\Models\Group;
 use App\Models\ReportDetail;
+use App\Models\ReportDetailFile;
 use App\Services\Execution\ExecutionStatusResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -861,6 +862,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 'mime_type' => $mime,
                 'extension' => $built['extension'],
                 'file_type' => $fileType,
+                'evidence_kind' => ReportDetailFile::KIND_HALLAZGO,
                 'size_bytes' => $file->getSize() ?: 0,
                 'sort_order' => $index,
             ]);

@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 
 class ReportFilePathBuilder
 {
-    public static function build(Element $element, UploadedFile $file): array
+    public static function build(Element $element, UploadedFile $file, ?string $evidenceKind = null): array
     {
         $element->loadMissing('area.client', 'group');
 
@@ -31,7 +31,16 @@ class ReportFilePathBuilder
 
         $storedName = $now->format('Y-m-d') . '_' . Str::uuid() . '.' . $extension;
 
-        $path = "clientes/{$clientSegment}/agrupaciones/{$groupSegment}/{$year}/semana-{$week}/{$elementSegment}/{$storedName}";
+        $kindSegment = null;
+
+        if ($evidenceKind !== null && trim($evidenceKind) !== '') {
+            $kindSegment = self::segment('evidencia', $evidenceKind, null);
+        }
+
+        $basePath = "clientes/{$clientSegment}/agrupaciones/{$groupSegment}/{$year}/semana-{$week}/{$elementSegment}";
+        $path = $kindSegment
+            ? "{$basePath}/{$kindSegment}/{$storedName}"
+            : "{$basePath}/{$storedName}";
 
         return [
             'path' => $path,

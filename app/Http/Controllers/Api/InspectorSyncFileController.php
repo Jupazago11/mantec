@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReportDetail;
+use App\Models\ReportDetailFile;
 use App\Support\ReportFilePathBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -72,6 +73,7 @@ class InspectorSyncFileController extends Controller
             'mime_type' => $mime,
             'extension' => $built['extension'],
             'file_type' => $fileType,
+            'evidence_kind' => ReportDetailFile::KIND_HALLAZGO,
             'size_bytes' => $file->getSize() ?: 0,
             'sort_order' => $sortOrder,
         ]);

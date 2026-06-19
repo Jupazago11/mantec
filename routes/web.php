@@ -219,8 +219,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/preventive-reports/general/{client}', [AdminPreventiveReportController::class, 'general'])->name('preventive-reports.general');
         Route::get('/preventive-reports/general/{client}/export-excel', [AdminPreventiveReportController::class, 'exportGeneral'])->name('preventive-reports.general.export');
         Route::get('/preventive-reports/report-details/{reportDetail}/evidence', [AdminPreventiveReportController::class, 'evidence'])->name('preventive-reports.evidence');
+        Route::post('/preventive-reports/report-details/{reportDetail}/evidence', [AdminReportEvidenceController::class, 'store'])->name('preventive-reports.evidence.store');
         Route::patch('/preventive-reports/report-details/{reportDetail}/toggle-execution', [AdminPreventiveReportController::class, 'toggleExecution'])->name('preventive-reports.toggle-execution');
         Route::get('/report-evidence/{file}/open', [AdminReportEvidenceController::class, 'open'])->name('report-evidence.open');
+        Route::delete('/report-evidence/{file}', [AdminReportEvidenceController::class, 'destroy'])->name('report-evidence.destroy');
         Route::get('/preventive-reports/{client}/{elementType}', [AdminPreventiveReportController::class, 'show'])->name('preventive-reports.show');
         Route::patch('/preventive-reports/report-details/{reportDetail}/execution-date', [AdminPreventiveReportController::class, 'updateExecutionDate'])->name('preventive-reports.execution-date.update');
         Route::patch('/preventive-reports/report-details/{reportDetail}/inline-update', [AdminPreventiveReportController::class, 'inlineUpdate'])->name('preventive-reports.inline-update');
