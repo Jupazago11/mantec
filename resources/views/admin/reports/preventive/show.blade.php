@@ -607,6 +607,8 @@
             'condition_names' => 'Condición',
             'execution_statuses' => 'Estado ejecución',
             'weeks' => 'Semana',
+            'report_date_range' => 'Fecha de reporte',
+            'execution_date_range' => 'Fecha de ejecución',
             'report_date_from' => 'Fecha reporte desde',
             'report_date_to' => 'Fecha reporte hasta',
             'execution_date_from' => 'Fecha ejecución desde',
@@ -1450,6 +1452,10 @@
             return "{{ route('admin.preventive-reports.group', ['group' => $group->id]) }}";
         }
 
+        const DATE_RANGE_FIELD_MAP = {
+            report_date_range: { from: 'report_date_from', to: 'report_date_to' },
+            execution_date_range: { from: 'execution_date_from', to: 'execution_date_to' },
+        };
         function applyDateRange() {
             const from = dateFromVisible?.value?.trim();
             const to = dateToVisible?.value?.trim();
@@ -1469,6 +1475,23 @@
             url.searchParams.set('date_to', to);
 
             Object.entries(ACTIVE_FILTERS).forEach(([key, value]) => {
+                const rangeFieldMap = DATE_RANGE_FIELD_MAP[key];
+
+                if (rangeFieldMap) {
+                    const fromValue = value?.from?.trim?.() || '';
+                    const toValue = value?.to?.trim?.() || '';
+
+                    if (fromValue) {
+                        url.searchParams.set(rangeFieldMap.from, fromValue);
+                    }
+
+                    if (toValue) {
+                        url.searchParams.set(rangeFieldMap.to, toValue);
+                    }
+
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     value
                         .filter(item => item !== null && item !== undefined && item !== '')
@@ -1539,6 +1562,30 @@
                     return;
                 }
 
+                const rangeFieldMap = DATE_RANGE_FIELD_MAP[key];
+                if (rangeFieldMap) {
+                    const fromValue = value?.from?.trim?.() || '';
+                    const toValue = value?.to?.trim?.() || '';
+
+                    if (fromValue) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = rangeFieldMap.from;
+                        input.value = fromValue;
+                        filtersForm.appendChild(input);
+                    }
+
+                    if (toValue) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = rangeFieldMap.to;
+                        input.value = toValue;
+                        filtersForm.appendChild(input);
+                    }
+
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     value.forEach(item => {
                         const input = document.createElement('input');
@@ -1568,6 +1615,17 @@
                     return;
                 }
 
+                const rangeFieldMap = DATE_RANGE_FIELD_MAP[key];
+                if (rangeFieldMap) {
+                    const fromValue = value?.from?.trim?.() || '';
+                    const toValue = value?.to?.trim?.() || '';
+
+                    if (fromValue || toValue) {
+                        merged[key] = { from: fromValue, to: toValue };
+                    }
+                    return;
+                }
+
                 if (Array.isArray(value)) {
                     const normalized = normalizeScalarArray(value);
                     if (normalized.length > 0) {
@@ -1583,6 +1641,19 @@
 
             Object.entries(nextFilters).forEach(([key, value]) => {
                 if (key === 'page') {
+                    return;
+                }
+
+                const rangeFieldMap = DATE_RANGE_FIELD_MAP[key];
+                if (rangeFieldMap) {
+                    const fromValue = value?.from?.trim?.() || '';
+                    const toValue = value?.to?.trim?.() || '';
+
+                    if (fromValue || toValue) {
+                        merged[key] = { from: fromValue, to: toValue };
+                    } else {
+                        delete merged[key];
+                    }
                     return;
                 }
 

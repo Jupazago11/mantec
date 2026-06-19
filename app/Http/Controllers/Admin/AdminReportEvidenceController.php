@@ -16,7 +16,6 @@ class AdminReportEvidenceController extends Controller
     public function store(Request $request, ReportDetail $reportDetail): RedirectResponse
     {
         $user = auth()->user();
-        $this->ensureCanManageEvidence($user);
 
         $report = ReportDetail::with([
             'element.area',
@@ -40,6 +39,8 @@ class AdminReportEvidenceController extends Controller
                 ReportDetailFile::KIND_CORRECCION,
             ])],
         ]);
+
+        $this->ensureCanManageEvidence($user, $validated['evidence_kind']);
 
         $existingCount = $report->files()
             ->where('evidence_kind', $validated['evidence_kind'])
@@ -129,7 +130,7 @@ class AdminReportEvidenceController extends Controller
     public function destroy(ReportDetailFile $file): RedirectResponse
     {
         $user = auth()->user();
-        $this->ensureCanManageEvidence($user);
+        $this->ensureCanManageEvidence($user, $file->evidence_kind);
 
         $file->loadMissing([
             'reportDetail.element.area',
@@ -157,10 +158,22 @@ class AdminReportEvidenceController extends Controller
             ->with('success', 'El material fue desasociado del reporte.');
     }
 
-    private function ensureCanManageEvidence($user): void
+    private function ensureCanManageEvidence($user, ?string $evidenceKind = null): void
     {
+        $roleKey = $user->role?->key;
+
+        if ($roleKey === 'admin_cliente') {
+            abort_unless(
+                $evidenceKind === ReportDetailFile::KIND_CORRECCION,
+                403,
+                'No tienes permisos para gestionar evidencia de hallazgo.'
+            );
+
+            return;
+        }
+
         abort_unless(
-            in_array($user->role?->key, ['superadmin', 'admin_global', 'admin'], true),
+            in_array($roleKey, ['superadmin', 'admin_global', 'admin'], true),
             403,
             'No tienes permisos para gestionar esta evidencia.'
         );

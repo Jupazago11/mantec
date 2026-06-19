@@ -1019,12 +1019,28 @@ class AdminPreventiveReportController extends Controller
             $query->whereDate('created_at', '<=', $request->input('report_date_to'));
         }
 
-        if ($request->filled('execution_date_from')) {
-            $query->whereDate('execution_date', '>=', $request->input('execution_date_from'));
-        }
+        $executionDateFrom = (string) $request->input('execution_date_from', '');
+        $executionDateTo = (string) $request->input('execution_date_to', '');
 
-        if ($request->filled('execution_date_to')) {
-            $query->whereDate('execution_date', '<=', $request->input('execution_date_to'));
+        if ($executionDateFrom !== '' || $executionDateTo !== '') {
+            $query->whereHas('executionStatus', function ($statusQuery) {
+                $statusQuery->whereIn('name', [
+                    'EJECUTADO',
+                    'EJECUTADA',
+                    'FINALIZADO',
+                    'FINALIZADA',
+                    'REALIZADO',
+                    'REALIZADA',
+                ]);
+            });
+
+            if ($executionDateFrom !== '') {
+                $query->whereDate('execution_date', '>=', $executionDateFrom);
+            }
+
+            if ($executionDateTo !== '') {
+                $query->whereDate('execution_date', '<=', $executionDateTo);
+            }
         }
 
         $conditionNames = array_filter((array) $request->input('condition_names', []));
@@ -1436,8 +1452,14 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         'aviso_values' => (array) $request->input('aviso_values', []),
         'inspector_names' => (array) $request->input('inspector_names', []),
         'responsable_names' => (array) $request->input('responsable_names', []),
-        'report_date_range' => $request->input('report_date_range'),
-        'execution_date_range' => $request->input('execution_date_range'),
+        'report_date_range' => [
+            'from' => (string) $request->input('report_date_from', ''),
+            'to' => (string) $request->input('report_date_to', ''),
+        ],
+        'execution_date_range' => [
+            'from' => (string) $request->input('execution_date_from', ''),
+            'to' => (string) $request->input('execution_date_to', ''),
+        ],
         'condition_names' => (array) $request->input('condition_names', []),
         'execution_statuses' => (array) $request->input('execution_statuses', []),
         'weeks' => (array) $request->input('weeks', []),
@@ -1935,23 +1957,52 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             $query->whereIn('week', $weeks);
         }
 
+        $reportDateFrom = (string) $request->input('report_date_from', '');
+        $reportDateTo = (string) $request->input('report_date_to', '');
         $reportDateRange = $request->input('report_date_range');
-        if (is_array($reportDateRange)) {
-            if (!empty($reportDateRange['from'])) {
-                $query->whereDate('created_at', '>=', $reportDateRange['from']);
-            }
-            if (!empty($reportDateRange['to'])) {
-                $query->whereDate('created_at', '<=', $reportDateRange['to']);
-            }
+
+        if ($reportDateFrom !== '') {
+            $query->whereDate('created_at', '>=', $reportDateFrom);
+        } elseif (is_array($reportDateRange) && !empty($reportDateRange['from'])) {
+            $query->whereDate('created_at', '>=', $reportDateRange['from']);
         }
 
+        if ($reportDateTo !== '') {
+            $query->whereDate('created_at', '<=', $reportDateTo);
+        } elseif (is_array($reportDateRange) && !empty($reportDateRange['to'])) {
+            $query->whereDate('created_at', '<=', $reportDateRange['to']);
+        }
+
+        $executionDateFrom = (string) $request->input('execution_date_from', '');
+        $executionDateTo = (string) $request->input('execution_date_to', '');
         $executionDateRange = $request->input('execution_date_range');
-        if (is_array($executionDateRange)) {
-            if (!empty($executionDateRange['from'])) {
-                $query->whereDate('execution_date', '>=', $executionDateRange['from']);
+
+        $resolvedExecutionDateFrom = $executionDateFrom !== ''
+            ? $executionDateFrom
+            : (is_array($executionDateRange) ? (string) ($executionDateRange['from'] ?? '') : '');
+
+        $resolvedExecutionDateTo = $executionDateTo !== ''
+            ? $executionDateTo
+            : (is_array($executionDateRange) ? (string) ($executionDateRange['to'] ?? '') : '');
+
+        if ($resolvedExecutionDateFrom !== '' || $resolvedExecutionDateTo !== '') {
+            $query->whereHas('executionStatus', function ($statusQuery) {
+                $statusQuery->whereIn('name', [
+                    'EJECUTADO',
+                    'EJECUTADA',
+                    'FINALIZADO',
+                    'FINALIZADA',
+                    'REALIZADO',
+                    'REALIZADA',
+                ]);
+            });
+
+            if ($resolvedExecutionDateFrom !== '') {
+                $query->whereDate('execution_date', '>=', $resolvedExecutionDateFrom);
             }
-            if (!empty($executionDateRange['to'])) {
-                $query->whereDate('execution_date', '<=', $executionDateRange['to']);
+
+            if ($resolvedExecutionDateTo !== '') {
+                $query->whereDate('execution_date', '<=', $resolvedExecutionDateTo);
             }
         }
     }

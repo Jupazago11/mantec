@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+msg_file="$1"
+msg="$(cat "$msg_file")"
+
+if ! grep -qiE 'preflight|contexto|validated|validado' <<<"$msg"; then
+  echo "Commit bloqueado: el mensaje debe indicar que hubo preflight o validacion." >&2
+  echo "Incluye por ejemplo: [validated] o [preflight] en el commit message." >&2
+  exit 1
+fi

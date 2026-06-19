@@ -1,16 +1,118 @@
 ARRANCAR MANTEC EN LOCAL
 ========================
 
-1. Abrir Docker Desktop (Windows)
+ESTE PROYECTO USA POSTGRESQL LOCAL DEL HOST, NO EL CONTENEDOR pgsql DE SAIL.
+POR ESO NO SE DEBE EJECUTAR `./vendor/bin/sail up -d` COMPLETO SI EL PUERTO 5432
+YA ESTA OCUPADO POR POSTGRESQL LOCAL.
 
-2. En terminal WSL (Ubuntu):
-   cd ~/proyectos/Mantec
-   ./vendor/bin/sail up -d
+TERMINAL 1
+----------
+cd ~/Documentos/mantecv1/mantec
 
-3. En otra terminal WSL (Ubuntu) — dejar corriendo:
-   export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 && cd ~/proyectos/Mantec && npm run dev
+./vendor/bin/sail up -d redis meilisearch mailpit selenium
 
-4. Abrir: http://localhost:8080
+export NVM_DIR="/home/jupazago/.nvm"
+. /home/jupazago/.nvm/nvm.sh
+nvm use 22
 
-PARAR TODO:
-   ./vendor/bin/sail down
+npm run build
+rm -f public/hot
+
+TERMINAL 2
+----------
+cd ~/Documentos/mantecv1/mantec
+
+sudo service postgresql start
+psql -h 127.0.0.1 -U mantec_user -d mantec
+php artisan optimize:clear
+php artisan serve
+
+ABRIR EN NAVEGADOR
+------------------
+http://127.0.0.1:8000
+
+NOTAS IMPORTANTES
+-----------------
+1. NO usar `./vendor/bin/sail up -d` completo porque intentara levantar `pgsql`
+   y chocara con el PostgreSQL local en `127.0.0.1:5432`.
+2. NO usar `./vendor/bin/sail npm run build` porque `laravel.test` no es parte
+   del flujo local actual y puede no estar corriendo.
+3. Si `npm run dev` da problemas de Vite/HMR entre WSL y Windows, usar siempre:
+   `npm run build` + `rm -f public/hot`.
+4. El proyecto ya puede funcionar solo con assets compilados desde `public/build`.
+5. Si quieres volver a usar Vite en vivo, asegurate de arrancarlo con Node 22.
+
+PARAR TODO
+----------
+./vendor/bin/sail stop redis meilisearch mailpit selenium
+pkill -f "php artisan serve"
+
+COPIAR BASE DE RAILWAY A LOCAL
+------------------------------
+ESTE PROYECTO TIENE UN ENTORNO EN RAILWAY CON DATOS REALES DE PRUEBA.
+CUANDO SE QUIERA SINCRONIZAR LA BASE LOCAL CON ESE ENTORNO, USAR ESTE FLUJO.
+
+REQUISITOS
+1. Tener PostgreSQL local iniciado.
+2. Tener login de Railway activo: `~/.local/bin/railway login`
+3. Tener `pg_dump` y `psql` instalados en WSL.
+
+IDENTIFICACION DEL PROYECTO CORRECTO
+- Proyecto Railway: `amiable-passion`
+- Servicio app: `mantec`
+- Servicio base de datos: `Postgres`
+- Dominio validado: `mantecsas.com`
+
+RESPALDOS GENERADOS EN ESTE REPO
+- Carpeta: `backups/`
+- Backup local previo: `backups/local_pre_railway_sync_YYYY-MM-DD.dump`
+- Dump Railway custom: `backups/railway_mantec_YYYY-MM-DD.dump`
+- Dump Railway SQL: `backups/railway_mantec_YYYY-MM-DD.sql`
+- Dump Railway SQL limpio para restaurar: `backups/railway_mantec_YYYY-MM-DD_clean.sql`
+
+PASO 1. VERIFICAR LOGIN Y PROYECTO
+`~/.local/bin/railway whoami`
+`~/.local/bin/railway list --json`
+`~/.local/bin/railway domain list --project da43ca49-f6fa-45d3-9c47-876dd467437b --service mantec --environment production --json`
+
+PASO 2. OBTENER HOST/PUERTO PUBLICOS DEL POSTGRES
+`~/.local/bin/railway connect Postgres --project da43ca49-f6fa-45d3-9c47-876dd467437b --environment production --no-ssh`
+Luego, dentro de `psql`, ejecutar:
+`\conninfo`
+Actualmente devolvio:
+- Host: `hopper.proxy.rlwy.net`
+- Port: `31829`
+
+PASO 3. HACER BACKUP LOCAL PREVIO
+`PGPASSWORD='123456' pg_dump -h 127.0.0.1 -p 5432 -U mantec_user -d mantec -F c -f backups/local_pre_railway_sync_YYYY-MM-DD.dump`
+
+PASO 4. BAJAR DUMP DE RAILWAY
+FORMATO CUSTOM:
+`PGPASSWORD='BIrZZqsMOGAUFweDBNlaUGmEFPrVGrRu' pg_dump -h hopper.proxy.rlwy.net -p 31829 -U postgres -d railway -F c -f backups/railway_mantec_YYYY-MM-DD.dump`
+
+FORMATO SQL PLANO:
+`PGPASSWORD='BIrZZqsMOGAUFweDBNlaUGmEFPrVGrRu' pg_dump -h hopper.proxy.rlwy.net -p 31829 -U postgres -d railway -Fp > backups/railway_mantec_YYYY-MM-DD.sql`
+
+FORMATO SQL LIMPIO PARA RESTAURAR EN POSTGRESQL 16 LOCAL:
+`PGPASSWORD='BIrZZqsMOGAUFweDBNlaUGmEFPrVGrRu' pg_dump -h hopper.proxy.rlwy.net -p 31829 -U postgres -d railway -Fp --clean --if-exists --no-owner --no-privileges > backups/railway_mantec_YYYY-MM-DD_clean.sql`
+`sed -i '/^SET transaction_timeout = 0;$/d' backups/railway_mantec_YYYY-MM-DD_clean.sql`
+
+NOTA DE COMPATIBILIDAD
+El dump de Railway trae una linea `SET transaction_timeout = 0;` que PostgreSQL 16 local no reconoce.
+POR ESO HAY QUE ELIMINAR ESA LINEA ANTES DE RESTAURAR.
+
+PASO 5. RESTAURAR EN LOCAL
+`PGPASSWORD='123456' psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U mantec_user -d mantec -f backups/railway_mantec_YYYY-MM-DD_clean.sql`
+
+VALIDACION RAPIDA
+`PGPASSWORD='123456' psql -h 127.0.0.1 -p 5432 -U mantec_user -d mantec -Atc "select 'report_details=' || count(*) from report_details; select 'users=' || count(*) from users; select 'report_detail_files=' || count(*) from report_detail_files;"`
+
+VALIDACION REALIZADA EL 2026-06-19
+- `report_details=5203`
+- `users=42`
+- `report_detail_files=3049`
+
+OBSERVACIONES
+1. `reports` puede venir en `0` y eso no implica error; en este sistema gran parte del trabajo operativo esta en `report_details`.
+2. El usuario local `mantec_user` no pudo eliminar ni recrear la base completa; por eso la restauracion correcta fue SOBRE la base existente con `--clean --if-exists`.
+3. Si se quiere revertir el cambio local, usar el backup `local_pre_railway_sync_YYYY-MM-DD.dump`.

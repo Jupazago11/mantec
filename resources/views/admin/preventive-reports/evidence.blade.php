@@ -8,7 +8,15 @@
 </head>
 <body class="bg-slate-100 text-slate-900">
     @php
-        $canManageEvidence = in_array(auth()->user()?->role?->key, ['superadmin', 'admin_global', 'admin'], true);
+        $evidenceRoleKey = auth()->user()?->role?->key;
+        $canManageEvidenceSection = static function (string $kind) use ($evidenceRoleKey): bool {
+            if (in_array($evidenceRoleKey, ['superadmin', 'admin_global', 'admin'], true)) {
+                return true;
+            }
+
+            return $evidenceRoleKey === 'admin_cliente'
+                && $kind === \App\Models\ReportDetailFile::KIND_CORRECCION;
+        };
 
         $evidenceSections = [
             [
@@ -157,6 +165,7 @@
                     @foreach($evidenceSections as $section)
                         @php
                             $imageFiles = $section['files']->where('file_type', 'image')->values();
+                            $canManageSection = $canManageEvidenceSection($section['key']);
                         @endphp
 
                         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -171,7 +180,7 @@
                                     <p class="mt-1 text-xs text-slate-500">{{ $section['description'] }}</p>
                                 </div>
 
-                                @if($canManageEvidence)
+                                @if($canManageSection)
                                     <form
                                         method="POST"
                                         action="{{ route('admin.preventive-reports.evidence.store', $report) }}"
@@ -210,7 +219,7 @@
 
                                             <div class="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
                                                 <div class="relative w-full overflow-hidden bg-slate-100" style="padding-top: 75%;">
-                                                    @if($canManageEvidence)
+                                                    @if($canManageSection)
                                                         <button
                                                             type="button"
                                                             onclick="openDetachModal('{{ route('admin.report-evidence.destroy', $file) }}', @js($file->original_name))"
@@ -272,7 +281,7 @@
                                 @else
                                     <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
                                         <div>{{ $section['empty'] }}</div>
-                                        @if($canManageEvidence)
+                                        @if($canManageSection)
                                             <div class="mt-1 text-[11px] text-slate-400">
                                                 Puedes cargar archivos desde el panel superior de este bloque.
                                             </div>
@@ -331,7 +340,7 @@
         </button>
     </div>
 
-    @if($canManageEvidence)
+    @if($canManageSection)
         <div
             id="detachModal"
             class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/60 px-4"
@@ -464,13 +473,13 @@
         }
 
         function closeEvidenceTab() {
-            if (window.history.length > 1) {
+            try {
                 window.close();
-                window.history.back();
-                return;
+                window.open("", "_self");
+                window.close();
+            } catch (error) {
+                console.warn("No fue posible cerrar la pestaña automáticamente.", error);
             }
-
-            window.location.href = document.referrer || '/admin/dashboard';
         }
 
         function openDetachModal(action, fileName) {

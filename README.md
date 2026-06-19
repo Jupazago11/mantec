@@ -7,6 +7,20 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Mantec Agent Workflow
+
+Antes de modificar codigo en este proyecto, cualquier agente o desarrollador debe leer primero:
+
+- [AGENTS.md](AGENTS.md)
+- [ANALISIS_SISTEMA_LARAVEL.md](ANALISIS_SISTEMA_LARAVEL.md)
+- [ARRANCAR_LOCAL.txt](ARRANCAR_LOCAL.txt) cuando el cambio involucre entorno local, Railway, Sail, Vite, PostgreSQL o servicios.
+
+Ese flujo define el preflight obligatorio: contexto, alcance, riesgos, seguridad, pruebas y documentacion.
+
+La secuencia operativa obligatoria es: leer contexto, inspeccionar, definir alcance, implementar, autorizar y asegurar, probar, verificar interfaz, revisar efectos colaterales, documentar, revisar diff e informar resultado.
+
+Para endurecer el flujo del repositorio, usa tambien `CHANGE_REQUEST_TEMPLATE.md`, la plantilla de PR en `.github/PULL_REQUEST_TEMPLATE.md` y activa los hooks con `bash scripts/install-git-hooks.sh`.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
