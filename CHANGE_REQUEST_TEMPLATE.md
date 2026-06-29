@@ -82,3 +82,9 @@ El agente debe cerrar con este formato:
 No ocultar pruebas fallidas.
 No presentar exito parcial como exito completo.
 No omitir validaciones no ejecutadas.
+
+Mensajes de commit recomendados:
+- fix: corrige filtros de reportes
+- docs: actualiza contexto del proyecto
+- [validated] correcciones ok
+- [preflight] ajuste de evidencia

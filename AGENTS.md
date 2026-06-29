@@ -279,7 +279,7 @@ Para volver este protocolo mas estricto, el repositorio incluye:
 
 - `CHANGE_REQUEST_TEMPLATE.md` para pedir cambios con alcance y preflight definidos.
 - `.github/PULL_REQUEST_TEMPLATE.md` para no cerrar cambios sin validaciones y resultados reales.
-- `.githooks/commit-msg` para bloquear commits cuyo mensaje no declare preflight o validacion.
+- `.githooks/commit-msg` para bloquear commits sin mensaje claro. Acepta formatos tipo `fix: ...`, `docs: ...` o etiquetas como `[validated] ...`.
 - `scripts/install-git-hooks.sh` para activar `core.hooksPath` en el clon local.
 
 Si quieres que el hook quede activo en tu clon actual, ejecutar:

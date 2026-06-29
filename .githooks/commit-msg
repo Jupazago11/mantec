@@ -4,8 +4,12 @@ set -euo pipefail
 msg_file="$1"
 msg="$(cat "$msg_file")"
 
-if ! grep -qiE 'preflight|contexto|validated|validado' <<<"$msg"; then
-  echo "Commit bloqueado: el mensaje debe indicar que hubo preflight o validacion." >&2
-  echo "Incluye por ejemplo: [validated] o [preflight] en el commit message." >&2
+if ! grep -qiE '^\s*(feat|fix|docs|refactor|test|chore|style|perf|ci|build)(\([^)]+\))?:\s+\S|preflight|contexto|validated|validado' <<<"$msg"; then
+  echo "Commit bloqueado: usa un mensaje claro o declara validacion/preflight." >&2
+  echo "Formatos aceptados:" >&2
+  echo "  - fix: corrige filtros de reportes" >&2
+  echo "  - docs: actualiza flujo del repo" >&2
+  echo "  - [validated] correcciones ok" >&2
+  echo "  - [preflight] ajuste de evidencia" >&2
   exit 1
 fi

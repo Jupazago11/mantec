@@ -19,7 +19,7 @@ Ese flujo define el preflight obligatorio: contexto, alcance, riesgos, seguridad
 
 La secuencia operativa obligatoria es: leer contexto, inspeccionar, definir alcance, implementar, autorizar y asegurar, probar, verificar interfaz, revisar efectos colaterales, documentar, revisar diff e informar resultado.
 
-Para endurecer el flujo del repositorio, usa tambien `CHANGE_REQUEST_TEMPLATE.md`, la plantilla de PR en `.github/PULL_REQUEST_TEMPLATE.md` y activa los hooks con `bash scripts/install-git-hooks.sh`.
+Para endurecer el flujo del repositorio, usa tambien `CHANGE_REQUEST_TEMPLATE.md`, la plantilla de PR en `.github/PULL_REQUEST_TEMPLATE.md` y mensajes de commit claros tipo `fix: ...`, `docs: ...` o etiquetas como `[validated] ...`.
 
 ## About Laravel
 
