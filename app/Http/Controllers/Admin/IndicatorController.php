@@ -41,7 +41,26 @@ class IndicatorController extends Controller
         $groups = $this->getScopedGroups($user, $clients->pluck('id')->all());
         $elementTypeOptions = $this->buildElementTypeOptions($groups);
         $defaultScope = $this->resolveDefaultScope($user, $clients, $groups);
-        $defaultDateFrom = $this->resolveDefaultDateFrom($groups, $defaultScope);
+        $defaultWeekRange = $this->resolveDefaultWeekRange($groups, $defaultScope);
+
+        $currentIsoYear = (int) now()->isoWeekYear();
+        $accessibleElementIds = Element::whereIn('group_id', $groups->pluck('id'))
+            ->pluck('id')
+            ->all();
+
+        $availableYears = ReportDetail::where('status', true)
+            ->whereIn('element_id', $accessibleElementIds)
+            ->distinct()
+            ->orderBy('year', 'desc')
+            ->pluck('year')
+            ->map(fn ($y) => (int) $y)
+            ->filter(fn ($y) => $y > 0 && $y <= $currentIsoYear)
+            ->values()
+            ->all();
+
+        if (empty($availableYears)) {
+            $availableYears = [$currentIsoYear];
+        }
 
         return view('admin.indicators.index', [
             'clients' => $clients,
@@ -51,8 +70,12 @@ class IndicatorController extends Controller
             'roleKey' => $roleKey,
             'isReadOnly' => in_array($roleKey, ['observador', 'observador_cliente'], true),
             'canEditSemaphore' => $this->canEditSemaphore($roleKey),
-            'defaultDateFrom' => $defaultDateFrom,
-            'defaultDateTo' => now()->toDateString(),
+            'defaultYearFrom' => $defaultWeekRange['year_from'],
+            'defaultWeekFrom' => $defaultWeekRange['week_from'],
+            'defaultYearTo' => $defaultWeekRange['year_to'],
+            'defaultWeekTo' => $defaultWeekRange['week_to'],
+            'availableYears' => $availableYears,
+            'defaultYear' => $defaultWeekRange['year_to'],
             'dataRoute' => route('admin.indicators.data'),
             'semaphoreDataRoute' => route('admin.indicators.semaphore.data'),
             'semaphoreBeltChangeUpdateRoute' => route('admin.indicators.semaphore.belt-change.update'),
@@ -74,19 +97,26 @@ class IndicatorController extends Controller
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'element_type_id' => ['nullable', 'integer', 'exists:element_types,id'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'year_from' => ['nullable', 'integer', 'min:2020', 'max:2100'],
+            'week_from' => ['nullable', 'integer', 'min:1', 'max:53'],
+            'year_to' => ['nullable', 'integer', 'min:2020', 'max:2100'],
+            'week_to' => ['nullable', 'integer', 'min:1', 'max:53'],
         ]);
 
-        $dateFrom = Carbon::parse($validated['date_from'] ?? now()->startOfYear()->toDateString())->startOfDay();
-        $dateTo = Carbon::parse($validated['date_to'] ?? now()->toDateString())->endOfDay();
+        $yearFrom = (int) ($validated['year_from'] ?? now()->isoWeekYear());
+        $weekFrom = (int) ($validated['week_from'] ?? 1);
+        $yearTo = (int) ($validated['year_to'] ?? now()->isoWeekYear());
+        $weekTo = (int) ($validated['week_to'] ?? now()->isoWeek());
 
-        if ($dateFrom->gt($dateTo)) {
+        if ($yearFrom * 100 + $weekFrom > $yearTo * 100 + $weekTo) {
             return response()->json([
                 'success' => false,
-                'message' => 'La fecha inicial no puede ser mayor que la fecha final.',
+                'message' => 'La semana de inicio no puede ser posterior a la semana final.',
             ], 422);
         }
+
+        $dateFrom = Carbon::now()->setISODate($yearFrom, $weekFrom)->startOfWeek();
+        $dateTo = Carbon::now()->setISODate($yearTo, $weekTo)->endOfWeek();
 
         $clients = $this->getScopedClients($user);
         $clientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -170,6 +200,54 @@ class IndicatorController extends Controller
                 ->get();
         }
 
+        // Para gráficos de "estado actual": solo los detalles de la semana más reciente por activo.
+        $latestDetails = $this->buildLatestDetailsByElement($details);
+
+        // Si el rango no tiene datos, los gráficos usan el reporte más reciente del año seleccionado.
+        $rankingFallback = $latestDetails->isEmpty() && !empty($elementIds);
+        $rankingDetails = $latestDetails;
+
+        if ($rankingFallback) {
+            // Paso 1: semana más reciente por elemento dentro del año seleccionado (1 query rápida).
+            $maxWeekPerElement = DB::table('report_details')
+                ->where('status', true)
+                ->whereIn('element_id', $elementIds)
+                ->where('year', $yearTo)
+                ->select('element_id', DB::raw('MAX(week) AS max_week'))
+                ->groupBy('element_id')
+                ->pluck('max_week', 'element_id');
+
+            // Paso 2: colapsar por semana → (week=W AND element_id IN [...]) en vez de 132 ORs.
+            if ($maxWeekPerElement->isNotEmpty()) {
+                // Agrupar element_ids por su max_week para reducir las cláusulas OR.
+                $weekToElements = $maxWeekPerElement->groupBy(fn ($week) => $week);
+
+                $rankingDetails = $this->buildLatestDetailsByElement(
+                    ReportDetail::query()
+                        ->with([
+                            'element:id,name,group_id,element_type_id,area_id',
+                            'element.area:id,name',
+                            'element.elementType:id,name',
+                            'component:id,name',
+                            'diagnostic:id,name',
+                            'condition:id,code,name,description,severity,color',
+                        ])
+                        ->where('status', true)
+                        ->where('year', $yearTo)
+                        ->whereIn('element_id', $elementIds)
+                        ->where(function ($q) use ($weekToElements) {
+                            foreach ($weekToElements as $week => $elements) {
+                                $q->orWhere(fn ($s) => $s
+                                    ->where('week', (int) $week)
+                                    ->whereIn('element_id', $elements->keys()->all())
+                                );
+                            }
+                        })
+                        ->get()
+                );
+            }
+        }
+
         $inspectedElementIds = $details->pluck('element_id')->unique()->values();
 
         $totalElements = $elements->count();
@@ -179,8 +257,6 @@ class IndicatorController extends Controller
         $coverage = $totalElements > 0
             ? round(($inspectedElements / $totalElements) * 100, 1)
             : 0;
-
-        $preventiveReports = $this->countPreventiveReports($details);
 
         $uniqueElementTypeIds = $elements
             ->pluck('element_type_id')
@@ -194,24 +270,66 @@ class IndicatorController extends Controller
 
         $singleTypeMode = $selectedElementTypeId !== null || $uniqueElementTypeIds->count() === 1;
 
-        $severityDistribution = $this->buildSeverityDistribution($details);
-        $conditionDistribution = $this->buildConditionDistribution($details, $singleTypeMode);
+        $highFindings = $latestDetails
+            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 1)
+            ->count();
+        $mediumFindings = $latestDetails
+            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 2)
+            ->count();
+        $lowFindings = $latestDetails
+            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 3)
+            ->count();
+        $okFindings = $latestDetails
+            ->filter(fn ($d) => $d->condition !== null && (int) $d->condition->severity === 0)
+            ->count();
 
-        $reportsByWeek = $details
-            ->groupBy(fn ($detail) => "{$detail->year}-" . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT))
-            ->map(fn ($items, $key) => [
-                'label' => 'S' . substr($key, -2) . ' / ' . substr($key, 0, 4),
-                'total' => $this->countPreventiveReports($items),
-            ])
-            ->sortBy('label')
-            ->values();
+        $severityDistribution = $this->buildSeverityDistribution($rankingDetails);
+        $conditionDistribution = $this->buildConditionDistribution($rankingDetails, $singleTypeMode);
 
-        $weeklyAssetCoverage = $this->buildWeeklyAssetCoverage($elements, $details, $weekPairs);
+        $combinedWeeklyData = $this->buildCombinedWeeklyData($elements, $details, $weekPairs);
 
-        $summaryByElementType = $this->buildSummaryByElementType($elements, $details);
-        $areaDistribution = $this->buildAreaDistribution($elements, $details);
+        // En fallback: chart semanal YTD agregado en SQL (evita N+1 por condition.severity).
+        $combinedWeeklyDataYtd = collect();
+        if ($rankingFallback && !empty($elementIds)) {
+            $currentIsoWeek = (int) now()->isoWeek();
+            $maxYtdWeek = $yearTo === (int) now()->isoWeekYear() ? $currentIsoWeek : 53;
+            $totalElements = $elements->count();
 
-        $topElements = $details
+            $ytdAgg = DB::table('report_details as rd')
+                ->leftJoin('conditions as c', 'c.id', '=', 'rd.condition_id')
+                ->where('rd.status', true)
+                ->whereIn('rd.element_id', $elementIds)
+                ->where('rd.year', $yearTo)
+                ->where('rd.week', '<=', $maxYtdWeek)
+                ->select(
+                    'rd.week',
+                    DB::raw('COUNT(DISTINCT rd.element_id) AS inspected'),
+                    DB::raw('SUM(CASE WHEN c.severity IS NOT NULL AND CAST(c.severity AS INTEGER) > 0 THEN 1 ELSE 0 END) AS attention')
+                )
+                ->groupBy('rd.week')
+                ->orderBy('rd.week')
+                ->get()
+                ->keyBy('week');
+
+            $combinedWeeklyDataYtd = collect(range(1, $maxYtdWeek))->map(function (int $week) use ($yearTo, $ytdAgg, $totalElements) {
+                $row = $ytdAgg->get($week);
+                $inspected = (int) ($row?->inspected ?? 0);
+
+                return [
+                    'label'        => 'S' . str_pad((string) $week, 2, '0', STR_PAD_LEFT) . ' / ' . $yearTo,
+                    'year'         => $yearTo,
+                    'week'         => $week,
+                    'inspected'    => $inspected,
+                    'not_inspected' => max($totalElements - $inspected, 0),
+                    'coverage_pct' => $totalElements > 0 ? round(($inspected / $totalElements) * 100, 1) : 0,
+                    'attention'    => (int) ($row?->attention ?? 0),
+                ];
+            })->values();
+        }
+
+        $areaDistribution = $this->buildAreaDistribution($elements, $rankingDetails);
+
+        $topElements = $rankingDetails
             ->groupBy('element_id')
             ->map(function ($items) {
                 $first = $items->first();
@@ -230,7 +348,7 @@ class IndicatorController extends Controller
             })
             ->values();
 
-        $topComponents = $details
+        $topComponents = $rankingDetails
             ->groupBy('component_id')
             ->map(function ($items) {
                 $first = $items->first();
@@ -249,7 +367,7 @@ class IndicatorController extends Controller
             })
             ->values();
 
-        $topDiagnostics = $details
+        $topDiagnostics = $rankingDetails
             ->groupBy('diagnostic_id')
             ->map(function ($items) {
                 $first = $items->first();
@@ -264,7 +382,7 @@ class IndicatorController extends Controller
             ->take(10)
             ->values();
 
-        $topConditions = $details
+        $topConditions = $rankingDetails
             ->groupBy(function ($detail) {
                 return ($detail->element?->element_type_id ?: 'none') . '-' . ($detail->condition_id ?: 'none');
             })
@@ -293,50 +411,9 @@ class IndicatorController extends Controller
             ->take(10)
             ->values();
 
-        $pendingExecution = $details
-            ->filter(function ($detail) {
-                $statusName = mb_strtolower((string) ($detail->executionStatus?->name ?? ''));
-
-                if ($detail->execution_date) {
-                    return false;
-                }
-
-                if ($statusName === '') {
-                    return true;
-                }
-
-                if ($statusName === 'ok') {
-                    return false;
-                }
-
-                return !str_contains($statusName, 'ejecut');
-            })
-            ->count();
-
-        $doneExecution = $details
-            ->filter(function ($detail) {
-                $statusName = mb_strtolower((string) ($detail->executionStatus?->name ?? ''));
-
-                return str_contains($statusName, 'ejecut')
-                    || str_contains($statusName, 'realiz')
-                    || str_contains($statusName, 'finaliz')
-                    || $statusName === 'done';
-            })
-            ->count();
-
-        $okExecution = $details
-            ->filter(function ($detail) {
-                $statusName = mb_strtolower((string) ($detail->executionStatus?->name ?? ''));
-                $statusCode = mb_strtolower((string) ($detail->executionStatus?->code ?? ''));
-
-                return $statusName === 'ok' || $statusCode === 'ok';
-            })
-            ->count();
-
-        $executionTracked = $pendingExecution + $doneExecution + $okExecution;
-        $okExecutionRate = $details->count() > 0
-            ? round(($okExecution / $details->count()) * 100, 1)
-            : 0;
+        $currentYear = (int) now()->isoWeekYear();
+        $beltChangeAnnual = $this->buildBeltChangeAnnual($elementIds, $currentYear);
+        $securityAnnual = $this->buildSecurityAnnual($elementIds, $currentYear);
 
         return response()->json([
             'success' => true,
@@ -345,28 +422,30 @@ class IndicatorController extends Controller
                 'inspected_elements' => $inspectedElements,
                 'not_inspected_elements' => $notInspectedElements,
                 'coverage' => $coverage,
-                'preventive_reports' => $preventiveReports,
-                'total_findings' => $details->count(),
-                'attention_findings' => $this->countAttentionLike($details),
-                'ok_execution' => $okExecution,
-                'execution_tracked' => $executionTracked,
-                'ok_execution_rate' => $okExecutionRate,
+                'high_findings' => $highFindings,
+                'medium_findings' => $mediumFindings,
+                'low_findings' => $lowFindings,
+                'ok_findings' => $okFindings,
             ],
             'charts' => [
                 'mode' => $singleTypeMode ? 'condition' : 'severity',
+                'ranking_fallback' => $rankingFallback,
                 'severity_distribution' => $severityDistribution,
                 'condition_distribution' => $conditionDistribution,
-                'reports_by_week' => $reportsByWeek,
-                'weekly_asset_coverage' => $weeklyAssetCoverage,
-                'summary_by_element_type' => $summaryByElementType,
+                'combined_weekly_data' => $combinedWeeklyData,
+                'combined_weekly_data_ytd' => $combinedWeeklyDataYtd,
                 'top_elements' => $topElements,
                 'top_components' => $topComponents,
                 'top_diagnostics' => $topDiagnostics,
                 'top_conditions' => $topConditions,
                 'area_distribution' => $areaDistribution,
             ],
+            'annual' => [
+                'year' => $currentYear,
+                'belt_change' => $beltChangeAnnual,
+                'security' => $securityAnnual,
+            ],
             'tables' => [
-                'summary_by_element_type' => $summaryByElementType,
                 'top_elements' => $topElements,
                 'top_components' => $topComponents,
                 'top_diagnostics' => $topDiagnostics,
@@ -377,8 +456,10 @@ class IndicatorController extends Controller
                 'group_ids' => $groupIds,
                 'element_type_id' => $selectedElementTypeId,
                 'chart_mode' => $singleTypeMode ? 'condition' : 'severity',
-                'date_from' => $dateFrom->toDateString(),
-                'date_to' => $dateTo->toDateString(),
+                'year_from' => $yearFrom,
+                'week_from' => $weekFrom,
+                'year_to' => $yearTo,
+                'week_to' => $weekTo,
             ],
         ]);
     }
@@ -890,45 +971,208 @@ class IndicatorController extends Controller
             ->all();
     }
 
-    private function resolveDefaultDateFrom(Collection $groups, array $defaultScope): string
+    private function resolveDefaultWeekRange(Collection $groups, array $defaultScope): array
     {
         $currentYear = (int) now()->isoWeekYear();
+        $currentWeek = (int) now()->isoWeek();
 
-        $groupIds = collect();
+        return [
+            'year_from' => $currentYear,
+            'week_from' => $currentWeek,
+            'year_to'   => $currentYear,
+            'week_to'   => $currentWeek,
+            'min_data_year' => $currentYear - 1,
+        ];
+    }
 
-        if (!empty($defaultScope['group_id'])) {
-            $groupIds->push((int) $defaultScope['group_id']);
+    private function buildLatestDetailsByElement(Collection $details): Collection
+    {
+        if ($details->isEmpty()) {
+            return collect();
         }
 
-        $groupIds = $groupIds
-            ->merge($groups->pluck('id')->map(fn ($id) => (int) $id))
-            ->filter()
-            ->unique()
+        return $details
+            ->groupBy('element_id')
+            ->flatMap(function (Collection $elementDetails) {
+                $maxScore = $elementDetails->max(
+                    fn ($d) => (int) $d->year * 54 + (int) $d->week
+                );
+
+                return $elementDetails->filter(
+                    fn ($d) => (int) $d->year * 54 + (int) $d->week === $maxScore
+                );
+            })
             ->values();
+    }
 
-        foreach ($groupIds as $groupId) {
-            $elementIds = $this->elementIdsForGroups([(int) $groupId]);
+    private function buildCombinedWeeklyData(Collection $elements, Collection $details, array $weekPairs): Collection
+    {
+        $totalElements = $elements->count();
 
-            if (empty($elementIds)) {
+        return collect($weekPairs)
+            ->map(function ($pair) use ($details, $totalElements) {
+                $weekDetails = $details
+                    ->where('year', $pair['year'])
+                    ->where('week', $pair['week']);
+
+                $inspected = $weekDetails
+                    ->pluck('element_id')
+                    ->filter()
+                    ->unique()
+                    ->count();
+
+                return [
+                    'label' => 'S' . str_pad((string) $pair['week'], 2, '0', STR_PAD_LEFT) . ' / ' . $pair['year'],
+                    'year' => $pair['year'],
+                    'week' => $pair['week'],
+                    'inspected' => $inspected,
+                    'not_inspected' => max($totalElements - $inspected, 0),
+                    'coverage_pct' => $totalElements > 0
+                        ? round(($inspected / $totalElements) * 100, 1)
+                        : 0,
+                    'attention' => $this->countAttentionLike($weekDetails),
+                ];
+            })
+            ->values();
+    }
+
+    private function buildBeltChangeAnnual(array $elementIds, int $year): array
+    {
+        if (empty($elementIds)) {
+            return ['yes' => 0, 'no' => 0, 'na' => 0, 'total' => 0];
+        }
+
+        // Fuente 1: overrides manuales — último por elemento en el año (Eloquent → casts correctos).
+        $overrides = SemaphoreBeltChange::query()
+            ->whereIn('element_id', $elementIds)
+            ->where('year', $year)
+            ->orderByRaw('year * 54 + week DESC')
+            ->get(['element_id', 'year', 'week', 'is_belt_change', 'updated_at'])
+            ->groupBy('element_id')
+            ->map(fn ($rows) => $rows->first()); // ya ordenado DESC → el primero es el más reciente
+
+        // Fuente 2: reporte de inspector (component=Banda, diagnostic=Estado) — el mismo filtro
+        // que usa buildSemaphoreChangeBelt. Último registro por elemento en el año.
+        $inspectorReports = ReportDetail::query()
+            ->where('report_details.status', true)
+            ->whereIn('report_details.element_id', $elementIds)
+            ->where('report_details.year', $year)
+            ->whereNotNull('report_details.is_belt_change')
+            ->whereHas('component', fn ($q) => $q->whereRaw("LOWER(TRIM(name)) = 'banda'"))
+            ->whereHas('diagnostic', fn ($q) => $q->whereRaw("LOWER(TRIM(name)) = 'estado'"))
+            ->orderByRaw('report_details.year * 54 + report_details.week DESC')
+            ->get(['report_details.element_id', 'report_details.is_belt_change',
+                   'report_details.year', 'report_details.week', 'report_details.updated_at'])
+            ->groupBy('element_id')
+            ->map(fn ($rows) => $rows->first());
+
+        $yes = 0;
+        $no  = 0;
+        $na  = 0;
+
+        foreach ($elementIds as $elementId) {
+            $override = $overrides->get($elementId);
+            $report   = $inspectorReports->get($elementId);
+
+            if ($override === null && $report === null) {
+                $na++;
                 continue;
             }
 
-            $firstReport = ReportDetail::query()
-                ->where('status', true)
-                ->whereIn('element_id', $elementIds)
-                ->where('year', $currentYear)
-                ->orderBy('week')
-                ->first(['year', 'week']);
+            // Replica la lógica de buildSemaphoreChangeBelt:
+            // El reporte del inspector gana si es más reciente que el override (por updated_at).
+            $hasFreshReport = $override !== null
+                && $report !== null
+                && optional($report->updated_at)->gt($override->updated_at);
 
-            if ($firstReport) {
-                return Carbon::now()
-                    ->setISODate((int) $firstReport->year, (int) $firstReport->week)
-                    ->startOfWeek()
-                    ->toDateString();
+            $useOverride = $override !== null && !$hasFreshReport;
+
+            $hasChange = $useOverride
+                ? (bool) $override->is_belt_change
+                : (bool) $report->is_belt_change;
+
+            if ($hasChange) {
+                $yes++;
+            } else {
+                $no++;
             }
         }
 
-        return now()->startOfYear()->toDateString();
+        return [
+            'yes'   => $yes,
+            'no'    => $no,
+            'na'    => $na,
+            'total' => count($elementIds),
+        ];
+    }
+
+    private function buildSecurityAnnual(array $elementIds, int $year): array
+    {
+        if (empty($elementIds)) {
+            return ['ok' => 0, 'novedad' => 0, 'na' => 0, 'total' => 0];
+        }
+
+        $safetyNormalized = ['guardas de seguridad', 'cubiertas', 'plataforma y estructura'];
+
+        $annualDetails = ReportDetail::query()
+            ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,severity'])
+            ->where('status', true)
+            ->whereIn('element_id', $elementIds)
+            ->where('year', $year)
+            ->get();
+
+        $safetyDetails = $annualDetails->filter(function ($detail) use ($safetyNormalized) {
+            return in_array(
+                $this->normalizeSemaphoreText($detail->component?->name),
+                $safetyNormalized,
+                true
+            ) && $this->normalizeSemaphoreText($detail->diagnostic?->name) === 'estado';
+        });
+
+        $ok = 0;
+        $novedad = 0;
+        $na = 0;
+
+        foreach ($elementIds as $elementId) {
+            $elementDetails = $safetyDetails->where('element_id', $elementId);
+
+            if ($elementDetails->isEmpty()) {
+                $na++;
+                continue;
+            }
+
+            $worstSeverity = 0;
+
+            foreach ($safetyNormalized as $componentName) {
+                $componentDetails = $elementDetails->filter(
+                    fn ($d) => $this->normalizeSemaphoreText($d->component?->name) === $componentName
+                );
+
+                if ($componentDetails->isEmpty()) {
+                    continue;
+                }
+
+                $maxScore = $componentDetails->max(fn ($d) => (int) $d->year * 54 + (int) $d->week);
+                $latest = $componentDetails
+                    ->filter(fn ($d) => (int) $d->year * 54 + (int) $d->week === $maxScore)
+                    ->first();
+
+                $worstSeverity = max($worstSeverity, (int) ($latest?->condition?->severity ?? 0));
+            }
+
+            if ($worstSeverity > 0) {
+                $novedad++;
+            } else {
+                $ok++;
+            }
+        }
+
+        return [
+            'ok' => $ok,
+            'novedad' => $novedad,
+            'na' => $na,
+            'total' => count($elementIds),
+        ];
     }
 
     private function countPreventiveReports(Collection $details): int

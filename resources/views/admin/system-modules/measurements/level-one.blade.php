@@ -104,7 +104,7 @@
                                                         </th>
 
                                                         <th class="min-w-[185px] border border-[#3f67a8] px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wider">
-                                                            Índice de medición de bandas
+                                                            Descripción banda
                                                         </th>
                                                     </tr>
                                                 </thead>
@@ -274,6 +274,18 @@
                     <div class="flex items-center gap-2">
                         <button
                             type="button"
+                            x-show="areaSummaryItems.some(i => !i.show_in_summary)"
+                            x-cloak
+                            @click="showHiddenSummary = !showHiddenSummary; $nextTick(() => { if (window.lucide) window.lucide.createIcons(); })"
+                            class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                            :title="showHiddenSummary ? 'Ocultar los excluidos' : 'Ver activos excluidos del resumen'"
+                        >
+                            <i :data-lucide="showHiddenSummary ? 'eye-off' : 'eye'" class="h-4 w-4"></i>
+                            <span x-text="showHiddenSummary ? 'Ocultar excluidos' : 'Ver excluidos (' + areaSummaryItems.filter(i => !i.show_in_summary).length + ')'"></span>
+                        </button>
+
+                        <button
+                            type="button"
                             @click="closeAreaSummary()"
                             class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
@@ -306,113 +318,94 @@
                 </template>
 
                 <template x-if="!areaSummaryLoading && !areaSummaryError && areaSummaryItems.length > 0">
-                    <div class="grid gap-4 xl:grid-cols-2">
-                        <template x-for="item in areaSummaryItems" :key="'area-summary-item-' + item.id">
-                            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                <table class="w-full border-collapse text-xs md:text-sm">
-                                    <tbody>
-                                        <tr class="bg-[#4f79bd] text-white">
-                                            <th class="w-[150px] border border-[#3f67a8] px-3 py-2 text-center font-extrabold">
-                                                <a
-                                                    :href="item.url"
-                                                    class="inline-flex items-center justify-center rounded-lg bg-white/15 px-3 py-1 text-white transition hover:bg-white/25"
-                                                    x-text="item.name"
-                                                ></a>
-                                            </th>
+                    <div class="space-y-4">
+                        {{-- Tarjetas visibles --}}
+                        <div class="grid gap-4 xl:grid-cols-2">
+                            <template x-for="item in areaSummaryItems.filter(i => i.show_in_summary)" :key="'summary-vis-' + item.id">
+                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <table class="w-full border-collapse text-xs md:text-sm">
+                                        <tbody>
+                                            <tr class="bg-[#4f79bd] text-white">
+                                                <th class="w-[150px] border border-[#3f67a8] px-3 py-2 text-center font-extrabold">
+                                                    <a
+                                                        :href="item.url"
+                                                        class="inline-flex items-center justify-center rounded-lg bg-white/15 px-3 py-1 text-white transition hover:bg-white/25"
+                                                        x-text="item.name"
+                                                    ></a>
+                                                </th>
+                                                <th class="border border-[#3f67a8] px-3 py-2 text-center font-extrabold">Cubierta superior</th>
+                                                <th class="border border-[#3f67a8] px-3 py-2 text-center font-extrabold">Cubierta inferior</th>
+                                                <th class="w-[90px] border border-[#3f67a8] px-3 py-2 text-center font-extrabold">Dureza</th>
+                                                <th class="w-[40px] border border-[#3f67a8] px-1 py-2 text-center">
+                                                    <button
+                                                        type="button"
+                                                        @click="toggleElementSummaryVisibility(item)"
+                                                        title="Excluir del resumen"
+                                                        class="inline-flex items-center justify-center rounded p-1 text-white/70 transition hover:bg-white/20 hover:text-white"
+                                                    >
+                                                        <i data-lucide="eye" class="h-3.5 w-3.5"></i>
+                                                    </button>
+                                                </th>
+                                            </tr>
 
-                                            <th class="border border-[#3f67a8] px-3 py-2 text-center font-extrabold">
-                                                Cubierta superior
-                                            </th>
+                                            <tr class="bg-white">
+                                                <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">Especificación</th>
+                                                <td class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900" x-text="formatValue(item.top_specification)"></td>
+                                                <td class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900" x-text="formatValue(item.bottom_specification)"></td>
+                                                <td class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900" x-text="formatValue(item.hardness_specification)"></td>
+                                                <td class="border border-slate-200 bg-slate-100"></td>
+                                            </tr>
 
-                                            <th class="border border-[#3f67a8] px-3 py-2 text-center font-extrabold">
-                                                Cubierta inferior
-                                            </th>
+                                            <tr class="bg-white">
+                                                <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">Medición</th>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-900" x-text="formatValue(item.top_measurement)"></td>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-900" x-text="formatValue(item.bottom_measurement)"></td>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-400">—</td>
+                                                <td class="border border-slate-200"></td>
+                                            </tr>
 
-                                            <th class="w-[120px] border border-[#3f67a8] px-3 py-2 text-center font-extrabold">
-                                                Dureza
-                                            </th>
-                                        </tr>
+                                            <tr class="bg-slate-50/70">
+                                                <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">Porcentaje</th>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-extrabold" :class="percentageClass(item.top_percentage)" x-text="formatPercentage(item.top_percentage)"></td>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-extrabold" :class="percentageClass(item.bottom_percentage)" x-text="formatPercentage(item.bottom_percentage)"></td>
+                                                <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-400">—</td>
+                                                <td class="border border-slate-200"></td>
+                                            </tr>
 
-                                        <tr class="bg-white">
-                                            <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">
-                                                Especificación
-                                            </th>
+                                            <tr class="bg-white">
+                                                <td colspan="5" class="border border-slate-200 px-3 py-2">
+                                                    <div class="flex flex-wrap justify-end gap-2 text-[11px] font-semibold text-slate-500">
+                                                        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1">
+                                                            Espesores: <span class="ml-1 text-slate-700" x-text="item.thickness_report_date || 'Sin reporte'"></span>
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
 
-                                            <td
-                                                class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
-                                                x-text="formatValue(item.top_specification)"
-                                            ></td>
-
-                                            <td
-                                                class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
-                                                x-text="formatValue(item.bottom_specification)"
-                                            ></td>
-
-                                            <td
-                                                class="border border-slate-200 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
-                                                x-text="formatValue(item.hardness_specification)"
-                                            ></td>
-                                        </tr>
-
-                                        <tr class="bg-white">
-                                            <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">
-                                                Medición
-                                            </th>
-
-                                            <td
-                                                class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                x-text="formatValue(item.top_measurement)"
-                                            ></td>
-
-                                            <td
-                                                class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-900"
-                                                x-text="formatValue(item.bottom_measurement)"
-                                            ></td>
-
-                                            <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-400">
-                                                —
-                                            </td>
-                                        </tr>
-
-                                        <tr class="bg-slate-50/70">
-                                            <th class="border border-slate-200 bg-slate-50 px-3 py-2 text-center font-extrabold text-slate-800">
-                                                Porcentaje
-                                            </th>
-
-                                            <td
-                                                class="border border-slate-200 px-3 py-2 text-center font-extrabold"
-                                                :class="percentageClass(item.top_percentage)"
-                                                x-text="formatPercentage(item.top_percentage)"
-                                            ></td>
-
-                                            <td
-                                                class="border border-slate-200 px-3 py-2 text-center font-extrabold"
-                                                :class="percentageClass(item.bottom_percentage)"
-                                                x-text="formatPercentage(item.bottom_percentage)"
-                                            ></td>
-
-                                            <td class="border border-slate-200 px-3 py-2 text-center font-semibold text-slate-400">
-                                                —
-                                            </td>
-                                        </tr>
-
-                                        <tr class="bg-white">
-                                            <td colspan="4" class="border border-slate-200 px-3 py-2">
-                                                <div class="flex flex-wrap justify-end gap-2 text-[11px] font-semibold text-slate-500">
-                                                    <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1">
-                                                        Informe estado:
-                                                        <span class="ml-1 text-slate-700" x-text="item.band_state_report_date || 'Sin reporte'"></span>
-                                                    </span>
-
-                                                    <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1">
-                                                        Espesores:
-                                                        <span class="ml-1 text-slate-700" x-text="item.thickness_report_date || 'Sin reporte'"></span>
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        {{-- Activos excluidos (solo cuando showHiddenSummary) --}}
+                        <template x-if="showHiddenSummary && areaSummaryItems.some(i => !i.show_in_summary)">
+                            <div>
+                                <p class="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Excluidos del resumen</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="item in areaSummaryItems.filter(i => !i.show_in_summary)" :key="'summary-hid-' + item.id">
+                                        <div class="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-500">
+                                            <a :href="item.url" class="text-[#4f79bd] hover:underline" x-text="item.name"></a>
+                                            <button
+                                                type="button"
+                                                @click="toggleElementSummaryVisibility(item)"
+                                                title="Incluir en el resumen"
+                                                class="inline-flex items-center justify-center rounded p-0.5 text-slate-400 transition hover:text-[#4f79bd]"
+                                            >
+                                                <i data-lucide="eye-off" class="h-3.5 w-3.5"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </template>
                     </div>
@@ -431,6 +424,7 @@
             areaSummaryError: null,
             selectedArea: null,
             areaSummaryItems: [],
+            showHiddenSummary: false,
 
             async openAreaSummary(area) {
                 if (!area || !area.id || !area.elementTypeId) {
@@ -488,6 +482,29 @@
                 this.areaSummaryError = null;
                 this.areaSummaryItems = [];
                 this.selectedArea = null;
+                this.showHiddenSummary = false;
+            },
+
+            async toggleElementSummaryVisibility(item) {
+                try {
+                    const response = await fetch(item.toggle_summary_url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        item.show_in_summary = data.show_in_summary;
+                    }
+                } catch (e) {
+                    // silencioso — el estado local no cambia si falla
+                }
+
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
             },
 
             formatValue(value) {

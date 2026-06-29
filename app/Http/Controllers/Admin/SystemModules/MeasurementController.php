@@ -176,7 +176,7 @@ class MeasurementController extends Controller
             ->where('status', true)
             ->whereHas('area', fn ($query) => $query->where('status', true))
             ->orderBy('name')
-            ->get(['id', 'area_id', 'element_type_id', 'name', 'status']);
+            ->get(['id', 'area_id', 'element_type_id', 'name', 'status', 'show_in_measurements_summary']);
 
         if ($elements->isEmpty()) {
             return response()->json([
@@ -256,12 +256,14 @@ class MeasurementController extends Controller
             ]);
 
             return [
-                'id' => $element->id,
+                'id'   => $element->id,
                 'name' => $element->name,
-                'url' => route('admin.system-modules.measurements.show', $element->id),
+                'url'  => route('admin.system-modules.measurements.show', $element->id),
+                'show_in_summary'        => (bool) $element->show_in_measurements_summary,
+                'toggle_summary_url'     => route('admin.system-modules.measurements.toggle-summary-visibility', $element->id),
 
                 'band_state_report_date' => optional($bandState?->report_date)?->format('Y-m-d'),
-                'thickness_report_date' => optional($thickness?->report_date)?->format('Y-m-d'),
+                'thickness_report_date'  => optional($thickness?->report_date)?->format('Y-m-d'),
 
                 'top_specification' => $this->formatDecimalForJson($topSpecification),
                 'bottom_specification' => $this->formatDecimalForJson($bottomSpecification),
@@ -284,6 +286,23 @@ class MeasurementController extends Controller
                 'element_type_name' => $firstElement->elementType?->name,
             ],
             'items' => $items,
+        ]);
+    }
+
+    public function toggleSummaryVisibility(int $element): JsonResponse
+    {
+        $user = auth()->user();
+        abort_unless($user, 403);
+        abort_unless($user->canViewSystemModule('mediciones'), 403);
+
+        $el = Element::query()->where('status', true)->findOrFail($element);
+
+        $el->show_in_measurements_summary = ! $el->show_in_measurements_summary;
+        $el->save();
+
+        return response()->json([
+            'success'        => true,
+            'show_in_summary' => $el->show_in_measurements_summary,
         ]);
     }
 

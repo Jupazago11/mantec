@@ -14,10 +14,12 @@ class Element extends Model
         'code',
         'warehouse_code',
         'status',
+        'show_in_measurements_summary',
     ];
 
     protected $casts = [
-        'status' => 'boolean',
+        'status'                       => 'boolean',
+        'show_in_measurements_summary' => 'boolean',
     ];
 
     public function area()

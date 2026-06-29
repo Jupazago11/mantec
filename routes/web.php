@@ -255,6 +255,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/system-modules/measurements/level-one/areas/{area}/summary', [MeasurementController::class, 'areaSummary'])
         ->whereNumber('area')
         ->name('system-modules.measurements.level-one.area-summary');
+
+    Route::patch('/system-modules/measurements/{element}/toggle-summary-visibility', [MeasurementController::class, 'toggleSummaryVisibility'])
+        ->whereNumber('element')
+        ->name('system-modules.measurements.toggle-summary-visibility');
     
 
 
