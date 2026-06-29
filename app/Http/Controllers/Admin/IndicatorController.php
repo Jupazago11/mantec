@@ -412,7 +412,8 @@ class IndicatorController extends Controller
             ->values();
 
         $currentYear = (int) now()->isoWeekYear();
-        $beltChangeAnnual = $this->buildBeltChangeAnnual($elementIds, $currentYear);
+        $elementNameMap = $elements->pluck('name', 'id');
+        $beltChangeAnnual = $this->buildBeltChangeAnnual($elementIds, $currentYear, $elementNameMap);
         $securityAnnual = $this->buildSecurityAnnual($elementIds, $currentYear);
 
         return response()->json([
@@ -1036,10 +1037,10 @@ class IndicatorController extends Controller
             ->values();
     }
 
-    private function buildBeltChangeAnnual(array $elementIds, int $year): array
+    private function buildBeltChangeAnnual(array $elementIds, int $year, ?Collection $elementNames = null): array
     {
         if (empty($elementIds)) {
-            return ['yes' => 0, 'no' => 0, 'na' => 0, 'total' => 0];
+            return ['yes' => 0, 'no' => 0, 'na' => 0, 'total' => 0, 'yes_names' => []];
         }
 
         // Fuente 1: overrides manuales — último por elemento en el año (Eloquent → casts correctos).
@@ -1066,9 +1067,10 @@ class IndicatorController extends Controller
             ->groupBy('element_id')
             ->map(fn ($rows) => $rows->first());
 
-        $yes = 0;
-        $no  = 0;
-        $na  = 0;
+        $yes      = 0;
+        $no       = 0;
+        $na       = 0;
+        $yesNames = [];
 
         foreach ($elementIds as $elementId) {
             $override = $overrides->get($elementId);
@@ -1093,16 +1095,20 @@ class IndicatorController extends Controller
 
             if ($hasChange) {
                 $yes++;
+                $yesNames[] = $elementNames?->get($elementId) ?? "ID $elementId";
             } else {
                 $no++;
             }
         }
 
+        sort($yesNames);
+
         return [
-            'yes'   => $yes,
-            'no'    => $no,
-            'na'    => $na,
-            'total' => count($elementIds),
+            'yes'       => $yes,
+            'no'        => $no,
+            'na'        => $na,
+            'total'     => count($elementIds),
+            'yes_names' => $yesNames,
         ];
     }
 

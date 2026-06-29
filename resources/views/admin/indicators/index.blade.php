@@ -267,9 +267,13 @@
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <h4 class="mb-4 text-sm font-bold text-slate-800">Cambio de banda</h4>
                         <div class="grid grid-cols-3 gap-3">
-                            <div class="rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
+                            <div id="belt_yes_card" class="relative cursor-default rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
                                 <p id="annual_belt_yes" class="text-2xl font-bold text-orange-700">0</p>
                                 <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-orange-600">Sí requiere</p>
+                                <div id="belt_yes_tooltip" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-orange-200 bg-white p-3 text-left shadow-lg">
+                                    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-orange-500">Activos</p>
+                                    <ul id="belt_yes_tooltip_list" class="space-y-0.5 text-xs text-slate-700"></ul>
+                                </div>
                             </div>
                             <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
                                 <p id="annual_belt_no" class="text-2xl font-bold text-green-700">0</p>
@@ -562,6 +566,21 @@
             filterGroupsByClient();
             filterElementTypes();
             loadIndicators();
+
+            // Tooltip hover para "SÍ REQUIERE" de cambio de banda.
+            const beltYesCard    = document.getElementById('belt_yes_card');
+            const beltYesTooltip = document.getElementById('belt_yes_tooltip');
+            if (beltYesCard && beltYesTooltip) {
+                beltYesCard.addEventListener('mouseenter', () => {
+                    const list = document.getElementById('belt_yes_tooltip_list');
+                    if (list && list.children.length > 0) {
+                        beltYesTooltip.classList.remove('hidden');
+                    }
+                });
+                beltYesCard.addEventListener('mouseleave', () => {
+                    beltYesTooltip.classList.add('hidden');
+                });
+            }
 
             if (window.lucide) {
                 window.lucide.createIcons();
@@ -1723,6 +1742,16 @@
             setText('annual_security_novedad',    security.novedad ?? 0);
             setText('annual_security_na',         security.na      ?? 0);
             setText('annual_security_total',      security.total   ?? 0);
+
+            const list = document.getElementById('belt_yes_tooltip_list');
+            const card = document.getElementById('belt_yes_card');
+            const names = belt.yes_names || [];
+            if (list) {
+                list.innerHTML = names.map(n => `<li>${n}</li>`).join('');
+            }
+            if (card) {
+                card.style.cursor = names.length > 0 ? 'pointer' : 'default';
+            }
         }
 
         function shiftIsoWeek(year, week, offset) {
