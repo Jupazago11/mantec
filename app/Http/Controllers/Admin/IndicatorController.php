@@ -208,19 +208,20 @@ class IndicatorController extends Controller
         $rankingDetails = $latestDetails;
 
         if ($rankingFallback) {
-            // Paso 1: semana más reciente por elemento dentro del año seleccionado (1 query rápida).
-            $maxWeekPerElement = DB::table('report_details')
+            // Paso 1: score (year*54+week) más reciente por elemento, en cualquier año.
+            // No se limita a $yearTo: un área cuyo último reporte sea de un año anterior
+            // debe seguir apareciendo como "último reporte disponible".
+            $maxScorePerElement = DB::table('report_details')
                 ->where('status', true)
                 ->whereIn('element_id', $elementIds)
-                ->where('year', $yearTo)
-                ->select('element_id', DB::raw('MAX(week) AS max_week'))
+                ->select('element_id', DB::raw('MAX(year * 54 + week) AS max_score'))
                 ->groupBy('element_id')
-                ->pluck('max_week', 'element_id');
+                ->pluck('max_score', 'element_id');
 
-            // Paso 2: colapsar por semana → (week=W AND element_id IN [...]) en vez de 132 ORs.
-            if ($maxWeekPerElement->isNotEmpty()) {
-                // Agrupar element_ids por su max_week para reducir las cláusulas OR.
-                $weekToElements = $maxWeekPerElement->groupBy(fn ($week) => $week);
+            // Paso 2: colapsar por score → (year*54+week=S AND element_id IN [...]) en vez de 132 ORs.
+            if ($maxScorePerElement->isNotEmpty()) {
+                // preserveKeys=true mantiene element_id como clave en cada sub-colección.
+                $scoreToElements = $maxScorePerElement->groupBy(fn ($score) => $score, true);
 
                 $rankingDetails = $this->buildLatestDetailsByElement(
                     ReportDetail::query()
@@ -233,12 +234,11 @@ class IndicatorController extends Controller
                             'condition:id,code,name,description,severity,color',
                         ])
                         ->where('status', true)
-                        ->where('year', $yearTo)
                         ->whereIn('element_id', $elementIds)
-                        ->where(function ($q) use ($weekToElements) {
-                            foreach ($weekToElements as $week => $elements) {
+                        ->where(function ($q) use ($scoreToElements) {
+                            foreach ($scoreToElements as $score => $elements) {
                                 $q->orWhere(fn ($s) => $s
-                                    ->where('week', (int) $week)
+                                    ->whereRaw('year * 54 + week = ?', [(int) $score])
                                     ->whereIn('element_id', $elements->keys()->all())
                                 );
                             }

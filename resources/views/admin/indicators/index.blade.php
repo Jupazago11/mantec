@@ -1959,7 +1959,8 @@
             const valueKey = isCount ? 'attention' : 'attention_rate';
             const label = isCount ? 'Cantidad' : 'Atención %';
 
-            renderHorizontalChart('componentChart', 'componentChart', rows, 'name', [valueKey], [label]);
+            const sorted = [...rows].sort((a, b) => (b[valueKey] ?? 0) - (a[valueKey] ?? 0));
+            renderHorizontalChart('componentChart', 'componentChart', sorted, 'name', [valueKey], [label]);
 
             const rateBtn  = document.getElementById('component_mode_rate');
             const countBtn = document.getElementById('component_mode_count');
