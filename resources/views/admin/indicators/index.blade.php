@@ -278,7 +278,7 @@
                                 <div id="belt_yes_card" class="relative cursor-default rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
                                     <p id="annual_belt_yes" class="text-2xl font-bold text-orange-700">0</p>
                                     <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-orange-600">Sí requiere</p>
-                                    <div id="belt_yes_tooltip" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-orange-200 bg-white p-3 text-left shadow-lg">
+                                    <div id="belt_yes_tooltip" class="pointer-events-none fixed z-[9999] hidden w-max max-w-[220px] rounded-xl border border-orange-200 bg-white p-3 text-left shadow-lg">
                                         <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-orange-500">Activos</p>
                                         <ul id="belt_yes_tooltip_list" class="space-y-0.5 text-xs text-slate-700"></ul>
                                     </div>
@@ -617,9 +617,23 @@
             if (beltYesCard && beltYesTooltip) {
                 beltYesCard.addEventListener('mouseenter', () => {
                     const list = document.getElementById('belt_yes_tooltip_list');
-                    if (list && list.children.length > 0) {
-                        beltYesTooltip.classList.remove('hidden');
-                    }
+                    if (!list || list.children.length === 0) return;
+
+                    // Mostrar primero para poder medir dimensiones reales.
+                    beltYesTooltip.classList.remove('hidden');
+                    const cardRect = beltYesCard.getBoundingClientRect();
+                    const tipRect  = beltYesTooltip.getBoundingClientRect();
+
+                    // Posicionar encima del card, centrado horizontalmente.
+                    let top  = cardRect.top - tipRect.height - 8;
+                    let left = cardRect.left + cardRect.width / 2 - tipRect.width / 2;
+
+                    // Evitar salirse de la pantalla.
+                    if (top < 8) top = cardRect.bottom + 8;
+                    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+
+                    beltYesTooltip.style.top  = `${top}px`;
+                    beltYesTooltip.style.left = `${left}px`;
                 });
                 beltYesCard.addEventListener('mouseleave', () => {
                     beltYesTooltip.classList.add('hidden');
