@@ -265,46 +265,86 @@
                 <div class="grid gap-4 lg:grid-cols-2">
                     {{-- Cambio de banda --}}
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 class="mb-4 text-sm font-bold text-slate-800">Cambio de banda</h4>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div id="belt_yes_card" class="relative cursor-default rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
-                                <p id="annual_belt_yes" class="text-2xl font-bold text-orange-700">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-orange-600">Sí requiere</p>
-                                <div id="belt_yes_tooltip" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-orange-200 bg-white p-3 text-left shadow-lg">
-                                    <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-orange-500">Activos</p>
-                                    <ul id="belt_yes_tooltip_list" class="space-y-0.5 text-xs text-slate-700"></ul>
+                        <div class="mb-4 flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-slate-800">Cambio de banda</h4>
+                            <button type="button" id="belt_chart_eye" onclick="toggleAnnualChart('belt')"
+                                class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                                title="Ver distribución por condición">
+                                <i data-lucide="eye" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                        <div id="belt_counters_wrap" style="overflow:hidden;transition:opacity .3s ease,max-height .35s ease;max-height:300px;opacity:1;">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div id="belt_yes_card" class="relative cursor-default rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
+                                    <p id="annual_belt_yes" class="text-2xl font-bold text-orange-700">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-orange-600">Sí requiere</p>
+                                    <div id="belt_yes_tooltip" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-orange-200 bg-white p-3 text-left shadow-lg">
+                                        <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-orange-500">Activos</p>
+                                        <ul id="belt_yes_tooltip_list" class="space-y-0.5 text-xs text-slate-700"></ul>
+                                    </div>
+                                </div>
+                                <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
+                                    <p id="annual_belt_no" class="text-2xl font-bold text-green-700">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-green-600">No requiere</p>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
+                                    <p id="annual_belt_na" class="text-2xl font-bold text-slate-500">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sin dato</p>
                                 </div>
                             </div>
-                            <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
-                                <p id="annual_belt_no" class="text-2xl font-bold text-green-700">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-green-600">No requiere</p>
-                            </div>
-                            <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
-                                <p id="annual_belt_na" class="text-2xl font-bold text-slate-500">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sin dato</p>
+                            <p class="mt-3 text-[11px] text-slate-400">«Sí» = último registro con cambio de banda requerido. Total activos: <span id="annual_belt_total" class="font-semibold text-slate-500">0</span></p>
+                        </div>
+                        <div id="belt_chart_container" style="overflow:hidden;transition:opacity .3s ease,max-height .35s ease;max-height:0;opacity:0;pointer-events:none;">
+                            <div class="mt-1 rounded-xl bg-white p-3">
+                                <div class="mb-1 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Estado banda</span>
+                                    <span id="belt_chart_badge" class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">0 registros</span>
+                                </div>
+                                <div id="belt_chart_wrap" style="height:160px">
+                                    <canvas id="belt_annual_chart"></canvas>
+                                </div>
                             </div>
                         </div>
-                        <p class="mt-3 text-[11px] text-slate-400">«Sí» = último registro con cambio de banda requerido. Total activos: <span id="annual_belt_total" class="font-semibold text-slate-500">0</span></p>
                     </div>
 
                     {{-- Seguridad --}}
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 class="mb-4 text-sm font-bold text-slate-800">Seguridad</h4>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
-                                <p id="annual_security_ok" class="text-2xl font-bold text-green-700">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-green-600">OK</p>
+                        <div class="mb-4 flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-slate-800">Seguridad</h4>
+                            <button type="button" id="security_chart_eye" onclick="toggleAnnualChart('security')"
+                                class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                                title="Ver distribución por condición">
+                                <i data-lucide="eye" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                        <div id="security_counters_wrap" style="overflow:hidden;transition:opacity .3s ease,max-height .35s ease;max-height:300px;opacity:1;">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
+                                    <p id="annual_security_ok" class="text-2xl font-bold text-green-700">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-green-600">OK</p>
+                                </div>
+                                <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
+                                    <p id="annual_security_novedad" class="text-2xl font-bold text-red-700">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-red-600">Con novedad</p>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
+                                    <p id="annual_security_na" class="text-2xl font-bold text-slate-500">0</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sin dato</p>
+                                </div>
                             </div>
-                            <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
-                                <p id="annual_security_novedad" class="text-2xl font-bold text-red-700">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-red-600">Con novedad</p>
-                            </div>
-                            <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
-                                <p id="annual_security_na" class="text-2xl font-bold text-slate-500">0</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sin dato</p>
+                            <p class="mt-3 text-[11px] text-slate-400">Guardas, cubiertas, plataforma y estructura. Total activos: <span id="annual_security_total" class="font-semibold text-slate-500">0</span></p>
+                        </div>
+                        <div id="security_chart_container" style="overflow:hidden;transition:opacity .3s ease,max-height .35s ease;max-height:0;opacity:0;pointer-events:none;">
+                            <div class="mt-1 rounded-xl bg-white p-3">
+                                <div class="mb-1 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Seguridad</span>
+                                    <span id="security_chart_badge" class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">0 registros</span>
+                                </div>
+                                <div id="security_chart_wrap" style="height:160px">
+                                    <canvas id="security_annual_chart"></canvas>
+                                </div>
                             </div>
                         </div>
-                        <p class="mt-3 text-[11px] text-slate-400">Guardas, cubiertas, plataforma y estructura. Total activos: <span id="annual_security_total" class="font-semibold text-slate-500">0</span></p>
                     </div>
                 </div>
             </div>
@@ -357,10 +397,10 @@
                     <div class="mb-4 flex items-start justify-between gap-3">
                         <div>
                             <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="text-lg font-semibold text-slate-900">Componentes críticos</h3>
+                                <h3 class="text-lg font-semibold text-slate-900">Componentes con novedades</h3>
                                 <span id="fallback_badge_components" class="hidden rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">Último reporte disponible</span>
                             </div>
-                            <p id="component_chart_description" class="mt-1 text-sm text-slate-500">Componentes ordenados por proporción de hallazgos con atención sobre sus novedades.</p>
+                            <p id="component_chart_description" class="mt-1 text-sm text-slate-500">Componentes ordenados por proporción de hallazgos con atención sobre sus novedades. Pasa el mouse para ver detalle por condición.</p>
                         </div>
                         <div class="flex flex-shrink-0 gap-1.5">
                             <button
@@ -517,6 +557,10 @@
             weeklyChartData: null,
             componentsChartMode: 'rate',
             componentsData: null,
+            beltChartData: [],
+            securityChartData: [],
+            belt_annual_chart: null,
+            security_annual_chart: null,
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1752,6 +1796,46 @@
             if (card) {
                 card.style.cursor = names.length > 0 ? 'pointer' : 'default';
             }
+
+            // Guardar datos para gráficos del ojo y resetear estado.
+            indicatorState.beltChartData     = belt.chart     || [];
+            indicatorState.securityChartData = security.chart || [];
+
+            ['belt', 'security'].forEach(type => {
+                // Destruir chart si existe.
+                if (indicatorState[`${type}_annual_chart`]) {
+                    indicatorState[`${type}_annual_chart`].destroy();
+                    indicatorState[`${type}_annual_chart`] = null;
+                }
+                // Resetear ojo.
+                const eye = document.getElementById(`${type}_chart_eye`);
+                if (eye) { eye.classList.remove('text-[#d94d33]', 'bg-orange-50'); }
+                // Mostrar contadores (sin animación al recargar).
+                const counters = document.getElementById(`${type}_counters_wrap`);
+                if (counters) {
+                    counters.style.transition    = 'none';
+                    counters.style.opacity       = '1';
+                    counters.style.maxHeight     = '300px';
+                    counters.style.pointerEvents = 'auto';
+                    requestAnimationFrame(() => { counters.style.transition = ''; });
+                }
+                // Ocultar chart (sin animación).
+                const chartWrap = document.getElementById(`${type}_chart_container`);
+                if (chartWrap) {
+                    chartWrap.style.transition    = 'none';
+                    chartWrap.style.opacity       = '0';
+                    chartWrap.style.maxHeight     = '0';
+                    chartWrap.style.pointerEvents = 'none';
+                    requestAnimationFrame(() => { chartWrap.style.transition = ''; });
+                }
+            });
+
+            const total = belt.total ?? 0;
+            const secTotal = security.total ?? 0;
+            const beltRegistros = indicatorState.beltChartData.reduce((s, r) => s + r.count, 0);
+            const secRegistros  = indicatorState.securityChartData.reduce((s, r) => s + r.count, 0);
+            setText('belt_chart_badge',     `${beltRegistros} registros`);
+            setText('security_chart_badge', `${secRegistros} registros`);
         }
 
         function shiftIsoWeek(year, week, offset) {
@@ -1906,20 +1990,24 @@
                 indicatorState.weeklyChart.destroy();
             }
 
-            const weeklyEmpty = !rows || rows.length === 0 || rows.every(r => !r.attention && !r.inspected);
+            const weeklyEmpty = !rows || rows.length === 0 || rows.every(r => !r.inspected);
             setChartNotice('weekly_chart_notice', weeklyEmpty);
             canvas.style.display = weeklyEmpty ? 'none' : '';
+
+            // Recortar semanas vacías del inicio (ambos modos usan inspected).
+            const firstIdx = rows.findIndex(r => r.inspected > 0);
+            const trimmed  = firstIdx > 0 ? rows.slice(firstIdx) : rows;
 
             const isCoverage = mode === 'coverage';
 
             indicatorState.weeklyChart = new Chart(canvas, isCoverage ? {
                 type: 'bar',
                 data: {
-                    labels: rows.map(row => row.label),
+                    labels: trimmed.map(row => row.label),
                     datasets: [
                         {
                             label: 'Inspeccionados',
-                            data: rows.map(row => row.inspected),
+                            data: trimmed.map(row => row.inspected),
                             backgroundColor: '#93c5fd',
                             borderColor: '#3b82f6',
                             borderWidth: 1,
@@ -1940,10 +2028,10 @@
             } : {
                 type: 'line',
                 data: {
-                    labels: rows.map(row => row.label),
+                    labels: trimmed.map(row => row.label),
                     datasets: [{
-                        label: 'Reportes',
-                        data: rows.map(row => row.attention),
+                        label: 'Inspeccionados',
+                        data: trimmed.map(row => row.inspected),
                         borderColor: '#d94d33',
                         backgroundColor: 'rgba(217,77,51,0.14)',
                         fill: true,
@@ -1973,10 +2061,10 @@
             indicatorState.weeklyChartMode = indicatorState.weeklyChartMode === 'reports' ? 'coverage' : 'reports';
             const isReports = indicatorState.weeklyChartMode === 'reports';
 
-            setText('weekly_chart_title', isReports ? 'Reportes por semana' : 'Activos revisados por semana');
+            setText('weekly_chart_title', isReports ? 'Activos revisados por semana' : 'Activos revisados por semana');
             setText('weekly_chart_description', isReports
-                ? 'Evolución semanal de reportes preventivos.'
-                : 'Activos inspeccionados e inspeccionados por semana del rango.');
+                ? 'Evolución semanal de activos inspeccionados durante el año completo.'
+                : 'Activos inspeccionados por semana del rango seleccionado.');
 
             if (indicatorState.weeklyChartData) {
                 renderCombinedWeeklyChart(indicatorState.weeklyChartData, indicatorState.weeklyChartMode);
@@ -2008,6 +2096,96 @@
             renderComponentChart(indicatorState.componentsData || [], mode);
         }
 
+        function toggleAnnualChart(type) {
+            const counters  = document.getElementById(`${type}_counters_wrap`);
+            const chartWrap = document.getElementById(`${type}_chart_container`);
+            const eye       = document.getElementById(`${type}_chart_eye`);
+            if (!counters || !chartWrap) return;
+
+            const opening = parseFloat(chartWrap.style.opacity || '0') < 0.5;
+
+            if (opening) {
+                // Primero renderizar (canvas necesita estar visible para calcular dimensiones).
+                const data = type === 'belt'
+                    ? indicatorState.beltChartData
+                    : indicatorState.securityChartData;
+                const rowH    = Math.max(100, data.length * 38);
+                const totalH  = rowH + 56; // chart + header badge
+                const wrapEl  = document.getElementById(`${type}_chart_wrap`);
+                if (wrapEl) wrapEl.style.height = `${rowH}px`;
+                renderAnnualDistributionChart(type, data);
+
+                // Ocultar contadores.
+                counters.style.maxHeight = counters.scrollHeight + 'px'; // fijar antes de animar
+                requestAnimationFrame(() => {
+                    counters.style.opacity    = '0';
+                    counters.style.maxHeight  = '0';
+                    counters.style.pointerEvents = 'none';
+                });
+
+                // Mostrar gráfico.
+                chartWrap.style.maxHeight    = `${totalH + 24}px`;
+                chartWrap.style.opacity      = '1';
+                chartWrap.style.pointerEvents = 'auto';
+            } else {
+                // Ocultar gráfico.
+                chartWrap.style.opacity      = '0';
+                chartWrap.style.maxHeight    = '0';
+                chartWrap.style.pointerEvents = 'none';
+
+                // Mostrar contadores.
+                counters.style.maxHeight     = '300px';
+                counters.style.opacity       = '1';
+                counters.style.pointerEvents = 'auto';
+            }
+
+            if (eye) {
+                eye.classList.toggle('text-[#d94d33]', opening);
+                eye.classList.toggle('bg-orange-50',   opening);
+            }
+        }
+
+        function renderAnnualDistributionChart(type, rows) {
+            const canvasId = `${type}_annual_chart`;
+            const wrapId   = `${type}_chart_wrap`;
+            const canvas   = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            if (indicatorState[`${type}_annual_chart`]) {
+                indicatorState[`${type}_annual_chart`].destroy();
+            }
+
+            const wrap = document.getElementById(wrapId);
+            if (wrap) wrap.style.height = `${Math.max(100, rows.length * 38)}px`;
+
+            indicatorState[`${type}_annual_chart`] = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [{
+                        data: rows.map(r => r.count),
+                        backgroundColor: rows.map(r => r.color || '#94a3b8'),
+                        borderRadius: 4,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0 } },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `Cantidad: ${ctx.raw}`,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
         function destroyIndicatorCharts() {
             [
                 'conditionChart',
@@ -2016,6 +2194,8 @@
                 'topConditionsChart',
                 'areaChart',
                 'componentChart',
+                'belt_annual_chart',
+                'security_annual_chart',
             ].forEach(key => {
                 if (indicatorState[key]) {
                     indicatorState[key].destroy();
@@ -2123,6 +2303,12 @@
 
                                     if (canvasId === 'areaChart' && typeof row.elements !== 'undefined') {
                                         extras.push(`Activos: ${row.elements}`);
+                                    }
+
+                                    if (canvasId === 'componentChart' && Array.isArray(row.conditions) && row.conditions.length > 0) {
+                                        extras.push('');
+                                        extras.push('Por condición:');
+                                        row.conditions.forEach(c => extras.push(`  ${c.name}: ${c.count}`));
                                     }
 
                                     return extras;

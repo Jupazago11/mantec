@@ -351,15 +351,26 @@ class IndicatorController extends Controller
         $topComponents = $rankingDetails
             ->groupBy('component_id')
             ->map(function ($items) {
-                $first = $items->first();
-                $total = $items->count();
-                $attention = $this->countAttentionLike($items);
+                $first      = $items->first();
+                $total      = $items->count();
+                $attention  = $this->countAttentionLike($items);
+
+                $conditions = $items
+                    ->groupBy('condition_id')
+                    ->map(fn ($cItems) => [
+                        'name'  => $cItems->first()?->condition?->name ?: 'Sin condición',
+                        'count' => $cItems->count(),
+                    ])
+                    ->sortByDesc('count')
+                    ->values()
+                    ->all();
 
                 return [
-                    'name' => $first?->component?->name ?: 'Sin componente',
-                    'total' => $total,
-                    'attention' => $attention,
+                    'name'           => $first?->component?->name ?: 'Sin componente',
+                    'total'          => $total,
+                    'attention'      => $attention,
                     'attention_rate' => $total > 0 ? round(($attention / $total) * 100, 1) : 0,
+                    'conditions'     => $conditions,
                 ];
             })
             ->sortByDesc(function ($row) {
@@ -1055,6 +1066,7 @@ class IndicatorController extends Controller
         // Fuente 2: reporte de inspector (component=Banda, diagnostic=Estado) — el mismo filtro
         // que usa buildSemaphoreChangeBelt. Último registro por elemento en el año.
         $inspectorReports = ReportDetail::query()
+            ->with('condition:id,code,name,color,severity')
             ->where('report_details.status', true)
             ->whereIn('report_details.element_id', $elementIds)
             ->where('report_details.year', $year)
@@ -1063,7 +1075,8 @@ class IndicatorController extends Controller
             ->whereHas('diagnostic', fn ($q) => $q->whereRaw("LOWER(TRIM(name)) = 'estado'"))
             ->orderByRaw('report_details.year * 54 + report_details.week DESC')
             ->get(['report_details.element_id', 'report_details.is_belt_change',
-                   'report_details.year', 'report_details.week', 'report_details.updated_at'])
+                   'report_details.year', 'report_details.week', 'report_details.updated_at',
+                   'report_details.condition_id'])
             ->groupBy('element_id')
             ->map(fn ($rows) => $rows->first());
 
@@ -1095,7 +1108,9 @@ class IndicatorController extends Controller
 
             if ($hasChange) {
                 $yes++;
-                $yesNames[] = $elementNames?->get($elementId) ?? "ID $elementId";
+                $elementLabel    = $elementNames?->get($elementId) ?? "ID $elementId";
+                $conditionLabel  = $report?->condition?->name;
+                $yesNames[]      = $conditionLabel ? "$elementLabel — $conditionLabel" : $elementLabel;
             } else {
                 $no++;
             }
@@ -1103,12 +1118,32 @@ class IndicatorController extends Controller
 
         sort($yesNames);
 
+        // Distribución por condición (para gráfico del ojo).
+        $beltChart = $inspectorReports
+            ->filter(fn ($r) => $r->condition !== null)
+            ->groupBy(fn ($r) => $r->condition_id)
+            ->map(function ($group) {
+                $cond = $group->first()->condition;
+                $code = trim((string) ($cond->code ?? ''));
+                $name = trim((string) ($cond->name ?? 'Sin condición'));
+                return [
+                    'label'    => $code !== '' ? "$code - $name" : $name,
+                    'count'    => $group->count(),
+                    'color'    => $cond->color ?? '#94a3b8',
+                    'severity' => (int) ($cond->severity ?? 0),
+                ];
+            })
+            ->sortByDesc('severity')
+            ->values()
+            ->all();
+
         return [
             'yes'       => $yes,
             'no'        => $no,
             'na'        => $na,
             'total'     => count($elementIds),
             'yes_names' => $yesNames,
+            'chart'     => $beltChart,
         ];
     }
 
@@ -1121,7 +1156,7 @@ class IndicatorController extends Controller
         $safetyNormalized = ['guardas de seguridad', 'cubiertas', 'plataforma y estructura'];
 
         $annualDetails = ReportDetail::query()
-            ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,severity'])
+            ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,code,name,color,severity'])
             ->where('status', true)
             ->whereIn('element_id', $elementIds)
             ->where('year', $year)
@@ -1135,9 +1170,10 @@ class IndicatorController extends Controller
             ) && $this->normalizeSemaphoreText($detail->diagnostic?->name) === 'estado';
         });
 
-        $ok = 0;
-        $novedad = 0;
-        $na = 0;
+        $ok              = 0;
+        $novedad         = 0;
+        $na              = 0;
+        $selectedDetails = []; // para distribución del gráfico
 
         foreach ($elementIds as $elementId) {
             $elementDetails = $safetyDetails->where('element_id', $elementId);
@@ -1148,6 +1184,7 @@ class IndicatorController extends Controller
             }
 
             $worstSeverity = 0;
+            $worstDetail   = null;
 
             foreach ($safetyNormalized as $componentName) {
                 $componentDetails = $elementDetails->filter(
@@ -1159,11 +1196,15 @@ class IndicatorController extends Controller
                 }
 
                 $maxScore = $componentDetails->max(fn ($d) => (int) $d->year * 54 + (int) $d->week);
-                $latest = $componentDetails
+                $latest   = $componentDetails
                     ->filter(fn ($d) => (int) $d->year * 54 + (int) $d->week === $maxScore)
                     ->first();
 
-                $worstSeverity = max($worstSeverity, (int) ($latest?->condition?->severity ?? 0));
+                $sev = (int) ($latest?->condition?->severity ?? 0);
+                if ($sev > $worstSeverity) {
+                    $worstSeverity = $sev;
+                    $worstDetail   = $latest;
+                }
             }
 
             if ($worstSeverity > 0) {
@@ -1171,13 +1212,36 @@ class IndicatorController extends Controller
             } else {
                 $ok++;
             }
+
+            if ($worstDetail !== null) {
+                $selectedDetails[] = $worstDetail;
+            }
         }
 
+        // Distribución por condición ganadora (para gráfico del ojo).
+        $securityChart = collect($selectedDetails)
+            ->groupBy(fn ($d) => $d->condition_id ?? 'none')
+            ->map(function ($group) {
+                $cond = $group->first()->condition;
+                $code = trim((string) ($cond?->code ?? ''));
+                $name = trim((string) ($cond?->name ?? 'Sin condición'));
+                return [
+                    'label'    => $code !== '' ? "$code - $name" : $name,
+                    'count'    => $group->count(),
+                    'color'    => $cond?->color ?? '#94a3b8',
+                    'severity' => (int) ($cond?->severity ?? 0),
+                ];
+            })
+            ->sortByDesc('severity')
+            ->values()
+            ->all();
+
         return [
-            'ok' => $ok,
+            'ok'      => $ok,
             'novedad' => $novedad,
-            'na' => $na,
-            'total' => count($elementIds),
+            'na'      => $na,
+            'total'   => count($elementIds),
+            'chart'   => $securityChart,
         ];
     }
 
