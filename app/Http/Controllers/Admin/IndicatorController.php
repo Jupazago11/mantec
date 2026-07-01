@@ -101,8 +101,10 @@ class IndicatorController extends Controller
             'week_from' => ['nullable', 'integer', 'min:1', 'max:53'],
             'year_to' => ['nullable', 'integer', 'min:2020', 'max:2100'],
             'week_to' => ['nullable', 'integer', 'min:1', 'max:53'],
+            'mode' => ['nullable', 'in:latest'],
         ]);
 
+        $forceLatest = ($validated['mode'] ?? null) === 'latest';
         $yearFrom = (int) ($validated['year_from'] ?? now()->isoWeekYear());
         $weekFrom = (int) ($validated['week_from'] ?? 1);
         $yearTo = (int) ($validated['year_to'] ?? now()->isoWeekYear());
@@ -174,7 +176,7 @@ class IndicatorController extends Controller
 
         $details = collect();
 
-        if (!empty($elementIds) && !empty($weekPairs)) {
+        if (!$forceLatest && !empty($elementIds) && !empty($weekPairs)) {
             $details = ReportDetail::query()
                 ->with([
                     'user:id,name',
@@ -203,8 +205,8 @@ class IndicatorController extends Controller
         // Para gráficos de "estado actual": solo los detalles de la semana más reciente por activo.
         $latestDetails = $this->buildLatestDetailsByElement($details);
 
-        // Si el rango no tiene datos, los gráficos usan el reporte más reciente del año seleccionado.
-        $rankingFallback = $latestDetails->isEmpty() && !empty($elementIds);
+        // Si el rango no tiene datos o se pide modo "último disponible", los gráficos usan el reporte más reciente por activo.
+        $rankingFallback = $forceLatest || ($latestDetails->isEmpty() && !empty($elementIds));
         $rankingDetails = $latestDetails;
 
         if ($rankingFallback) {
@@ -248,7 +250,9 @@ class IndicatorController extends Controller
             }
         }
 
-        $inspectedElementIds = $details->pluck('element_id')->unique()->values();
+        $inspectedElementIds = $forceLatest
+            ? $rankingDetails->pluck('element_id')->unique()->values()
+            : $details->pluck('element_id')->unique()->values();
 
         $totalElements = $elements->count();
         $inspectedElements = $inspectedElementIds->count();
@@ -270,16 +274,18 @@ class IndicatorController extends Controller
 
         $singleTypeMode = $selectedElementTypeId !== null || $uniqueElementTypeIds->count() === 1;
 
-        $highFindings = $latestDetails
+        $kpiDetails = $forceLatest ? $rankingDetails : $latestDetails;
+
+        $highFindings = $kpiDetails
             ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 1)
             ->count();
-        $mediumFindings = $latestDetails
+        $mediumFindings = $kpiDetails
             ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 2)
             ->count();
-        $lowFindings = $latestDetails
+        $lowFindings = $kpiDetails
             ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 3)
             ->count();
-        $okFindings = $latestDetails
+        $okFindings = $kpiDetails
             ->filter(fn ($d) => $d->condition !== null && (int) $d->condition->severity === 0)
             ->count();
 
@@ -424,8 +430,9 @@ class IndicatorController extends Controller
 
         $currentYear = (int) now()->isoWeekYear();
         $elementNameMap = $elements->pluck('name', 'id');
-        $beltChangeAnnual = $this->buildBeltChangeAnnual($elementIds, $currentYear, $elementNameMap);
-        $securityAnnual = $this->buildSecurityAnnual($elementIds, $currentYear);
+        $annualWeekPairs = $forceLatest ? [] : $weekPairs;
+        $beltChangeAnnual = $this->buildBeltChangeAnnual($elementIds, $currentYear, $elementNameMap, $annualWeekPairs);
+        $securityAnnual = $this->buildSecurityAnnual($elementIds, $currentYear, $annualWeekPairs);
 
         return response()->json([
             'success' => true,
@@ -453,7 +460,8 @@ class IndicatorController extends Controller
                 'area_distribution' => $areaDistribution,
             ],
             'annual' => [
-                'year' => $currentYear,
+                'year' => $forceLatest ? $currentYear : $yearTo,
+                'force_latest' => $forceLatest,
                 'belt_change' => $beltChangeAnnual,
                 'security' => $securityAnnual,
             ],
@@ -1048,28 +1056,45 @@ class IndicatorController extends Controller
             ->values();
     }
 
-    private function buildBeltChangeAnnual(array $elementIds, int $year, ?Collection $elementNames = null): array
+    private function buildBeltChangeAnnual(array $elementIds, int $year, ?Collection $elementNames = null, array $weekPairs = []): array
     {
         if (empty($elementIds)) {
             return ['yes' => 0, 'no' => 0, 'na' => 0, 'total' => 0, 'yes_names' => []];
         }
 
-        // Fuente 1: overrides manuales — último por elemento en el año (Eloquent → casts correctos).
+        $useWeekFilter = !empty($weekPairs);
+
+        // Fuente 1: overrides manuales — último por elemento en el período.
         $overrides = SemaphoreBeltChange::query()
             ->whereIn('element_id', $elementIds)
-            ->where('year', $year)
+            ->when(
+                $useWeekFilter,
+                fn ($q) => $q->where(function ($q2) use ($weekPairs) {
+                    foreach ($weekPairs as $pair) {
+                        $q2->orWhere(fn ($s) => $s->where('year', $pair['year'])->where('week', $pair['week']));
+                    }
+                }),
+                fn ($q) => $q->where('year', $year)
+            )
             ->orderByRaw('year * 54 + week DESC')
             ->get(['element_id', 'year', 'week', 'is_belt_change', 'updated_at'])
             ->groupBy('element_id')
             ->map(fn ($rows) => $rows->first()); // ya ordenado DESC → el primero es el más reciente
 
-        // Fuente 2: reporte de inspector (component=Banda, diagnostic=Estado) — el mismo filtro
-        // que usa buildSemaphoreChangeBelt. Último registro por elemento en el año.
+        // Fuente 2: reporte de inspector (component=Banda, diagnostic=Estado) — último registro por elemento en el período.
         $inspectorReports = ReportDetail::query()
             ->with('condition:id,code,name,color,severity')
             ->where('report_details.status', true)
             ->whereIn('report_details.element_id', $elementIds)
-            ->where('report_details.year', $year)
+            ->when(
+                $useWeekFilter,
+                fn ($q) => $q->where(function ($q2) use ($weekPairs) {
+                    foreach ($weekPairs as $pair) {
+                        $q2->orWhere(fn ($s) => $s->where('report_details.year', $pair['year'])->where('report_details.week', $pair['week']));
+                    }
+                }),
+                fn ($q) => $q->where('report_details.year', $year)
+            )
             ->whereNotNull('report_details.is_belt_change')
             ->whereHas('component', fn ($q) => $q->whereRaw("LOWER(TRIM(name)) = 'banda'"))
             ->whereHas('diagnostic', fn ($q) => $q->whereRaw("LOWER(TRIM(name)) = 'estado'"))
@@ -1147,19 +1172,28 @@ class IndicatorController extends Controller
         ];
     }
 
-    private function buildSecurityAnnual(array $elementIds, int $year): array
+    private function buildSecurityAnnual(array $elementIds, int $year, array $weekPairs = []): array
     {
         if (empty($elementIds)) {
             return ['ok' => 0, 'novedad' => 0, 'na' => 0, 'total' => 0];
         }
 
         $safetyNormalized = ['guardas de seguridad', 'cubiertas', 'plataforma y estructura'];
+        $useWeekFilter = !empty($weekPairs);
 
         $annualDetails = ReportDetail::query()
             ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,code,name,color,severity'])
             ->where('status', true)
             ->whereIn('element_id', $elementIds)
-            ->where('year', $year)
+            ->when(
+                $useWeekFilter,
+                fn ($q) => $q->where(function ($q2) use ($weekPairs) {
+                    foreach ($weekPairs as $pair) {
+                        $q2->orWhere(fn ($s) => $s->where('year', $pair['year'])->where('week', $pair['week']));
+                    }
+                }),
+                fn ($q) => $q->where('year', $year)
+            )
             ->get();
 
         $safetyDetails = $annualDetails->filter(function ($detail) use ($safetyNormalized) {

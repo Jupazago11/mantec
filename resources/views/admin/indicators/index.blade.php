@@ -259,7 +259,7 @@
                         <i data-lucide="calendar" class="h-3.5 w-3.5"></i>
                         Indicadores anuales — <span id="annual_year_label">{{ now()->year }}</span>
                     </div>
-                    <p class="mt-2 text-sm text-slate-500">Estado más reciente por activo durante el año completo, independiente del rango de semanas seleccionado.</p>
+                    <p id="annual_subtitle" class="mt-2 text-sm text-slate-500">Estado más reciente por activo durante el año completo, independiente del rango de semanas seleccionado.</p>
                 </div>
 
                 <div class="grid gap-4 lg:grid-cols-2">
@@ -609,7 +609,7 @@
 
             filterGroupsByClient();
             filterElementTypes();
-            loadIndicators();
+            loadIndicators(true);
 
             // Tooltip hover para "SÍ REQUIERE" de cambio de banda.
             const beltYesCard    = document.getElementById('belt_yes_card');
@@ -1561,7 +1561,7 @@
             ].join('; ');
         }
 
-        async function loadIndicators() {
+        async function loadIndicators(useLatest = false) {
             const module = document.querySelector('[data-indicators-module]');
             const route = module?.dataset.route;
 
@@ -1584,6 +1584,10 @@
                 year_to:         weekTo[0]   || year,
                 week_to:         weekTo[1]   || '',
             });
+
+            if (useLatest) {
+                params.set('mode', 'latest');
+            }
 
             setIndicatorLoading(true);
 
@@ -1784,14 +1788,21 @@
             filterGroupsByClient();
             filterElementTypes();
             populateWeekSelects();
-            loadIndicators();
+            loadIndicators(true);
         }
 
         function renderAnnualIndicators(annual) {
             const belt     = annual.belt_change || {};
             const security = annual.security    || {};
 
-            setText('annual_year_label',         annual.year ?? '');
+            setText('annual_year_label', annual.year ?? '');
+
+            const subtitle = document.getElementById('annual_subtitle');
+            if (subtitle) {
+                subtitle.textContent = annual.force_latest
+                    ? 'Estado más reciente por activo durante el año completo, independiente del rango de semanas seleccionado.'
+                    : 'Estado más reciente por activo en el período seleccionado.';
+            }
             setText('annual_belt_yes',            belt.yes  ?? 0);
             setText('annual_belt_no',             belt.no   ?? 0);
             setText('annual_belt_na',             belt.na   ?? 0);
