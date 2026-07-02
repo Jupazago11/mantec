@@ -609,7 +609,7 @@
 
             filterGroupsByClient();
             filterElementTypes();
-            loadIndicators(true);
+            loadIndicators(true, true);
 
             // Tooltip hover para "SÍ REQUIERE" de cambio de banda.
             const beltYesCard    = document.getElementById('belt_yes_card');
@@ -1561,7 +1561,7 @@
             ].join('; ');
         }
 
-        async function loadIndicators(useLatest = false) {
+        async function loadIndicators(useLatest = false, strictSummary = false) {
             const module = document.querySelector('[data-indicators-module]');
             const route = module?.dataset.route;
 
@@ -1587,6 +1587,10 @@
 
             if (useLatest) {
                 params.set('mode', 'latest');
+            }
+
+            if (strictSummary) {
+                params.set('strict_summary', '1');
             }
 
             setIndicatorLoading(true);

@@ -102,9 +102,15 @@ class IndicatorController extends Controller
             'year_to' => ['nullable', 'integer', 'min:2020', 'max:2100'],
             'week_to' => ['nullable', 'integer', 'min:1', 'max:53'],
             'mode' => ['nullable', 'in:latest'],
+            'strict_summary' => ['nullable', 'boolean'],
         ]);
 
         $forceLatest = ($validated['mode'] ?? null) === 'latest';
+        // Las tarjetas resumen (Activos/Inspeccionados/Cobertura/Alta/Media/Baja/OK) pueden
+        // pedir datos reales del rango aunque el resto del payload (graficas, indicadores
+        // anuales) siga en modo "ultimo reporte disponible" via $forceLatest.
+        $strictSummary = $request->boolean('strict_summary');
+        $useRangeForSummary = !$forceLatest || $strictSummary;
         $yearFrom = (int) ($validated['year_from'] ?? now()->isoWeekYear());
         $weekFrom = (int) ($validated['week_from'] ?? 1);
         $yearTo = (int) ($validated['year_to'] ?? now()->isoWeekYear());
@@ -176,7 +182,7 @@ class IndicatorController extends Controller
 
         $details = collect();
 
-        if (!$forceLatest && !empty($elementIds) && !empty($weekPairs)) {
+        if ($useRangeForSummary && !empty($elementIds) && !empty($weekPairs)) {
             $details = ReportDetail::query()
                 ->with([
                     'user:id,name',
@@ -250,9 +256,9 @@ class IndicatorController extends Controller
             }
         }
 
-        $inspectedElementIds = $forceLatest
-            ? $rankingDetails->pluck('element_id')->unique()->values()
-            : $details->pluck('element_id')->unique()->values();
+        $inspectedElementIds = $useRangeForSummary
+            ? $details->pluck('element_id')->unique()->values()
+            : $rankingDetails->pluck('element_id')->unique()->values();
 
         $totalElements = $elements->count();
         $inspectedElements = $inspectedElementIds->count();
@@ -274,7 +280,7 @@ class IndicatorController extends Controller
 
         $singleTypeMode = $selectedElementTypeId !== null || $uniqueElementTypeIds->count() === 1;
 
-        $kpiDetails = $forceLatest ? $rankingDetails : $latestDetails;
+        $kpiDetails = $useRangeForSummary ? $latestDetails : $rankingDetails;
 
         $highFindings = $kpiDetails
             ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 1)
