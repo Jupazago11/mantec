@@ -35,6 +35,11 @@
         </div>
     </div>
 
+    {{-- Los modales de vista (position:fixed con backdrop) deben renderizarse aquí, fuera
+         de <main>: overflow-y-auto en <main> recorta cualquier position:fixed anidado
+         dentro, dejando partes de la pantalla (como el sidebar) sin cubrir por el backdrop. --}}
+    @stack('modals')
+
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>

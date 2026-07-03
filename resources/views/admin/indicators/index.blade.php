@@ -7,6 +7,7 @@
         class="space-y-8"
         data-indicators-module
         data-route="{{ $dataRoute }}"
+        data-chart-detail-route="{{ $chartDetailRoute }}"
         data-semaphore-route="{{ $semaphoreDataRoute }}"
         data-semaphore-belt-change-update-route="{{ $semaphoreBeltChangeUpdateRoute }}"
         data-can-edit-semaphore="{{ $canEditSemaphore ? '1' : '0' }}"
@@ -168,31 +169,8 @@
                 </div>
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-3xl border border-slate-200 bg-red-50 p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-red-600">Alta</p>
-                    <p id="metric_high_findings" class="mt-3 text-3xl font-bold text-red-700">0</p>
-                    <p class="mt-1 text-sm text-slate-500">Criticidad alta</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-yellow-50 p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-yellow-600">Media</p>
-                    <p id="metric_medium_findings" class="mt-3 text-3xl font-bold text-yellow-600">0</p>
-                    <p class="mt-1 text-sm text-slate-500">Criticidad media</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-blue-50 p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-blue-600">Baja</p>
-                    <p id="metric_low_findings" class="mt-3 text-3xl font-bold text-blue-700">0</p>
-                    <p class="mt-1 text-sm text-slate-500">Criticidad baja</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-green-50 p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-green-600">OK</p>
-                    <p id="metric_ok_findings" class="mt-3 text-3xl font-bold text-green-700">0</p>
-                    <p class="mt-1 text-sm text-slate-500">Sin novedad</p>
-                </div>
-            </div>
+            {{-- Una tarjeta por cada severidad que exista en los datos filtrados (no fijo a Alta/Media/Baja/OK). --}}
+            <div id="severity_kpi_cards" class="grid gap-3"></div>
 
 
             <div class="grid gap-6 xl:grid-cols-2">
@@ -433,6 +411,11 @@
 
         </div>
 
+    </div>
+
+    {{-- Los modales van fuera de <main> (via @stack) porque overflow-y-auto en el layout
+         recorta cualquier position:fixed anidado dentro, dejando el sidebar sin oscurecer. --}}
+    @push('modals')
         {{-- MODAL SEMÁFORO --}}
         <div
             id="semaphore_modal"
@@ -530,8 +513,43 @@
             </div>
         </div>
 
+        {{-- MODAL DETALLE DE ACTIVO (top elements) --}}
+        <div
+            id="top_element_detail_modal"
+            class="fixed inset-0 z-[99999] hidden items-center justify-center bg-slate-950/65 p-4"
+        >
+            <div class="relative flex max-h-[80vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex flex-shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div class="min-w-0">
+                        <div class="inline-flex items-center gap-1.5 rounded-full bg-[#d94d33]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#d94d33]">
+                            <i data-lucide="list-checks" class="h-3 w-3"></i>
+                            Detalle por reporte
+                        </div>
+                        <h3 id="top_element_detail_title" class="mt-1.5 truncate text-base font-bold text-slate-900">Activo</h3>
+                        <p id="top_element_detail_subtitle" class="mt-0.5 text-xs text-slate-500"></p>
+                    </div>
+                    <button
+                        type="button"
+                        onclick="closeTopElementDetailModal()"
+                        class="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                        <i data-lucide="x" class="h-4 w-4"></i>
+                    </button>
+                </div>
+
+                <div class="min-h-0 flex-1 overflow-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead class="sticky top-0 z-10 bg-slate-50">
+                            <tr id="top_element_detail_table_head_row"></tr>
+                        </thead>
+                        <tbody id="top_element_detail_table_body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div id="indicatorToastContainer" class="fixed bottom-5 right-5 z-[99999] space-y-3"></div>
-    </div>
+    @endpush
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -561,6 +579,7 @@
             securityChartData: [],
             belt_annual_chart: null,
             security_annual_chart: null,
+            lastQueryParams: null,
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1561,15 +1580,63 @@
             ].join('; ');
         }
 
-        async function loadIndicators(useLatest = false, strictSummary = false) {
-            const module = document.querySelector('[data-indicators-module]');
-            const route = module?.dataset.route;
+        function conditionBadgeInlineStyle(colorValue, fallback = '#94a3b8') {
+            const color = normalizeHexColor(colorValue) || fallback;
+            const luminance = relativeLuminance(hexToRgb(color));
 
-            if (!route) {
-                showIndicatorToast('No se encontró la ruta de indicadores.', 'error');
-                return;
-            }
+            // Colores claros (blanco, amarillo pálido, etc.) usan texto oscuro; colores
+            // oscuros/saturados usan texto blanco. Evita texto invisible sobre fondo del
+            // mismo tono (ej. condición blanca con texto blanco).
+            const backgroundColor = luminance < 0.28 ? hexToRgba(color, 0.88) : hexToRgba(color, 0.18);
+            const borderColor = luminance < 0.28 ? hexToRgba(color, 0.96) : hexToRgba(color, 0.42);
+            const textColor = luminance < 0.28 ? '#ffffff' : '#0f172a';
 
+            return `background-color:${backgroundColor};border:1px solid ${borderColor};color:${textColor}`;
+        }
+
+        function severityCardStyle(colorValue) {
+            const color = normalizeHexColor(colorValue) || '#94a3b8';
+            const luminance = relativeLuminance(hexToRgb(color));
+            // Casi blanco no se lee como acento sobre fondo blanco: cae a gris neutro.
+            const isTooLight = luminance > 0.9;
+
+            return {
+                accent: isTooLight ? '#64748b' : color,
+            };
+        }
+
+        function renderSeverityKpiCards(breakdown) {
+            const container = document.getElementById('severity_kpi_cards');
+
+            if (!container) return;
+
+            const rows = breakdown || [];
+
+            // Llena el ancho completo de la fila: hasta 10 tarjetas por fila (el número
+            // de columnas real es min(cantidad, 10)), y si hay más de 10 severidades
+            // para ese tipo de activo, las siguientes bajan a una nueva fila de hasta 10.
+            const columns = Math.max(1, Math.min(rows.length, 10));
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
+
+            container.innerHTML = rows.map(row => {
+                const style = severityCardStyle(row.color);
+                const severityKey = (row.severity === null || row.severity === undefined) ? 'none' : row.severity;
+
+                return `
+                    <div
+                        class="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm transition hover:shadow-md"
+                        title="${escapeHtml(row.subtitle || '')}"
+                        onclick="openChartDetailByDimension('severity', { severity: '${escapeHtml(String(severityKey))}' }, '${escapeHtml(row.label)}')"
+                    >
+                        <p class="text-2xl font-bold" style="color:${escapeHtml(style.accent)}">${row.total}</p>
+                        <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(row.label)}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function buildIndicatorScopeParams(useLatest = false, strictSummary = false) {
             const year    = String(selectedYear());
             const weekFrom = (document.getElementById('indicator_week_from')?.value || '').split('-');
             const weekTo   = (document.getElementById('indicator_week_to')?.value || '').split('-');
@@ -1592,6 +1659,24 @@
             if (strictSummary) {
                 params.set('strict_summary', '1');
             }
+
+            return params;
+        }
+
+        async function loadIndicators(useLatest = false, strictSummary = false) {
+            const module = document.querySelector('[data-indicators-module]');
+            const route = module?.dataset.route;
+
+            if (!route) {
+                showIndicatorToast('No se encontró la ruta de indicadores.', 'error');
+                return;
+            }
+
+            const params = buildIndicatorScopeParams(useLatest, strictSummary);
+
+            // Los modales de detalle por gráfico reutilizan exactamente este mismo alcance
+            // (cliente/agrupación/tipo/rango/modo) para pedir el detalle "a demanda".
+            indicatorState.lastQueryParams = new URLSearchParams(params);
 
             setIndicatorLoading(true);
 
@@ -1649,10 +1734,7 @@
             setText('metric_inspected_elements', summary.inspected_elements ?? 0);
             setText('metric_not_inspected_elements', `${summary.not_inspected_elements ?? 0} sin inspección`);
             setText('metric_coverage', `${summary.coverage ?? 0}%`);
-            setText('metric_high_findings', summary.high_findings ?? 0);
-            setText('metric_medium_findings', summary.medium_findings ?? 0);
-            setText('metric_low_findings', summary.low_findings ?? 0);
-            setText('metric_ok_findings', summary.ok_findings ?? 0);
+            renderSeverityKpiCards(summary.severity_breakdown || []);
 
             const hasData = Number(summary.total_elements || 0) > 0 || Number(summary.inspected_elements || 0) > 0;
 
@@ -1669,11 +1751,11 @@
             if (chartMode === 'condition') {
                 setText('condition_chart_title', 'Distribución por condición');
                 setText('condition_chart_description', 'Condiciones específicas del tipo de activo seleccionado.');
-                renderConditionChart(charts.condition_distribution || []);
+                renderConditionChart(charts.condition_distribution || [], 'condition');
             } else {
                 setText('condition_chart_title', 'Distribución por criticidad');
                 setText('condition_chart_description', 'Resumen ejecutivo por criticidad. Evita mezclar condiciones propias de distintos tipos de activo.');
-                renderConditionChart(charts.severity_distribution || []);
+                renderConditionChart(charts.severity_distribution || [], 'severity');
             }
 
             const weeklyData = isFallback && (charts.combined_weekly_data_ytd || []).length > 0
@@ -1792,7 +1874,9 @@
             filterGroupsByClient();
             filterElementTypes();
             populateWeekSelects();
-            loadIndicators(true);
+            // Debe reproducir exactamente la carga inicial (F5): mode=latest + strict_summary,
+            // para que las tarjetas KPI no queden en un modo distinto al de la entrada al módulo.
+            loadIndicators(true, true);
         }
 
         function renderAnnualIndicators(annual) {
@@ -1972,7 +2056,7 @@
             el.style.display = show ? 'flex' : 'none';
         }
 
-        function renderConditionChart(rows) {
+        function renderConditionChart(rows, mode = 'severity') {
             const canvas = document.getElementById('conditionChart');
 
             if (!canvas) {
@@ -1999,6 +2083,22 @@
                 },
                 options: {
                     maintainAspectRatio: false,
+                    onClick: (event, elements) => {
+                        if (!elements.length) return;
+
+                        const row = chartRows[elements[0].index];
+                        if (!row) return;
+
+                        if (mode === 'condition') {
+                            openChartDetailByDimension('condition', { condition_id: row.condition_id }, row.label);
+                        } else {
+                            const severityKey = (row.severity === null || row.severity === undefined) ? 'none' : row.severity;
+                            openChartDetailByDimension('severity', { severity: severityKey }, row.label);
+                        }
+                    },
+                    onHover: (event, elements) => {
+                        event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                    },
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -2029,6 +2129,18 @@
 
             const isCoverage = mode === 'coverage';
 
+            const weeklyOnClick = (event, elements) => {
+                if (!elements.length) return;
+
+                const row = trimmed[elements[0].index];
+                if (!row) return;
+
+                openChartDetailByDimension('week', { year: row.year, week: row.week }, row.label);
+            };
+            const weeklyOnHover = (event, elements) => {
+                event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            };
+
             indicatorState.weeklyChart = new Chart(canvas, isCoverage ? {
                 type: 'bar',
                 data: {
@@ -2047,6 +2159,8 @@
                 options: {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
+                    onClick: weeklyOnClick,
+                    onHover: weeklyOnHover,
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0 } },
                     },
@@ -2075,6 +2189,8 @@
                 options: {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
+                    onClick: weeklyOnClick,
+                    onHover: weeklyOnHover,
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0 } },
                     },
@@ -2235,6 +2351,27 @@
             ['condition_chart_notice', 'weekly_chart_notice'].forEach(id => setChartNotice(id, false));
         }
 
+        // Cada gráfico horizontal decide, según su propia lógica de agrupación, qué
+        // dimensión/clave pedirle al endpoint de detalle al hacer clic en una barra.
+        const horizontalChartClickHandlers = {
+            topElementsChart: (row) => openTopElementDetailModal(row),
+            topConditionsChart: (row) => openChartDetailByDimension(
+                'condition',
+                { condition_id: row.condition_id },
+                row.label || row.name || 'Condición'
+            ),
+            areaChart: (row) => openChartDetailByDimension(
+                'area',
+                { area_id: row.area_id },
+                row.label || 'Área'
+            ),
+            componentChart: (row) => openChartDetailByDimension(
+                'component',
+                { component_id: row.component_id },
+                row.name || 'Componente'
+            ),
+        };
+
         function renderHorizontalChart(canvasId, stateKey, rows, labelKey, valueKeys, labels, useRowColors = false) {
             const canvas = document.getElementById(canvasId);
 
@@ -2276,6 +2413,14 @@
                 options: {
                     indexAxis: isVertical ? 'x' : 'y',
                     maintainAspectRatio: false,
+                    onClick: horizontalChartClickHandlers[canvasId] ? (event, elements) => {
+                        if (!elements.length) return;
+                        const row = visibleRows[elements[0].index];
+                        if (row) horizontalChartClickHandlers[canvasId](row);
+                    } : undefined,
+                    onHover: horizontalChartClickHandlers[canvasId] ? (event, elements) => {
+                        event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                    } : undefined,
                     scales: isVertical ? {
                         x: {
                             ticks: {
@@ -2330,6 +2475,18 @@
                                         }
                                     }
 
+                                    if (canvasId === 'topElementsChart' && Array.isArray(row.conditions) && row.conditions.length > 0) {
+                                        extras.push('');
+                                        extras.push('Por condición:');
+                                        row.conditions.forEach(c => {
+                                            const label = c.code && c.code !== '—' ? `${c.code} - ${c.name}` : c.name;
+                                            extras.push(`  ${label}: ${c.count}`);
+                                        });
+                                        extras.push('');
+                                        extras.push(`Componentes/diagnósticos evaluados: ${row.total}`);
+                                        extras.push('Clic en la barra para ver el detalle por reporte.');
+                                    }
+
                                     if (canvasId === 'areaChart' && typeof row.elements !== 'undefined') {
                                         extras.push(`Activos: ${row.elements}`);
                                     }
@@ -2347,6 +2504,138 @@
                     },
                 },
             });
+        }
+
+        function formatDetailDate(isoDate) {
+            if (!isoDate) return '';
+
+            const date = new Date(`${isoDate}T00:00:00`);
+
+            if (Number.isNaN(date.getTime())) return '';
+
+            return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function chartDetailReportRow(r, showElement) {
+            return `
+                <tr>
+                    ${showElement ? `<td class="px-3 py-1.5 text-slate-700">${escapeHtml(r.element)}</td>` : ''}
+                    <td class="px-3 py-1.5 text-slate-700">${escapeHtml(r.component)}</td>
+                    <td class="px-3 py-1.5 text-slate-700">${escapeHtml(r.diagnostic)}</td>
+                    <td class="px-3 py-1.5">
+                        <span class="inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-semibold" style="${escapeHtml(conditionBadgeInlineStyle(r.color))}">
+                            ${escapeHtml(r.condition_code && r.condition_code !== '—' ? `${r.condition_code} - ${r.condition_name}` : r.condition_name)}
+                        </span>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-1.5 text-slate-500">
+                        ${escapeHtml(r.week_label)}
+                        <span class="block text-[10px] text-slate-400">${escapeHtml(formatDetailDate(r.date))}</span>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderChartDetailTable(reports, showElement = true) {
+            const body = document.getElementById('top_element_detail_table_body');
+            const headRow = document.getElementById('top_element_detail_table_head_row');
+
+            if (!body) return;
+
+            const columns = showElement
+                ? ['Activo', 'Componente', 'Diagnóstico', 'Condición', 'Semana']
+                : ['Componente', 'Diagnóstico', 'Condición', 'Semana'];
+
+            if (headRow) {
+                headRow.innerHTML = columns.map(label => `
+                    <th class="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">${escapeHtml(label)}</th>
+                `).join('');
+            }
+
+            body.innerHTML = (reports || []).length
+                ? reports.map(r => chartDetailReportRow(r, showElement)).join('')
+                : `<tr><td colspan="${columns.length}" class="px-3 py-6 text-center text-sm text-slate-500">Sin reportes para mostrar.</td></tr>`;
+        }
+
+        function showChartDetailModal(title, subtitle) {
+            const modal = document.getElementById('top_element_detail_modal');
+
+            if (!modal) return;
+
+            setText('top_element_detail_title', title || 'Detalle');
+            setText('top_element_detail_subtitle', subtitle || '');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        function openTopElementDetailModal(row) {
+            const reports = row.reports || [];
+
+            showChartDetailModal(
+                row.name || 'Activo',
+                `${reports.length} reporte(s) considerados para el estado actual de este activo.`
+            );
+            renderChartDetailTable(reports, false);
+        }
+
+        async function openChartDetailByDimension(dimension, keyParams, fallbackTitle) {
+            const module = document.querySelector('[data-indicators-module]');
+            const route = module?.dataset.chartDetailRoute;
+
+            if (!route) {
+                showIndicatorToast('No se encontró la ruta de detalle.', 'error');
+                return;
+            }
+
+            showChartDetailModal(fallbackTitle || 'Detalle', 'Cargando reportes considerados…');
+            renderChartDetailTable([], true);
+
+            const params = new URLSearchParams(indicatorState.lastQueryParams || buildIndicatorScopeParams());
+            params.set('dimension', dimension);
+            Object.entries(keyParams || {}).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    params.set(key, value);
+                }
+            });
+
+            try {
+                const response = await fetch(`${route}?${params.toString()}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                    setText('top_element_detail_subtitle', data.message || 'No fue posible cargar el detalle.');
+                    renderChartDetailTable([], true);
+                    return;
+                }
+
+                setText('top_element_detail_title', data.title || fallbackTitle || 'Detalle');
+                setText('top_element_detail_subtitle', `${data.total ?? 0} reporte(s) considerados para el estado actual.`);
+                renderChartDetailTable(data.reports || [], true);
+            } catch (error) {
+                setText('top_element_detail_subtitle', 'Ocurrió un error de red al cargar el detalle.');
+                renderChartDetailTable([], true);
+            }
+        }
+
+        function closeTopElementDetailModal() {
+            const modal = document.getElementById('top_element_detail_modal');
+
+            if (!modal) return;
+
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
         }
 
         function escapeHtml(value) {
@@ -2642,6 +2931,7 @@
             if (event.key === 'Escape') {
                 closeSemaphoreFilterPopover();
                 closeSemaphoreModal();
+                closeTopElementDetailModal();
             }
         });
 
@@ -2649,6 +2939,11 @@
             const modal = document.getElementById('semaphore_modal');
             const popover = document.getElementById('semaphore_filter_popover');
             const cellPopover = document.getElementById('semaphore_cell_popover');
+            const detailModal = document.getElementById('top_element_detail_modal');
+
+            if (detailModal?.classList.contains('flex') && event.target === detailModal) {
+                closeTopElementDetailModal();
+            }
 
             if (modal?.classList.contains('flex') && event.target === modal) {
                 closeSemaphoreModal();

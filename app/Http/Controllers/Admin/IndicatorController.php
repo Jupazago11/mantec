@@ -77,6 +77,7 @@ class IndicatorController extends Controller
             'availableYears' => $availableYears,
             'defaultYear' => $defaultWeekRange['year_to'],
             'dataRoute' => route('admin.indicators.data'),
+            'chartDetailRoute' => route('admin.indicators.chart-detail'),
             'semaphoreDataRoute' => route('admin.indicators.semaphore.data'),
             'semaphoreBeltChangeUpdateRoute' => route('admin.indicators.semaphore.belt-change.update'),
         ]);
@@ -123,138 +124,28 @@ class IndicatorController extends Controller
             ], 422);
         }
 
-        $dateFrom = Carbon::now()->setISODate($yearFrom, $weekFrom)->startOfWeek();
-        $dateTo = Carbon::now()->setISODate($yearTo, $weekTo)->endOfWeek();
+        $context = $this->resolveIndicatorContext(
+            $user,
+            !empty($validated['client_id']) ? (int) $validated['client_id'] : null,
+            !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
+            !empty($validated['element_type_id']) ? (int) $validated['element_type_id'] : null,
+            $yearFrom,
+            $weekFrom,
+            $yearTo,
+            $weekTo,
+            $forceLatest,
+            $useRangeForSummary
+        );
 
-        $clients = $this->getScopedClients($user);
-        $clientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-        if (!empty($validated['client_id'])) {
-            $requestedClientId = (int) $validated['client_id'];
-
-            if (!in_array($requestedClientId, $clientIds, true)) {
-                abort(403, 'No tienes acceso a este cliente.');
-            }
-
-            $clientIds = [$requestedClientId];
-        }
-
-        $groups = $this->getScopedGroups($user, $clientIds);
-
-        if (!empty($validated['group_id'])) {
-            $requestedGroupId = (int) $validated['group_id'];
-
-            if (!$groups->pluck('id')->map(fn ($id) => (int) $id)->contains($requestedGroupId)) {
-                abort(403, 'No tienes acceso a esta agrupación.');
-            }
-
-            $groups = $groups->where('id', $requestedGroupId)->values();
-        }
-
-        $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $elementIdsForGroups = $this->elementIdsForGroups($groupIds);
-
-        $elementsQuery = Element::query()
-            ->with([
-                'area:id,name',
-                'elementType:id,name',
-                'group:id,name,client_id',
-            ])
-            ->where('status', true)
-            ->whereIn('id', $elementIdsForGroups);
-
-        if (!empty($validated['element_type_id'])) {
-            $elementsQuery->where('element_type_id', (int) $validated['element_type_id']);
-        }
-
-        $elements = $elementsQuery->get([
-            'id',
-            'area_id',
-            'element_type_id',
-            'group_id',
-            'name',
-            'code',
-            'status',
-        ]);
-
-        $elementIds = $elements->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $weekPairs = $this->buildWeekPairs($dateFrom, $dateTo);
-
-        $details = collect();
-
-        if ($useRangeForSummary && !empty($elementIds) && !empty($weekPairs)) {
-            $details = ReportDetail::query()
-                ->with([
-                    'user:id,name',
-                    'element:id,name,group_id,element_type_id,area_id',
-                    'element.area:id,name',
-                    'element.elementType:id,name',
-                    'component:id,name',
-                    'diagnostic:id,name',
-                    'condition:id,code,name,description,severity,color',
-                    'executionStatus:id,name',
-                ])
-                ->where('status', true)
-                ->whereIn('element_id', $elementIds)
-                ->where(function ($query) use ($weekPairs) {
-                    foreach ($weekPairs as $pair) {
-                        $query->orWhere(function ($subQuery) use ($pair) {
-                            $subQuery
-                                ->where('year', $pair['year'])
-                                ->where('week', $pair['week']);
-                        });
-                    }
-                })
-                ->get();
-        }
-
-        // Para gráficos de "estado actual": solo los detalles de la semana más reciente por activo.
-        $latestDetails = $this->buildLatestDetailsByElement($details);
-
-        // Si el rango no tiene datos o se pide modo "último disponible", los gráficos usan el reporte más reciente por activo.
-        $rankingFallback = $forceLatest || ($latestDetails->isEmpty() && !empty($elementIds));
-        $rankingDetails = $latestDetails;
-
-        if ($rankingFallback) {
-            // Paso 1: score (year*54+week) más reciente por elemento, en cualquier año.
-            // No se limita a $yearTo: un área cuyo último reporte sea de un año anterior
-            // debe seguir apareciendo como "último reporte disponible".
-            $maxScorePerElement = DB::table('report_details')
-                ->where('status', true)
-                ->whereIn('element_id', $elementIds)
-                ->select('element_id', DB::raw('MAX(year * 54 + week) AS max_score'))
-                ->groupBy('element_id')
-                ->pluck('max_score', 'element_id');
-
-            // Paso 2: colapsar por score → (year*54+week=S AND element_id IN [...]) en vez de 132 ORs.
-            if ($maxScorePerElement->isNotEmpty()) {
-                // preserveKeys=true mantiene element_id como clave en cada sub-colección.
-                $scoreToElements = $maxScorePerElement->groupBy(fn ($score) => $score, true);
-
-                $rankingDetails = $this->buildLatestDetailsByElement(
-                    ReportDetail::query()
-                        ->with([
-                            'element:id,name,group_id,element_type_id,area_id',
-                            'element.area:id,name',
-                            'element.elementType:id,name',
-                            'component:id,name',
-                            'diagnostic:id,name',
-                            'condition:id,code,name,description,severity,color',
-                        ])
-                        ->where('status', true)
-                        ->whereIn('element_id', $elementIds)
-                        ->where(function ($q) use ($scoreToElements) {
-                            foreach ($scoreToElements as $score => $elements) {
-                                $q->orWhere(fn ($s) => $s
-                                    ->whereRaw('year * 54 + week = ?', [(int) $score])
-                                    ->whereIn('element_id', $elements->keys()->all())
-                                );
-                            }
-                        })
-                        ->get()
-                );
-            }
-        }
+        $elements = $context['elements'];
+        $elementIds = $context['elementIds'];
+        $weekPairs = $context['weekPairs'];
+        $details = $context['details'];
+        $latestDetails = $context['latestDetails'];
+        $rankingDetails = $context['rankingDetails'];
+        $rankingFallback = $context['rankingFallback'];
+        $clientIds = $context['clientIds'];
+        $groupIds = $context['groupIds'];
 
         $inspectedElementIds = $useRangeForSummary
             ? $details->pluck('element_id')->unique()->values()
@@ -282,18 +173,10 @@ class IndicatorController extends Controller
 
         $kpiDetails = $useRangeForSummary ? $latestDetails : $rankingDetails;
 
-        $highFindings = $kpiDetails
-            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 1)
-            ->count();
-        $mediumFindings = $kpiDetails
-            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 2)
-            ->count();
-        $lowFindings = $kpiDetails
-            ->filter(fn ($d) => (int) ($d->condition?->severity ?? -1) === 3)
-            ->count();
-        $okFindings = $kpiDetails
-            ->filter(fn ($d) => $d->condition !== null && (int) $d->condition->severity === 0)
-            ->count();
+        // Tarjetas dinámicas: una por cada severidad que realmente exista en los datos
+        // filtrados (no solo 1/2/3/0). Un tipo de activo nuevo con otra escala de
+        // criticidad no debe quedar con tarjetas en cero ni perder conteos.
+        $severityBreakdown = $this->buildSeverityKpiBreakdown($kpiDetails);
 
         $severityDistribution = $this->buildSeverityDistribution($rankingDetails);
         $conditionDistribution = $this->buildConditionDistribution($rankingDetails, $singleTypeMode);
@@ -347,11 +230,52 @@ class IndicatorController extends Controller
                 $first = $items->first();
                 $attention = $this->countAttentionLike($items);
 
+                $conditions = $items
+                    ->groupBy('condition_id')
+                    ->map(function ($group) {
+                        $condition = $group->first()->condition;
+
+                        return [
+                            'condition_id' => $condition?->id,
+                            'code' => $condition?->code ?: '—',
+                            'name' => $condition?->name ?: 'Sin condición',
+                            'severity' => $condition?->severity,
+                            'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
+                            'count' => $group->count(),
+                        ];
+                    })
+                    ->sortByDesc(fn ($row) => $row['severity'] ?? -1)
+                    ->values()
+                    ->all();
+
+                $reports = $items
+                    ->map(function ($detail) {
+                        $condition = $detail->condition;
+
+                        return [
+                            'component' => $detail->component?->name ?: 'Sin componente',
+                            'diagnostic' => $detail->diagnostic?->name ?: 'Sin diagnóstico',
+                            'condition_name' => $condition?->name ?: 'Sin condición',
+                            'condition_code' => $condition?->code ?: '—',
+                            'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
+                            'year' => (int) $detail->year,
+                            'week' => (int) $detail->week,
+                            'week_label' => 'S' . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT) . ' / ' . $detail->year,
+                            'date' => Carbon::now()->setISODate((int) $detail->year, (int) $detail->week)->startOfWeek()->toDateString(),
+                        ];
+                    })
+                    ->sortByDesc(fn ($row) => $row['year'] * 54 + $row['week'])
+                    ->values()
+                    ->all();
+
                 return [
+                    'element_id' => $first?->element_id,
                     'name' => $first?->element?->name ?: 'Sin activo',
                     'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'total' => $items->count(),
                     'attention' => $attention,
+                    'conditions' => $conditions,
+                    'reports' => $reports,
                 ];
             })
             ->filter(fn ($row) => (int) ($row['attention'] ?? 0) > 0)
@@ -378,6 +302,7 @@ class IndicatorController extends Controller
                     ->all();
 
                 return [
+                    'component_id'   => $first?->component_id,
                     'name'           => $first?->component?->name ?: 'Sin componente',
                     'total'          => $total,
                     'attention'      => $attention,
@@ -416,6 +341,7 @@ class IndicatorController extends Controller
                 $description = trim((string) ($condition?->description ?: ''));
 
                 return [
+                    'condition_id' => $condition?->id,
                     'type' => $first?->element?->elementType?->name ?: 'Sin tipo',
                     'code' => $condition?->code ?: '—',
                     'name' => $name,
@@ -447,10 +373,7 @@ class IndicatorController extends Controller
                 'inspected_elements' => $inspectedElements,
                 'not_inspected_elements' => $notInspectedElements,
                 'coverage' => $coverage,
-                'high_findings' => $highFindings,
-                'medium_findings' => $mediumFindings,
-                'low_findings' => $lowFindings,
-                'ok_findings' => $okFindings,
+                'severity_breakdown' => $severityBreakdown,
             ],
             'charts' => [
                 'mode' => $singleTypeMode ? 'condition' : 'severity',
@@ -487,6 +410,167 @@ class IndicatorController extends Controller
                 'year_to' => $yearTo,
                 'week_to' => $weekTo,
             ],
+        ]);
+    }
+
+    /**
+     * Detalle "a demanda" para cualquier gráfico del dashboard: recibe una dimensión
+     * (severidad, condición, activo, componente, área o semana) más su clave, reconstruye
+     * el mismo $rankingDetails/$details que ya usa data() y devuelve las filas que caen en
+     * esa dimensión. Se pide bajo demanda (no se embebe en data()) para no inflar el
+     * payload principal, sobre todo en el gráfico semanal (hasta 53 semanas).
+     */
+    public function chartDetail(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        $roleKey = $user->role?->key;
+
+        abort_unless(
+            $this->canAccessIndicators($roleKey),
+            403,
+            'Rol no autorizado para consultar indicadores.'
+        );
+
+        $validated = $request->validate([
+            'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
+            'element_type_id' => ['nullable', 'integer', 'exists:element_types,id'],
+            'year_from' => ['nullable', 'integer', 'min:2020', 'max:2100'],
+            'week_from' => ['nullable', 'integer', 'min:1', 'max:53'],
+            'year_to' => ['nullable', 'integer', 'min:2020', 'max:2100'],
+            'week_to' => ['nullable', 'integer', 'min:1', 'max:53'],
+            'mode' => ['nullable', 'in:latest'],
+            'strict_summary' => ['nullable', 'boolean'],
+            'dimension' => ['required', 'in:severity,condition,element,component,area,week'],
+            'severity' => ['nullable', 'string'],
+            'condition_id' => ['nullable', 'integer', 'exists:conditions,id'],
+            'element_id' => ['nullable', 'integer', 'exists:elements,id'],
+            'component_id' => ['nullable', 'integer', 'exists:components,id'],
+            'area_id' => ['nullable', 'integer', 'exists:areas,id'],
+            'year' => ['nullable', 'integer', 'min:2020', 'max:2100'],
+            'week' => ['nullable', 'integer', 'min:1', 'max:53'],
+        ]);
+
+        $forceLatest = ($validated['mode'] ?? null) === 'latest';
+        $strictSummary = $request->boolean('strict_summary');
+        $useRangeForSummary = !$forceLatest || $strictSummary;
+        $yearFrom = (int) ($validated['year_from'] ?? now()->isoWeekYear());
+        $weekFrom = (int) ($validated['week_from'] ?? 1);
+        $yearTo = (int) ($validated['year_to'] ?? now()->isoWeekYear());
+        $weekTo = (int) ($validated['week_to'] ?? now()->isoWeek());
+
+        $context = $this->resolveIndicatorContext(
+            $user,
+            !empty($validated['client_id']) ? (int) $validated['client_id'] : null,
+            !empty($validated['group_id']) ? (int) $validated['group_id'] : null,
+            !empty($validated['element_type_id']) ? (int) $validated['element_type_id'] : null,
+            $yearFrom,
+            $weekFrom,
+            $yearTo,
+            $weekTo,
+            $forceLatest,
+            $useRangeForSummary
+        );
+
+        $dimension = $validated['dimension'];
+
+        if ($dimension === 'week') {
+            if (empty($validated['year']) || empty($validated['week'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Falta año/semana para el detalle.',
+                ], 422);
+            }
+
+            $rows = empty($context['elementIds'])
+                ? collect()
+                : ReportDetail::query()
+                    ->with([
+                        'element:id,name,area_id',
+                        'element.area:id,name',
+                        'component:id,name',
+                        'diagnostic:id,name',
+                        'condition:id,code,name,description,severity,color',
+                    ])
+                    ->where('status', true)
+                    ->whereIn('element_id', $context['elementIds'])
+                    ->where('year', (int) $validated['year'])
+                    ->where('week', (int) $validated['week'])
+                    ->get();
+
+            $title = 'Semana ' . str_pad((string) $validated['week'], 2, '0', STR_PAD_LEFT) . ' / ' . $validated['year'];
+
+            return $this->respondChartDetail($title, $rows);
+        }
+
+        $rankingDetails = $context['rankingDetails'];
+
+        $filtered = match ($dimension) {
+            'severity' => $rankingDetails->filter(function ($d) use ($validated) {
+                $target = $validated['severity'] ?? null;
+                $severity = $d->condition?->severity;
+
+                if ($target === null || $target === 'none') {
+                    return $severity === null;
+                }
+
+                return $severity !== null && (int) $severity === (int) $target;
+            }),
+            'condition' => $rankingDetails->filter(
+                fn ($d) => (int) $d->condition_id === (int) ($validated['condition_id'] ?? 0)
+            ),
+            'element' => $rankingDetails->filter(
+                fn ($d) => (int) $d->element_id === (int) ($validated['element_id'] ?? 0)
+            ),
+            'component' => $rankingDetails->filter(
+                fn ($d) => (int) $d->component_id === (int) ($validated['component_id'] ?? 0)
+            ),
+            'area' => $rankingDetails->filter(
+                fn ($d) => (int) ($d->element?->area_id ?? 0) === (int) ($validated['area_id'] ?? 0)
+            ),
+            default => collect(),
+        };
+
+        $title = match ($dimension) {
+            'severity' => $this->severityLabel(($validated['severity'] ?? null) === 'none' ? null : ($validated['severity'] ?? null)),
+            'condition' => optional($filtered->first()?->condition)->name ?: 'Condición',
+            'element' => optional($filtered->first()?->element)->name ?: 'Activo',
+            'component' => optional($filtered->first()?->component)->name ?: 'Componente',
+            'area' => optional($filtered->first()?->element?->area)->name ?: 'Área',
+            default => 'Detalle',
+        };
+
+        return $this->respondChartDetail($title, $filtered);
+    }
+
+    private function respondChartDetail(string $title, Collection $details): JsonResponse
+    {
+        $reports = $details
+            ->map(function ($detail) {
+                $condition = $detail->condition;
+
+                return [
+                    'element' => $detail->element?->name ?: 'Sin activo',
+                    'area' => $detail->element?->area?->name,
+                    'component' => $detail->component?->name ?: 'Sin componente',
+                    'diagnostic' => $detail->diagnostic?->name ?: 'Sin diagnóstico',
+                    'condition_name' => $condition?->name ?: 'Sin condición',
+                    'condition_code' => $condition?->code ?: '—',
+                    'color' => $condition?->color ?: $this->indicatorColorFromSeverity($condition?->severity),
+                    'year' => (int) $detail->year,
+                    'week' => (int) $detail->week,
+                    'week_label' => 'S' . str_pad((string) $detail->week, 2, '0', STR_PAD_LEFT) . ' / ' . $detail->year,
+                    'date' => Carbon::now()->setISODate((int) $detail->year, (int) $detail->week)->startOfWeek()->toDateString(),
+                ];
+            })
+            ->sortByDesc(fn ($row) => $row['year'] * 54 + $row['week'])
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'title' => $title,
+            'total' => $reports->count(),
+            'reports' => $reports,
         ]);
     }
 
@@ -1011,22 +1095,193 @@ class IndicatorController extends Controller
         ];
     }
 
-    private function buildLatestDetailsByElement(Collection $details): Collection
+    /**
+     * Resuelve alcance (cliente/agrupación/tipo de activo autorizados), el rango de
+     * semanas consultado y el "estado actual" reconstruido por componente+diagnóstico
+     * ($rankingDetails). Compartido entre data() y chartDetail() para no duplicar la
+     * lógica de autorización ni el cálculo de último-estado.
+     */
+    private function resolveIndicatorContext(
+        $user,
+        ?int $clientId,
+        ?int $groupId,
+        ?int $elementTypeId,
+        int $yearFrom,
+        int $weekFrom,
+        int $yearTo,
+        int $weekTo,
+        bool $forceLatest,
+        bool $useRangeForSummary
+    ): array {
+        $dateFrom = Carbon::now()->setISODate($yearFrom, $weekFrom)->startOfWeek();
+        $dateTo = Carbon::now()->setISODate($yearTo, $weekTo)->endOfWeek();
+
+        $clients = $this->getScopedClients($user);
+        $clientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if ($clientId) {
+            if (!in_array($clientId, $clientIds, true)) {
+                abort(403, 'No tienes acceso a este cliente.');
+            }
+
+            $clientIds = [$clientId];
+        }
+
+        $groups = $this->getScopedGroups($user, $clientIds);
+
+        if ($groupId) {
+            if (!$groups->pluck('id')->map(fn ($id) => (int) $id)->contains($groupId)) {
+                abort(403, 'No tienes acceso a esta agrupación.');
+            }
+
+            $groups = $groups->where('id', $groupId)->values();
+        }
+
+        $groupIds = $groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $elementIdsForGroups = $this->elementIdsForGroups($groupIds);
+
+        $elementsQuery = Element::query()
+            ->with([
+                'area:id,name',
+                'elementType:id,name',
+                'group:id,name,client_id',
+            ])
+            ->where('status', true)
+            ->whereIn('id', $elementIdsForGroups);
+
+        if ($elementTypeId) {
+            $elementsQuery->where('element_type_id', $elementTypeId);
+        }
+
+        $elements = $elementsQuery->get([
+            'id',
+            'area_id',
+            'element_type_id',
+            'group_id',
+            'name',
+            'code',
+            'status',
+        ]);
+
+        $elementIds = $elements->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $weekPairs = $this->buildWeekPairs($dateFrom, $dateTo);
+
+        $details = collect();
+
+        if ($useRangeForSummary && !empty($elementIds) && !empty($weekPairs)) {
+            $details = ReportDetail::query()
+                ->with([
+                    'user:id,name',
+                    'element:id,name,group_id,element_type_id,area_id',
+                    'element.area:id,name',
+                    'element.elementType:id,name',
+                    'component:id,name',
+                    'diagnostic:id,name',
+                    'condition:id,code,name,description,severity,color',
+                    'executionStatus:id,name',
+                ])
+                ->where('status', true)
+                ->whereIn('element_id', $elementIds)
+                ->where(function ($query) use ($weekPairs) {
+                    foreach ($weekPairs as $pair) {
+                        $query->orWhere(function ($subQuery) use ($pair) {
+                            $subQuery
+                                ->where('year', $pair['year'])
+                                ->where('week', $pair['week']);
+                        });
+                    }
+                })
+                ->get();
+        }
+
+        // Para gráficos de "estado actual": último dato conocido por cada combinación
+        // activo+componente+diagnóstico dentro del rango solicitado. Un activo puede
+        // revisarse por partes (componentes distintos en semanas distintas dentro del
+        // mismo rango); agrupar solo por element_id descartaba componentes que no se
+        // tocaron en la semana "ganadora" del activo.
+        $latestDetails = $this->buildLatestDetailsByComponent($details);
+
+        // Si el rango no tiene datos o se pide modo "último disponible", los gráficos usan
+        // el último dato conocido por componente+diagnóstico, sin límite de fecha.
+        $rankingFallback = $forceLatest || ($latestDetails->isEmpty() && !empty($elementIds));
+        $rankingDetails = $latestDetails;
+
+        if ($rankingFallback) {
+            // DISTINCT ON (Postgres) resuelve en una sola consulta el último registro por
+            // combinación element_id+component_id+diagnostic_id, sin acotar por fecha: un
+            // activo revisado por partes durante el año conserva, para cada componente, su
+            // dato más reciente aunque provenga de semanas (incluso años) distintos.
+            // No se limita a $yearTo a propósito: un componente cuyo último reporte sea de
+            // un año anterior debe seguir apareciendo como "último reporte disponible".
+            $rankingDetails = empty($elementIds)
+                ? collect()
+                : ReportDetail::query()
+                    ->selectRaw('DISTINCT ON (report_details.element_id, report_details.component_id, report_details.diagnostic_id) report_details.*')
+                    ->with([
+                        'element:id,name,group_id,element_type_id,area_id',
+                        'element.area:id,name',
+                        'element.elementType:id,name',
+                        'component:id,name',
+                        'diagnostic:id,name',
+                        'condition:id,code,name,description,severity,color',
+                    ])
+                    ->where('report_details.status', true)
+                    ->whereIn('report_details.element_id', $elementIds)
+                    ->orderBy('report_details.element_id')
+                    ->orderBy('report_details.component_id')
+                    ->orderBy('report_details.diagnostic_id')
+                    ->orderByRaw('(report_details.year * 54 + report_details.week) DESC')
+                    ->orderByDesc('report_details.updated_at')
+                    ->orderByDesc('report_details.id')
+                    ->get();
+        }
+
+        return [
+            'clients' => $clients,
+            'clientIds' => $clientIds,
+            'groups' => $groups,
+            'groupIds' => $groupIds,
+            'elements' => $elements,
+            'elementIds' => $elementIds,
+            'weekPairs' => $weekPairs,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'details' => $details,
+            'latestDetails' => $latestDetails,
+            'rankingDetails' => $rankingDetails,
+            'rankingFallback' => $rankingFallback,
+        ];
+    }
+
+    private function buildLatestDetailsByComponent(Collection $details): Collection
     {
         if ($details->isEmpty()) {
             return collect();
         }
 
         return $details
-            ->groupBy('element_id')
-            ->flatMap(function (Collection $elementDetails) {
-                $maxScore = $elementDetails->max(
-                    fn ($d) => (int) $d->year * 54 + (int) $d->week
-                );
+            ->groupBy(fn ($d) => $d->element_id . '-' . $d->component_id . '-' . $d->diagnostic_id)
+            ->map(function (Collection $group) {
+                $maxScore = $group->max(fn ($d) => (int) $d->year * 54 + (int) $d->week);
+                $winners = $group->filter(fn ($d) => (int) $d->year * 54 + (int) $d->week === $maxScore);
 
-                return $elementDetails->filter(
-                    fn ($d) => (int) $d->year * 54 + (int) $d->week === $maxScore
-                );
+                if ($winners->count() <= 1) {
+                    return $winners->first();
+                }
+
+                // Empate en la misma semana para el mismo componente+diagnóstico:
+                // gana el registro actualizado más recientemente.
+                return $winners->reduce(function ($winner, $candidate) {
+                    if ($winner === null) {
+                        return $candidate;
+                    }
+
+                    if ($candidate->updated_at != $winner->updated_at) {
+                        return $candidate->updated_at > $winner->updated_at ? $candidate : $winner;
+                    }
+
+                    return $candidate->id > $winner->id ? $candidate : $winner;
+                });
             })
             ->values();
     }
@@ -1327,6 +1582,45 @@ class IndicatorController extends Controller
             ->values();
     }
 
+    /**
+     * Una tarjeta por cada severidad presente en $details (más "sin criticidad" si
+     * aplica), no solo 0/1/2/3. Así un tipo de activo con otra escala de criticidad
+     * no queda con tarjetas fijas en cero ni pierde conteos fuera del rango 0-3.
+     */
+    private function buildSeverityKpiBreakdown(Collection $details): array
+    {
+        return $details
+            ->groupBy(fn ($detail) => $detail->condition?->severity ?? 'sin_criticidad')
+            ->map(function ($items, $severity) {
+                $severityValue = is_numeric($severity) ? (int) $severity : null;
+                $meta = $this->severityKpiMeta($severityValue);
+
+                return [
+                    'severity' => $severityValue,
+                    'label' => $meta['label'],
+                    'subtitle' => $meta['subtitle'],
+                    'color' => $this->indicatorColorFromSeverity($severity),
+                    'order' => $this->semaphoreOrderFromSeverity($severityValue),
+                    'total' => $items->count(),
+                ];
+            })
+            ->sortBy(fn ($row) => $row['order'])
+            ->values()
+            ->all();
+    }
+
+    private function severityKpiMeta(?int $severity): array
+    {
+        return match ($severity) {
+            0 => ['label' => 'Sin novedad', 'subtitle' => 'Incluye OK, aseo, observación y otras condiciones informativas'],
+            1 => ['label' => 'Alta', 'subtitle' => 'Criticidad alta'],
+            2 => ['label' => 'Media', 'subtitle' => 'Criticidad media'],
+            3 => ['label' => 'Baja', 'subtitle' => 'Criticidad baja'],
+            null => ['label' => 'Sin criticidad', 'subtitle' => 'Condiciones sin severidad asignada'],
+            default => ['label' => 'Criticidad ' . $severity, 'subtitle' => 'Criticidad ' . $severity],
+        };
+    }
+
     private function buildConditionDistribution(Collection $details, bool $singleTypeMode): Collection
     {
         return $details
@@ -1349,6 +1643,7 @@ class IndicatorController extends Controller
                         ? $conditionLabel
                         : $typeName . ' / ' . $conditionLabel,
                     'type' => $typeName,
+                    'condition_id' => $condition?->id,
                     'code' => $condition?->code ?: '—',
                     'condition' => $condition?->name ?: 'Sin condición',
                     'severity' => $condition?->severity,
@@ -1434,6 +1729,7 @@ class IndicatorController extends Controller
                 $attention = $this->countAttentionLike($items);
 
                 return [
+                    'area_id' => is_numeric($areaId) ? (int) $areaId : null,
                     'label' => $firstElement?->area?->name ?: 'Sin área',
                     'total' => $total,
                     'attention' => $attention,

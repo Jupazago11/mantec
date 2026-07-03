@@ -78,6 +78,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/indicadores/semaforo/data', [IndicatorController::class, 'semaphoreData'])->name('admin.indicators.semaphore.data');
     Route::patch('/admin/indicadores/semaforo/cambio-banda', [IndicatorController::class, 'updateSemaphoreBeltChange'])->name('admin.indicators.semaphore.belt-change.update');
     Route::get('/admin/indicadores/data', [IndicatorController::class, 'data'])->name('admin.indicators.data');
+    Route::get('/admin/indicadores/detalle', [IndicatorController::class, 'chartDetail'])->name('admin.indicators.chart-detail');
 
     /*
     |--------------------------------------------------------------------------
