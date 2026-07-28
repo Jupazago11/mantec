@@ -442,6 +442,7 @@ class IndicatorController extends Controller
             'mode' => ['nullable', 'in:latest'],
             'strict_summary' => ['nullable', 'boolean'],
             'dimension' => ['required', 'in:severity,condition,element,component,area,week'],
+            'basis' => ['nullable', 'in:kpi'],
             'severity' => ['nullable', 'string'],
             'condition_id' => ['nullable', 'integer', 'exists:conditions,id'],
             'element_id' => ['nullable', 'integer', 'exists:elements,id'],
@@ -503,7 +504,15 @@ class IndicatorController extends Controller
             return $this->respondChartDetail($title, $rows);
         }
 
-        $rankingDetails = $context['rankingDetails'];
+        // Las tarjetas de severidad (KPI) cuentan sobre $latestDetails cuando el rango
+        // manda (ver $kpiDetails en data()); el resto de gráficas/rankings siempre miden
+        // "estado actual" sobre $rankingDetails. Si el detalle se abrió desde una tarjeta
+        // (basis=kpi), hay que reconstruir exactamente la misma base para que el total del
+        // modal coincida con el número que el usuario vio en la tarjeta.
+        $useKpiBasis = ($validated['basis'] ?? null) === 'kpi';
+        $rankingDetails = ($useKpiBasis && $useRangeForSummary)
+            ? $context['latestDetails']
+            : $context['rankingDetails'];
 
         $filtered = match ($dimension) {
             'severity' => $rankingDetails->filter(function ($d) use ($validated) {

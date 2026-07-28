@@ -1627,7 +1627,7 @@
                     <div
                         class="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm transition hover:shadow-md"
                         title="${escapeHtml(row.subtitle || '')}"
-                        onclick="openChartDetailByDimension('severity', { severity: '${escapeHtml(String(severityKey))}' }, '${escapeHtml(row.label)}')"
+                        onclick="openChartDetailByDimension('severity', { severity: '${escapeHtml(String(severityKey))}', basis: 'kpi' }, '${escapeHtml(row.label)}')"
                     >
                         <p class="text-2xl font-bold" style="color:${escapeHtml(style.accent)}">${row.total}</p>
                         <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(row.label)}</p>

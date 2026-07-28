@@ -1696,11 +1696,18 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
      * Edición inline de campos de un ReportDetail desde la vista de reportes por agrupación.
      *
      * IMPORTANTE — distinción de roles:
-     *   - superadmin / admin_global / admin: editan vía el modal de edición completa
-     *     (openEditReportModal → editData → adminEdit). NO usan este endpoint.
+     *   - superadmin / admin_global: pueden editar hallazgo (recommendation) y recomendación
+     *     (recommendation_2) directamente desde la celda, sin pasar por la configuración de
+     *     la agrupación (siempre tienen permiso, igual que en el modal de edición completa).
+     *     El modal (openEditReportModal → editData → adminUpdate) sigue disponible para editar
+     *     el resto del registro (activo, componente, diagnóstico, condición, fecha).
+     *   - admin: sigue sin poder usar este endpoint (edita únicamente vía el modal). Nota: la
+     *     vista igual le muestra la celda como editable (mismo flag $canEditReports que usan
+     *     superadmin/admin_global), así que al día de hoy le devolverá 403 si intenta guardar
+     *     inline — pendiente de decidir si se habilita en una iteración futura.
      *   - admin_cliente / observador / observador_cliente: usan este endpoint para editar
-     *     campos puntuales (hallazgo, recomendación, orden, aviso, fecha de ejecución).
-     *     El permiso de cada campo se valida contra la configuración de la agrupación
+     *     campos puntuales (hallazgo, recomendación, orden, aviso). El permiso de cada campo
+     *     se valida contra la configuración de la agrupación
      *     (GroupReportConfigService::resolveForRole) — si el admin deshabilitó la edición
      *     de ese campo para ese rol en esa agrupación, este endpoint retorna 403.
      *
@@ -1713,7 +1720,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         $roleKey = $user->role?->key;
 
         abort_unless(
-            in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente'], true),
+            in_array($roleKey, ['admin_cliente', 'observador', 'observador_cliente', 'superadmin', 'admin_global'], true),
             403,
             'No tienes permisos para editar este campo.'
         );
@@ -1740,18 +1747,25 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             'No autorizado para editar este reporte.'
         );
 
-        // Verificar que el rol tiene permiso de edición para este campo en la agrupación del reporte
-        $groupId = (int) ($report->element?->group_id ?? 0);
-        abort_unless($groupId > 0, 403, 'No fue posible determinar la agrupación del reporte.');
+        // superadmin/admin_global siempre pueden editar hallazgo y recomendación, igual que en
+        // el modal de edición completa: no dependen de la configuración de la agrupación.
+        $isPowerAdminEditableField = in_array($roleKey, ['superadmin', 'admin_global'], true)
+            && in_array($field, ['recommendation', 'recommendation_2'], true);
 
-        $columns     = $this->groupReportConfigService->resolveForRole($groupId, $roleKey);
-        $colConfig   = collect($columns)->firstWhere('column_key', $field);
+        if (!$isPowerAdminEditableField) {
+            // Verificar que el rol tiene permiso de edición para este campo en la agrupación del reporte
+            $groupId = (int) ($report->element?->group_id ?? 0);
+            abort_unless($groupId > 0, 403, 'No fue posible determinar la agrupación del reporte.');
 
-        abort_unless(
-            $colConfig && $colConfig['can_edit'],
-            403,
-            'No tienes permisos para editar este campo en esta agrupación.'
-        );
+            $columns     = $this->groupReportConfigService->resolveForRole($groupId, $roleKey);
+            $colConfig   = collect($columns)->firstWhere('column_key', $field);
+
+            abort_unless(
+                $colConfig && $colConfig['can_edit'],
+                403,
+                'No tienes permisos para editar este campo en esta agrupación.'
+            );
+        }
 
         $report->{$field} = $value;
         $report->save();
