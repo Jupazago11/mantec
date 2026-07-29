@@ -652,7 +652,7 @@
                                                         <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                             x-text="displayValue(selectedBandHistory?.time)"></td>
 
-                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th>
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura de apertura</th>
                                                         <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                             x-text="displayValue(selectedBandHistory?.cooling_time)"></td>
                                                     </tr>
@@ -684,7 +684,7 @@
                                                         <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                             x-text="selectedBandHistory?.material_accumulation || '—'"></td>
 
-                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th>
+                                                        <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilla</th>
                                                         <td class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                             x-text="selectedBandHistory?.guard || '—'"></td>
                                                     </tr>
@@ -790,7 +790,7 @@
                                                                 x-text="displayValue(child.time)"></td>
 
                                                             <th class="border border-slate-200 px-3 py-2 font-bold text-slate-900">
-                                                                Tiempo enfriamiento
+                                                                Temperatura de apertura
                                                             </th>
                                                             <td class="border border-slate-200 bg-yellow-100 px-3 py-2 text-center font-semibold text-slate-900"
                                                                 x-text="displayValue(child.cooling_time)"></td>
@@ -946,7 +946,7 @@
 
                                     <tr>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                            Tiempo enfriamiento
+                                            Temperatura de apertura
                                         </th>
                                         <td
                                             class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
@@ -999,7 +999,7 @@
 
                                     <tr>
                                         <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                            Guardilña
+                                            Guardilla
                                         </th>
                                         <td
                                             class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900"
@@ -1460,7 +1460,7 @@
 
                                         <tr>
                                             <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                                Tiempo enfriamiento
+                                                Temperatura de apertura
                                             </th>
                                             <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                 <input type="number" step="0.01" x-model="bandEditForm.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
@@ -1508,7 +1508,7 @@
 
                                         <tr>
                                             <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                                Guardilña
+                                                Guardilla
                                             </th>
                                             <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                 <input type="text" x-model="bandEditForm.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none">
@@ -1584,7 +1584,7 @@
 
                                         <tr>
                                             <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                                Tiempo enfriamiento
+                                                Temperatura de apertura
                                             </th>
                                             <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                 <input
@@ -1695,7 +1695,7 @@
 
                                             <tr>
                                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                                    Tiempo enfriamiento
+                                                    Temperatura de apertura
                                                 </th>
                                                 <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                     <input
@@ -1761,7 +1761,7 @@
 
                                             <tr>
                                                 <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">
-                                                    Guardilña
+                                                    Guardilla
                                                 </th>
                                                 <td class="border border-slate-300 bg-slate-100 px-3 py-2">
                                                     <input
@@ -2938,7 +2938,7 @@
                                             <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura de apertura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -2952,7 +2952,7 @@
                                             <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                            <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilla</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                         </tbody>
                                     </table>
@@ -2970,7 +2970,7 @@
                                         <tr><th class="w-[35%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                         <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                         <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                        <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura de apertura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -3006,7 +3006,7 @@
                                                 <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.temperature" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Presión</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.pressure" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo vulcanizado</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Tiempo enfriamiento</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Temperatura de apertura</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.cooling_time" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -3020,7 +3020,7 @@
                                                 <tr><th class="w-[45%] border border-slate-300 px-3 py-2 font-bold text-slate-900">Corriente motor</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="number" step="0.01" x-model="bandDraft.motor_current" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Alineación</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.alignment" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Mat acumul</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.material_accumulation" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
-                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilña</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
+                                                <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Guardilla</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.guard" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                                 <tr><th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Rodillería</th><td class="border border-slate-300 bg-slate-100 px-3 py-2"><input type="text" x-model="bandDraft.idler_condition" class="w-full bg-transparent text-center font-semibold text-slate-900 outline-none"></td></tr>
                                             </tbody>
                                         </table>
@@ -7074,7 +7074,7 @@ function measurementThicknessModule(config) {
                 { label: 'Temperatura', value: this.displayValue(this.bandDraft?.temperature) },
                 { label: 'Presión', value: this.displayValue(this.bandDraft?.pressure) },
                 { label: 'Tiempo vulcanizado', value: this.displayValue(this.bandDraft?.time) },
-                { label: 'Tiempo enfriamiento', value: this.displayValue(this.bandDraft?.cooling_time) },
+                { label: 'Temperatura de apertura', value: this.displayValue(this.bandDraft?.cooling_time) },
             ];
         },
 
@@ -7085,7 +7085,7 @@ function measurementThicknessModule(config) {
                 { label: 'Corriente motor', value: this.displayValue(this.bandDraft?.motor_current) },
                 { label: 'Alineación', value: this.bandDraft?.alignment || '—' },
                 { label: 'Material acumulado', value: this.bandDraft?.material_accumulation || '—' },
-                { label: 'Guardilña', value: this.bandDraft?.guard || '—' },
+                { label: 'Guardilla', value: this.bandDraft?.guard || '—' },
                 { label: 'Rodillería', value: this.bandDraft?.idler_condition || '—' },
             ];
         },
@@ -7170,7 +7170,7 @@ function measurementThicknessModule(config) {
                     { label: 'Temperatura', value: this.displayValue(child.temperature) },
                     { label: 'Presión', value: this.displayValue(child.pressure) },
                     { label: 'Tiempo', value: this.displayValue(child.time) },
-                    { label: 'Enfriamiento', value: this.displayValue(child.cooling_time) },
+                    { label: 'Apertura', value: this.displayValue(child.cooling_time) },
                     { label: 'Observación', value: child.observation || '—' },
                 ];
             }
@@ -7181,7 +7181,7 @@ function measurementThicknessModule(config) {
                         { label: 'Temperatura', value: this.displayValue(child.temperature) },
                         { label: 'Presión', value: this.displayValue(child.pressure) },
                         { label: 'Tiempo', value: this.displayValue(child.time) },
-                        { label: 'Enfriamiento', value: this.displayValue(child.cooling_time) },
+                        { label: 'Apertura', value: this.displayValue(child.cooling_time) },
                     ]
                     : [];
 
@@ -7335,7 +7335,7 @@ function measurementThicknessModule(config) {
                 { label: 'Corriente motor', value: this.displayValue(this.selectedBandHistory.motor_current) },
                 { label: 'Alineación', value: this.selectedBandHistory.alignment || '—' },
                 { label: 'Material acumulado', value: this.selectedBandHistory.material_accumulation || '—' },
-                { label: 'Guardilña', value: this.selectedBandHistory.guard || '—' },
+                { label: 'Guardilla', value: this.selectedBandHistory.guard || '—' },
                 { label: 'Rodillería', value: this.selectedBandHistory.idler_condition || '—' },
             ];
         },
@@ -7347,7 +7347,7 @@ function measurementThicknessModule(config) {
                 { label: 'Temperatura', value: this.displayValue(this.selectedBandHistory.temperature) },
                 { label: 'Presión', value: this.displayValue(this.selectedBandHistory.pressure) },
                 { label: 'Tiempo', value: this.displayValue(this.selectedBandHistory.time) },
-                { label: 'Enfriamiento', value: this.displayValue(this.selectedBandHistory.cooling_time) },
+                { label: 'Apertura', value: this.displayValue(this.selectedBandHistory.cooling_time) },
             ];
         },
                 // ======================
