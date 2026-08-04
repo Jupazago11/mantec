@@ -1,6 +1,6 @@
 # Analisis Del Sistema Laravel - Mantec
 
-Ultima actualizacion: 2026-06-19  
+Ultima actualizacion: 2026-08-03  
 Estado del documento: canonico y de mantenimiento continuo
 
 ## 1. Proposito
@@ -394,6 +394,35 @@ Impacto sobre la app Android:
 - El frontend administrativo de evidencia no cambia por si solo la API de sincronizacion movil.
 - La API movil sigue cargando archivos al flujo existente.
 - Cualquier cambio de contrato solo ocurre si se alteran validaciones, nombres de campos, almacenamiento o relaciones.
+
+### 9.1 Limite De Peso De Archivo (2026-08-03)
+
+Se detecto que produccion (Railway) corria sin ningun `php.ini` cargado
+(`php_ini_loaded_file()` devolvia `false`), con `upload_max_filesize=0` y
+`post_max_size=0`. `post_max_size=0` esta documentado por PHP como "sin
+limite", pero `upload_max_filesize=0` no tiene esa garantia documentada;
+las subidas de evidencia funcionaban de forma accidental, no por diseno,
+y podian romperse con un simple reinicio del contenedor o cambio de
+Nixpacks/Railway sin tocar codigo.
+
+Se agrego [php.ini](/home/jupazago/Documentos/mantecv1/mantec/php.ini) en
+la raiz del repo (recogido por el provider PHP de Nixpacks en el build de
+Railway) fijando un techo alto pero explicito:
+
+- `upload_max_filesize = 1024M`
+- `post_max_size = 1100M`
+- `max_execution_time = 300`
+- `max_input_time = 300`
+
+La regla `max:` de Laravel se actualizo en los dos puntos de subida de
+evidencia para que coincida (de `102400` a `1048576`, en KB = 1024 MB):
+
+- [app/Http/Controllers/Api/InspectorSyncFileController.php](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Api/InspectorSyncFileController.php)
+- [app/Http/Controllers/Admin/AdminReportEvidenceController.php](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Admin/AdminReportEvidenceController.php)
+
+Pendiente: confirmar en `/php-upload-check` despues del proximo deploy a
+Railway que Nixpacks efectivamente recogio este `php.ini` (no se pudo
+verificar en vivo contra Railway desde este entorno).
 
 Estructura de almacenamiento:
 

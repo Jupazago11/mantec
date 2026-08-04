@@ -33,7 +33,7 @@ class AdminReportEvidenceController extends Controller
 
         $validated = $request->validate([
             'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['required', 'file', 'max:102400'],
+            'files.*' => ['required', 'file', 'max:1048576'],
             'evidence_kind' => ['required', 'in:' . implode(',', [
                 ReportDetailFile::KIND_HALLAZGO,
                 ReportDetailFile::KIND_CORRECCION,

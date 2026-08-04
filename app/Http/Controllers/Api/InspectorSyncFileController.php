@@ -20,7 +20,7 @@ class InspectorSyncFileController extends Controller
         abort_unless((int) $reportDetail->user_id === (int) $user->id, 403);
 
         $validated = $request->validate([
-            'file' => ['required', 'file', 'max:102400'],
+            'file' => ['required', 'file', 'max:1048576'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
