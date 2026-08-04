@@ -413,6 +413,15 @@ Railway) fijando un techo alto pero explicito:
 - `post_max_size = 1100M`
 - `max_execution_time = 300`
 - `max_input_time = 300`
+- `memory_limit = 1024M`
+
+Nota de verificacion en produccion (post-deploy, `/php-upload-check`):
+`upload_max_filesize` y `post_max_size` quedaron correctos, pero al existir
+un `php.ini` en el repo, Nixpacks dejo de usar su modo "sin ini" (que antes
+dejaba `memory_limit` en `-1`, sin limite) y genero su plantilla completa
+por defecto, que trae `memory_limit=128M` de fabrica. Se agrego
+`memory_limit=1024M` explicito en el mismo `php.ini` para no perder el
+margen que existia antes.
 
 La regla `max:` de Laravel se actualizo en los dos puntos de subida de
 evidencia para que coincida (de `102400` a `1048576`, en KB = 1024 MB):
