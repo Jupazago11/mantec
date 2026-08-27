@@ -47,6 +47,7 @@ class BandEvent extends Model
 
         // LÓGICA
         'same_reference',
+        'averia',
 
         // COMUNES
         'observation',
@@ -63,6 +64,7 @@ class BandEvent extends Model
         'report_date' => 'date',
         'published_at' => 'datetime',
         'status' => 'boolean',
+        'averia' => 'boolean',
     ];
 
     /*

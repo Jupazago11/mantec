@@ -524,6 +524,41 @@ Capacidades observadas:
 - manejar evidencia de draft y de reporte
 - editar y eliminar reportes publicados
 
+### 11.1 Campo "Avería" en cambio de banda (2026-08-26)
+
+`band_events` y `band_event_drafts` tienen ahora una columna `averia`
+(boolean, nullable — mismo patron que `same_reference`). Solo aplica al
+`type === 'band'` (Cambio de banda), aunque la columna vive en la misma
+tabla compartida con vulcanizado/cambio de tramo, igual que el resto de
+campos especificos por tipo.
+
+Checkbox "¿Avería?" visible en dos puntos de `show.blade.php`:
+
+- Wizard de creacion (paso 1, tarjeta "Nuevo cambio de banda"), ligado a
+  `bandDraft.averia`. Se guarda como cualquier otro campo del draft
+  (`saveBandDraft()`/`publish()` ya envian el objeto completo).
+- Modal "Editar evento histórico" (`bandEditForm`), visible solo cuando
+  `bandEditForm.type === 'band'`.
+
+Para registros existentes antes de este cambio, `averia` es `null` y la UI
+lo trata como "No" (`x-text="selectedBandHistory?.averia ? 'Sí' : 'No'"`);
+no hizo falta backfill.
+
+Tambien se agrego una fila "Avería" (Sí/No) en la tabla de solo lectura
+"Histórico - Cambio de banda", para poder consultar el valor sin tener que
+abrir el modal de edición.
+
+Cobertura: [tests/Feature/Admin/BandEventAveriaTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/BandEventAveriaTest.php).
+
+**Bug encontrado y corregido de paso**: el backdrop del wizard de cambio de
+banda usaba `class="fixed inset-0 ..."` sin `h-screen w-screen` explicito,
+y por alguna razon (no atribuible a ningun ancestro con `transform`/
+`filter`/`contain` — se verifico con Playwright) el alto calculado quedaba
+por debajo del viewport real, dejando una franja sin oscurecer en la parte
+inferior. Todos los demas modales de este archivo ya usaban el patron
+`top-0 left-0 h-screen w-screen`; se alineo este wizard a esa misma
+convencion y el problema desaparecio.
+
 El modelo incluye datos tecnicos como:
 
 - referencia de banda
@@ -677,6 +712,9 @@ Estado consolidado al 2026-08-26:
   usado por `bandStateEditForm`/`historyEditForm`); `openBandEditModal()`
   sigue sobrescribiendo el objeto completo con `emptyBandDraft()` antes de
   mostrar el modal, sin cambios de comportamiento ahi.
+- Campo `averia` en cambio de banda (checkbox "¿Avería?" en creacion y
+  edicion) y fix del backdrop del wizard que no cubria toda la pantalla:
+  ver [11.1](#111-campo-averia-en-cambio-de-banda-2026-08-26).
 
 ## 17. Riesgos Y Deuda Tecnica Visible
 

@@ -47,6 +47,7 @@ class BandEventDraft extends Model
 
         // LÓGICA
         'same_reference',
+        'averia',
 
         // COMUNES
         'observation',
@@ -61,6 +62,7 @@ class BandEventDraft extends Model
     protected $casts = [
         'report_date' => 'date',
         'status' => 'boolean',
+        'averia' => 'boolean',
     ];
 
     /*

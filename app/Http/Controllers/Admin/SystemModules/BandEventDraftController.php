@@ -155,6 +155,7 @@ class BandEventDraftController extends Controller
             'section_width' => $draft->section_width,
 
             'same_reference' => $draft->same_reference,
+            'averia' => $draft->averia,
             'observation' => $draft->observation,
 
             'created_by' => auth()->id(),
@@ -278,6 +279,7 @@ class BandEventDraftController extends Controller
             'section_width' => $event->section_width,
 
             'same_reference' => (bool) $event->same_reference,
+            'averia' => (bool) $event->averia,
             'observation' => $event->observation,
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),
@@ -320,6 +322,7 @@ class BandEventDraftController extends Controller
             'section_length' => $draft->section_length,
             'section_width' => $draft->section_width,
             'same_reference' => (bool) $draft->same_reference,
+            'averia' => (bool) $draft->averia,
             'observation' => $draft->observation,
             'report_date' => optional($draft->report_date)?->format('Y-m-d'),
             'evidences' => $draft->evidences
@@ -393,6 +396,7 @@ class BandEventDraftController extends Controller
 
             // LÓGICA
             'same_reference' => 'nullable|boolean',
+            'averia' => 'nullable|boolean',
         ]);
     }
 

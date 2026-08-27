@@ -107,6 +107,7 @@ class BandEventReportController extends Controller
             'idler_condition' => ['nullable', 'string', 'max:255'],
 
             'same_reference' => ['nullable', 'boolean'],
+            'averia' => ['nullable', 'boolean'],
         ];
 
         if ($type !== 'band') {
@@ -295,6 +296,7 @@ class BandEventReportController extends Controller
             'section_width' => $event->section_width,
 
             'same_reference' => (bool) $event->same_reference,
+            'averia' => (bool) $event->averia,
             'observation' => $event->observation,
             'report_date' => optional($event->report_date)?->format('Y-m-d'),
             'published_at' => optional($event->published_at)?->format('Y-m-d H:i:s'),

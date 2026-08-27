@@ -653,6 +653,14 @@
                                                 </tr>
 
                                                 <tr class="bg-white">
+                                                    <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Avería</th>
+                                                    <td colspan="3"
+                                                        class="border border-slate-300 bg-slate-100 px-3 py-2 text-center font-semibold"
+                                                        :class="selectedBandHistory?.averia ? 'text-red-700' : 'text-slate-900'"
+                                                        x-text="selectedBandHistory?.averia ? 'Sí' : 'No'"></td>
+                                                </tr>
+
+                                                <tr class="bg-white">
                                                     <th class="border border-slate-300 px-3 py-2 font-bold text-slate-900">Observación</th>
                                                     <td colspan="3"
                                                         class="border border-slate-300 px-3 py-2 text-center font-semibold"
@@ -1276,6 +1284,28 @@
                             class="w-[145px] bg-transparent text-sm font-semibold text-slate-800 outline-none"
                         >
                     </div>
+
+                    <label
+                        x-show="bandEditForm?.type === 'band'"
+                        x-cloak
+                        class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-slate-300"
+                    >
+                        <span class="text-sm font-semibold text-slate-700">¿Avería?</span>
+                        <span
+                            class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out"
+                            :class="bandEditForm.averia ? 'bg-[#d94d33]' : 'bg-slate-300'"
+                        >
+                            <input
+                                type="checkbox"
+                                x-model="bandEditForm.averia"
+                                class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                            >
+                            <span
+                                class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ease-in-out"
+                                :class="bandEditForm.averia ? 'translate-x-5' : 'translate-x-0.5'"
+                            ></span>
+                        </span>
+                    </label>
 
                     <button
                         type="button"
@@ -2756,7 +2786,7 @@
     x-cloak
     x-show="bandWizardOpen"
     x-transition.opacity
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 px-4 py-5"
+    class="fixed top-0 left-0 z-[9999] flex h-screen w-screen items-center justify-center bg-slate-950/60 px-4 py-5"
     @keydown.escape.window="closeBandWizard()"
 >
     <div
@@ -2870,10 +2900,32 @@
             <section x-show="bandWizardStep === 1" x-cloak class="space-y-5">
                 <template x-if="bandType === 'band'">
                     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h4 class="text-lg font-semibold text-slate-900">Nuevo cambio de banda</h4>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Registra la información técnica de la nueva banda. No se muestran opciones de vulcanizado ni tramo para evitar confusión.
-                        </p>
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <h4 class="text-lg font-semibold text-slate-900">Nuevo cambio de banda</h4>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    Registra la información técnica de la nueva banda. No se muestran opciones de vulcanizado ni tramo para evitar confusión.
+                                </p>
+                            </div>
+
+                            <label class="flex shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition hover:border-slate-300">
+                                <span class="text-sm font-semibold text-slate-700">¿Avería?</span>
+                                <span
+                                    class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out"
+                                    :class="bandDraft.averia ? 'bg-[#d94d33]' : 'bg-slate-300'"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        x-model="bandDraft.averia"
+                                        class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                    >
+                                    <span
+                                        class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ease-in-out"
+                                        :class="bandDraft.averia ? 'translate-x-5' : 'translate-x-0.5'"
+                                    ></span>
+                                </span>
+                            </label>
+                        </div>
                         <div class="mt-5">
                             <div class="flex items-center justify-between gap-3">
                                 <h5 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Tipo de banda</h5>
@@ -4360,6 +4412,7 @@ function measurementThicknessModule(config) {
 
                 // LÓGICA
                 same_reference: false,
+                averia: false,
 
                 // COMUNES
                 observation: '',
