@@ -9,6 +9,7 @@ use App\Models\Group;
 use App\Models\ReportDetail;
 use App\Models\SemaphoreBeltChange;
 use App\Models\SemaphoreTemplate;
+use App\Services\Execution\ExecutionStatusResolver;
 use App\Services\Semaphore\SemaphoreBuilder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -23,6 +24,7 @@ class IndicatorController extends Controller
 {
     public function __construct(
         private readonly SemaphoreBuilder $semaphoreBuilder,
+        private readonly ExecutionStatusResolver $executionStatusResolver,
     ) {
     }
 
@@ -1353,7 +1355,7 @@ class IndicatorController extends Controller
 
         // Fuente 2: reporte de inspector (component=Banda, diagnostic=Estado) — último registro por elemento en el período.
         $inspectorReports = ReportDetail::query()
-            ->with('condition:id,code,name,color,severity')
+            ->with(['condition:id,code,name,color,severity', 'executionStatus:id,name'])
             ->where('report_details.status', true)
             ->whereIn('report_details.element_id', $elementIds)
             ->when(
@@ -1371,7 +1373,7 @@ class IndicatorController extends Controller
             ->orderByRaw('report_details.year * 54 + report_details.week DESC')
             ->get(['report_details.element_id', 'report_details.is_belt_change',
                    'report_details.year', 'report_details.week', 'report_details.updated_at',
-                   'report_details.condition_id'])
+                   'report_details.condition_id', 'report_details.execution_status_id'])
             ->groupBy('element_id')
             ->map(fn ($rows) => $rows->first());
 
@@ -1401,7 +1403,13 @@ class IndicatorController extends Controller
                 ? (bool) $override->is_belt_change
                 : (bool) $report->is_belt_change;
 
-            if ($hasChange) {
+            // Si el reporte de inspector ya fue marcado como ejecutado/realizado, la necesidad
+            // de cambio de banda quedó suplida: no debe seguir contando como "Sí requiere".
+            $resolvedByExecution = !$useOverride
+                && $hasChange
+                && $this->executionStatusResolver->isDoneStatusName($report->executionStatus?->name);
+
+            if ($hasChange && !$resolvedByExecution) {
                 $yes++;
                 $elementLabel    = $elementNames?->get($elementId) ?? "ID $elementId";
                 $conditionLabel  = $report?->condition?->name;
@@ -1452,7 +1460,7 @@ class IndicatorController extends Controller
         $useWeekFilter = !empty($weekPairs);
 
         $annualDetails = ReportDetail::query()
-            ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,code,name,color,severity'])
+            ->with(['component:id,name', 'diagnostic:id,name', 'condition:id,code,name,color,severity', 'executionStatus:id,name'])
             ->where('status', true)
             ->whereIn('element_id', $elementIds)
             ->when(
@@ -1505,6 +1513,13 @@ class IndicatorController extends Controller
                     ->first();
 
                 $sev = (int) ($latest?->condition?->severity ?? 0);
+
+                // Si la novedad de este componente ya fue ejecutada/realizada, quedó resuelta:
+                // no debe seguir sumando a "Con novedad".
+                if ($sev > 0 && $this->executionStatusResolver->isDoneStatusName($latest?->executionStatus?->name)) {
+                    $sev = 0;
+                }
+
                 if ($sev > $worstSeverity) {
                     $worstSeverity = $sev;
                     $worstDetail   = $latest;

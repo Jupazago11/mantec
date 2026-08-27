@@ -19,6 +19,49 @@
     </div>
 @endsection
 
+@section('header_actions')
+    <div x-data="{}" class="flex items-center gap-2">
+        <button
+            type="button"
+            @click="$dispatch('open-siblings-sidebar', {
+                id: @js($area->id),
+                name: @js($area->name),
+                elementTypeId: @js($elementType->id),
+                clientName: @js($client->name),
+                elementTypeName: @js($elementType->name),
+                currentElementId: @js($element->id)
+            })"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100"
+            title="Ver otros activos de esta área"
+        >
+            <i data-lucide="panel-right" class="h-4 w-4"></i>
+        </button>
+
+        <a
+            href="{{ route('admin.system-modules.measurements.level-one') }}"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100"
+            title="Ir al inicio de Mediciones"
+        >
+            <i data-lucide="home" class="h-4 w-4"></i>
+        </a>
+
+        <button
+            type="button"
+            @click="$dispatch('open-area-summary', {
+                id: @js($area->id),
+                name: @js($area->name),
+                elementTypeId: @js($elementType->id),
+                clientName: @js($client->name),
+                elementTypeName: @js($elementType->name)
+            })"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100"
+            title="Ver resumen del área"
+        >
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </button>
+    </div>
+@endsection
+
 @section('content')
     <div
         x-data="measurementThicknessModule({
@@ -4100,6 +4143,9 @@
         ></div>
     </div>
 </div>
+
+@include('admin.system-modules.measurements.partials.area-summary-modal')
+
 <script>
 function showCrudToast(message, type = 'success') {
     const toastId = 'crudInlineToast';
@@ -4214,7 +4260,9 @@ function measurementThicknessModule(config) {
 
         bandEditModalOpen: false,
         bandEditErrors: [],
-        bandEditForm: null,
+        // Nunca null: el modal (oculto por x-show) usa x-model="bandEditForm.*" que Alpine
+        // evalúa desde el primer render, aunque el modal no esté visible ni abierto todavía.
+        bandEditForm: {},
 
         bandChildViewModalOpen: false,
         selectedBandChildView: null,
@@ -6050,7 +6098,7 @@ function measurementThicknessModule(config) {
         closeBandEditModal() {
             this.bandEditModalOpen = false;
             this.bandEditErrors = [];
-            this.bandEditForm = null;
+            this.bandEditForm = {};
         },
 
         async updateBandHistoricalEvent() {
@@ -6115,7 +6163,7 @@ function measurementThicknessModule(config) {
                 }
 
                 this.bandEditModalOpen = false;
-                this.bandEditForm = null;
+                this.bandEditForm = {};
 
                 this.showCrudToast(data.message || 'Evento actualizado correctamente.');
                 this.refreshLucide();

@@ -1,6 +1,6 @@
 # Analisis Del Sistema Laravel - Mantec
 
-Ultima actualizacion: 2026-08-03  
+Ultima actualizacion: 2026-08-26  
 Estado del documento: canonico y de mantenimiento continuo
 
 ## 1. Proposito
@@ -458,6 +458,31 @@ Vistas principales:
 - [resources/views/admin/system-modules/measurements/index.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/system-modules/measurements/index.blade.php)
 - [resources/views/admin/system-modules/measurements/level-one.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/system-modules/measurements/level-one.blade.php)
 - [resources/views/admin/system-modules/measurements/show.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/system-modules/measurements/show.blade.php)
+- [resources/views/admin/system-modules/measurements/partials/area-summary-modal.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/system-modules/measurements/partials/area-summary-modal.blade.php)
+
+### 10.1 Navegacion por area (2026-08-26)
+
+El modal "Resumen valores minimos obtenidos" (antes solo en level-one) se
+extrajo a un partial compartido, incluido tanto en `level-one.blade.php`
+como en `show.blade.php`. Ambas vistas lo abren disparando eventos Alpine
+globales en vez de llamar metodos directos, para no acoplar el trigger a
+donde vive el componente:
+
+- `open-area-summary` `{ id, name, elementTypeId, clientName, elementTypeName }`
+  abre el modal con la tabla de valores minimos por activo.
+- `open-siblings-sidebar` agrega `currentElementId` y abre un sidebar lateral
+  derecho con los demas activos de la misma area (marca el activo actual).
+
+El header de `show.blade.php` (`@section('header_actions')`, renderizado por
+`layouts/measurements.blade.php`) tiene 3 botones: sidebar de activos
+hermanos, volver a `level-one` (home), y volver a abrir el modal de resumen
+del area sin salir de la vista de detalle.
+
+El modal y el sidebar comparten el mismo array reactivo `areaSummaryItems`
+(fetch a la ruta `admin.system-modules.measurements.level-one.area-summary`).
+El sidebar filtra siempre `show_in_summary === true` (no lista activos
+excluidos del resumen), y como ambos leen el mismo estado, excluir/incluir
+un activo desde el modal se refleja en el sidebar sin recargar la pagina.
 
 Capacidades observadas:
 
@@ -531,8 +556,32 @@ Funciones actuales:
 - distribucion por area
 - semaforo configurable por plantilla
 - ajuste manual de cambio de banda
+- indicadores anuales de cambio de banda y seguridad (tarjetas
+  "Si requiere/No requiere" y "OK/Con novedad" del dashboard)
 
 El semaforo ya no es totalmente rigido. Hay una capa legacy y otra configurable por plantilla.
+
+### 12.1 Indicadores anuales respetan execution_status (2026-08-26)
+
+`buildBeltChangeAnnual()` y `buildSecurityAnnual()` en IndicatorController
+antes solo miraban `condition_id`/`severity` del ultimo ReportDetail, sin
+mirar si la orden correctiva ya fue ejecutada. Un hallazgo en ALTA con la
+orden marcada REALIZADO/EJECUTADO seguia contando como "Si requiere" o
+"Con novedad" indefinidamente, hasta que existiera una inspeccion nueva.
+
+Ahora, si el registro ganador tiene `execution_status` en estado
+EJECUTADO/REALIZADO/FINALIZADO (via `ExecutionStatusResolver::isDoneStatusName()`,
+ya inyectado en el controlador), cuenta como resuelto:
+
+- Cambio de banda: pasa a "No requiere".
+- Seguridad: esa severidad se trata como 0 al calcular la peor de los 3
+  componentes (Guardas, Cubiertas, Plataforma y estructura), y si las 3
+  quedan resueltas el activo pasa a "OK".
+
+Los overrides manuales (`SemaphoreBeltChange`) no aplican esta logica: no
+tienen `execution_status`, son independientes de ordenes/ReportDetail.
+
+Cobertura: [tests/Feature/Admin/IndicatorAnnualExecutionStatusTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/IndicatorAnnualExecutionStatusTest.php).
 
 ## 13. Vistas y Layouts
 
@@ -611,6 +660,23 @@ Estado consolidado al 2026-06-19:
 - El filtro de fecha de ejecucion se alineo a estados visibles de ejecucion, no a cualquier fecha persistida.
 - El modal/popover de filtros de fecha conserva estado activo.
 - La vista individual de evidencia tuvo ajustes de UX y control de permisos.
+
+Estado consolidado al 2026-08-26:
+
+- Indicadores anuales (cambio de banda/seguridad) ahora consideran
+  `execution_status`: ver [12.1](#121-indicadores-anuales-respetan-execution_status-2026-08-26).
+- Mediciones: navegacion por area en el header de la vista de detalle
+  (sidebar de activos hermanos, home, volver a resumen), modal compartido
+  entre level-one y show: ver [10.1](#101-navegacion-por-area-2026-08-26).
+- Bugfix: `bandEditForm` en `measurementThicknessModule()`
+  (show.blade.php) arrancaba en `null`, y el modal de "Editar banda"
+  (oculto por `x-show`, pero con `x-model="bandEditForm.report_date"` y
+  demas campos) hacia que Alpine lanzara `Cannot read properties of null
+  (reading 'report_date')` en consola en *cada* carga de la vista, con o
+  sin datos. Se cambio el valor inicial/de reset a `{}` (el mismo patron ya
+  usado por `bandStateEditForm`/`historyEditForm`); `openBandEditModal()`
+  sigue sobrescribiendo el objeto completo con `emptyBandDraft()` antes de
+  mostrar el modal, sin cambios de comportamiento ahi.
 
 ## 17. Riesgos Y Deuda Tecnica Visible
 
