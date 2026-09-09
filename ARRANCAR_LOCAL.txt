@@ -5,9 +5,67 @@ ESTE PROYECTO USA POSTGRESQL LOCAL DEL HOST, NO EL CONTENEDOR pgsql DE SAIL.
 POR ESO NO SE DEBE EJECUTAR `./vendor/bin/sail up -d` COMPLETO SI EL PUERTO 5432
 YA ESTA OCUPADO POR POSTGRESQL LOCAL.
 
-TERMINAL 1
-----------
-cd ~/Documentos/mantecv1/mantec
+NOTA SOBRE RUTAS: la ruta del proyecto cambia segun el equipo. En el equipo
+original era `~/Documentos/mantecv1/mantec`; en un laptop aprovisionado el
+2026-09-05 la ruta real es `~/mantec`. Ajustar el `cd` de abajo a la ruta
+real de cada maquina.
+
+ARRANQUE RAPIDO (entorno YA APROVISIONADO, dia a dia)
+------------------------------------------------------
+Usar esto cuando PHP, Composer, Node, PostgreSQL y `vendor/`/`node_modules/`
+ya existen en la maquina (instalacion inicial ya hecha). Para una maquina
+nueva sin nada instalado, ver "INSTALACION INICIAL EN LAPTOP NUEVO" mas abajo.
+
+1. Arrancar PostgreSQL local:
+   `sudo systemctl start postgresql`   (o `sudo service postgresql start`)
+
+2. Arrancar contenedores auxiliares de Sail (no toca el puerto 5432):
+   `cd <ruta-del-proyecto> && ./vendor/bin/sail up -d redis meilisearch mailpit selenium`
+
+3. Arrancar `php artisan serve` de forma que sobreviva al cierre de la
+   terminal (ver seccion "PROCESOS EN SEGUNDO PLANO EN WSL" mas abajo del
+   porque es necesario systemd-run en vez de `&`/`nohup` simple):
+
+   Si la unidad ya existe de una sesion anterior:
+   `systemctl --user restart mantec-serve`
+
+   Si no existe todavia (primera vez en esta sesion de WSL, o tras reiniciar Windows):
+   `systemd-run --user --unit=mantec-serve --working-directory=<ruta-del-proyecto> /usr/bin/php artisan serve --host=127.0.0.1 --port=8000`
+
+4. Verificar:
+   `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/login`  (debe dar 200)
+
+5. Abrir en el navegador: http://127.0.0.1:8000
+
+Para parar todo: ver seccion "PARAR TODO" mas abajo.
+
+INSTALACION INICIAL EN LAPTOP NUEVO (una sola vez por maquina)
+-----------------------------------------------------------------
+Si el laptop no tiene PHP/Composer/Node/PostgreSQL, instalar primero (Ubuntu
+26.04+, los paquetes ya estan en los repos oficiales, no hace falta PPA):
+
+`sudo apt-get update`
+`sudo apt-get install -y php8.5 php8.5-cli php8.5-common php8.5-curl php8.5-mbstring php8.5-xml php8.5-gd php8.5-pgsql php8.5-zip php8.5-bcmath php8.5-intl composer postgresql postgresql-client`
+`sudo systemctl enable --now postgresql`
+`sudo -u postgres psql -c "CREATE USER mantec_user WITH PASSWORD '123456';"`
+`sudo -u postgres psql -c "CREATE DATABASE mantec OWNER mantec_user;"`
+`sudo loginctl enable-linger $(whoami)`   (necesario para que systemd-run --user sobreviva a la sesion, ver nota mas abajo)
+
+Luego, dentro del proyecto:
+`composer install`
+`curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm install 22`
+`cp .env.example .env && php artisan key:generate`
+Editar `.env`: `SESSION_DRIVER=file` (el default `database` del `.env.example`
+rompe toda peticion porque no existe tabla `sessions` en este repo), y los
+`DB_*` para apuntar a `127.0.0.1`/`mantec`/`mantec_user`/`123456`.
+`php artisan migrate --force`
+`npm install && npm run build`
+
+De ahi en adelante usar la seccion "ARRANQUE RAPIDO" de arriba.
+
+TERMINAL 1 (equivalente manual, paso a paso)
+---------------------------------------------
+cd <ruta-del-proyecto>
 
 ./vendor/bin/sail up -d redis meilisearch mailpit selenium
 
@@ -20,12 +78,15 @@ rm -f public/hot
 
 TERMINAL 2
 ----------
-cd ~/Documentos/mantecv1/mantec
+cd <ruta-del-proyecto>
 
 sudo service postgresql start
 psql -h 127.0.0.1 -U mantec_user -d mantec
 php artisan optimize:clear
 php artisan serve
+(si se va a dejar corriendo en segundo plano y sobrevivir al cierre de la
+terminal, usar el `systemd-run --user` de la seccion "PROCESOS EN SEGUNDO
+PLANO EN WSL" en vez de dejar `php artisan serve` en foreground o con `&`)
 
 ABRIR EN NAVEGADOR
 ------------------
@@ -46,6 +107,33 @@ PARAR TODO
 ----------
 ./vendor/bin/sail stop redis meilisearch mailpit selenium
 pkill -f "php artisan serve"
+
+NOTA: PROCESOS EN SEGUNDO PLANO EN WSL (2026-09-05)
+----------------------------------------------------
+En una WSL con systemd activo, un `php artisan serve &` (aunque uses
+`nohup`/`disown`) puede morir en cuanto se cierra la sesion de login que lo
+lanzo: systemd-logind detiene el "scope" de esa sesion y mata todo lo que
+quedo dentro, incluso con `loginctl enable-linger <usuario>` activado
+(el linger mantiene vivo `user@<uid>.service`, pero no reubica ahi un
+proceso suelto lanzado desde una terminal interactiva).
+
+Para que `php artisan serve` sobreviva al cierre de la terminal/sesion,
+lanzarlo como una unidad transient de `systemd --user` (que si cuelga del
+manager persistente gracias al linger):
+
+`systemctl --user enable-linger` (una sola vez, o `sudo loginctl enable-linger <usuario>`)
+
+`systemd-run --user --unit=mantec-serve --working-directory=$(pwd) /usr/bin/php artisan serve --host=127.0.0.1 --port=8000`
+
+Comandos utiles:
+- Ver estado: `systemctl --user status mantec-serve`
+- Reiniciar: `systemctl --user restart mantec-serve`
+- Detener: `systemctl --user stop mantec-serve`
+- Logs: `journalctl --user -u mantec-serve -f`
+
+Los contenedores de Sail (`redis`, `meilisearch`, `mailpit`, `selenium`) NO
+tienen este problema porque los administra `dockerd`, no la sesion de
+login del usuario.
 
 COPIAR BASE DE RAILWAY A LOCAL
 ------------------------------

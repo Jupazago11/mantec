@@ -103,6 +103,15 @@ Conclusiones clave:
 
 ### 4.3 App Android / Inspector
 
+Codigo fuente y documentacion detallada (arquitectura MVVM, Room, sync
+offline-first, DTOs, riesgos de seguridad, historial de versiones):
+https://github.com/Jupazago11/Mantec_ins (ver `DOCUMENTACION_PROYECTO.md`
+en ese repo). Verificado el 2026-09-05 contra la version 1.7.6
+(versionCode 8) de la app: el streaming de subida de evidencia
+(`fopen()` + `Storage::disk('r2')->writeStream()`) y el limite de
+`max:1048576` KB en `InspectorSyncFileController` y
+`AdminReportEvidenceController` coinciden con lo que la app espera.
+
 La app movil consume API Sanctum y soporta:
 
 - login
