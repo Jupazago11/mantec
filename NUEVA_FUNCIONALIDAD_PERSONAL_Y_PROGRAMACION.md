@@ -6,8 +6,17 @@ codigo a partir de este documento hasta que el alcance quede cerrado (ver
 seccion 11, Pendientes).
 
 Fecha de inicio del levantamiento: 2026-09-05
-Ultima actualizacion: 2026-09-07 (se incorporan `bitacora.pdf`, `diario
-sept.pdf` y pantallazos de Excel reales como referencia de formato actual)
+Ultima actualizacion: 2026-09-11 (se agrega la seccion 13 documentando el
+prototipo visual navegable construido para revisar el diseño con el cliente,
+se resuelve visualmente el tercer estado de certificados pendiente en 4.4/11,
+y se deja registrada una discrepancia sin resolver entre el prototipo y la
+regla de elegibilidad primaria/secundaria de la seccion 6 — ver seccion 13.4)
+
+Actualizacion anterior: 2026-09-10 (se corrige una hipotesis equivocada sobre
+"cantidad de columnas", se confirman nombres de categorias, fechas de
+empleado, independencia total del sistema de roles actual, y se resuelve
+si "grupo" es catalogo o agrupador visual — ver secciones 3, 4, 4.3, 4.4, 6,
+7, 8, 10 y 11)
 
 ## 1. Resumen
 
@@ -74,7 +83,7 @@ que conecta todas las secciones de este documento:
    dato original del supervisor), agrega comentarios.
 
 4. Con la Programacion + lo reportado por los supervisores, se alimenta
-   automaticamente la BITACORA mensual (seccion 6) y el DIARIO DE CAMPO
+   automaticamente la BITACORA mensual (seccion 8) y el DIARIO DE CAMPO
    (seccion 5) — no son formularios de captura independientes, son vistas/
    consolidados sobre las mismas actividades.
 ```
@@ -87,9 +96,16 @@ por aparte.
 
 ## 3. Autenticacion Y Roles
 
-- Habra un **login administrativo diferente** al login actual.
+- Habra un **login administrativo diferente** al login actual. **Confirmado
+  2026-09-10**: este login, sus roles y sus permisos son **completamente
+  independientes** del sistema de roles/permisos del modulo de reportes
+  preventivos existente (`Role.php`, `RoleModulePermission`) — no se
+  reutiliza ni se comparte con ese sistema.
 - El rol `superadmin` es el unico rol existente que se mantiene con acceso a
-  esta area nueva.
+  esta area nueva. Los demas usuarios del modulo (supervisores,
+  administrativos) no necesitan saber que existe esa cuenta: no aparece en
+  ningun catalogo, selector ni listado visible para ellos (confirmado
+  2026-09-09).
 - Se crearan **roles nuevos**, exclusivos de este modulo administrativo. Al
   menos dos ya se pueden inferir del flujo descrito: **supervisor** (crea
   programacion en web, registra ejecucion en app Android) y **administrativo/
@@ -103,7 +119,20 @@ por aparte.
 
 Datos por empleado:
 
-- Informacion personal (**pendiente**: campos exactos, vendran en Excel).
+- Informacion personal (**parcialmente confirmado 2026-09-10**: cedula,
+  fecha de nacimiento, fecha de ingreso/primer dia de trabajo (para calcular
+  antiguedad), fecha de inicio del ultimo contrato y fecha de terminacion.
+  El usuario indico "luego miramos mas" — el resto de campos exactos sigue
+  **pendiente**, vendran en Excel).
+- **Checkbox "tiene usuario de acceso" (confirmado 2026-09-09)**: no todo
+  empleado tiene login al modulo administrativo — se habilita o inhabilita
+  usuario y contraseña por empleado mediante una casilla, en vez de un
+  proceso de registro separado.
+- **Checkbox "hace parte de la Bitacora" (confirmado 2026-09-10)**: bandera
+  independiente al crear el empleado. Algunos administrativos (ej. personal
+  de oficina que da ordenes de trabajo pero no registra horas de campo) no
+  deben aparecer nunca en la Bitacora mensual, aunque tuvieran horas
+  registradas — ver regla combinada en seccion 8.
 - Estado activo/inactivo (activar/inactivar trabajadores, sin necesariamente
   eliminar el registro).
 - Iconos visuales indicando que certificaciones/inducciones vigentes tiene
@@ -111,6 +140,16 @@ Datos por empleado:
   abreviadas por persona/actividad (ej. `siso`, `Rescatista`, `Sup`, `Ing`,
   y otras sin encabezado completo visible) que apuntan a este mismo concepto
   de roles/certificaciones marcadas por persona.
+- **Nickname/apodo corto** (confirmado 2026-09-09): cada empleado necesita un
+  identificador corto para mostrarse en la Programacion/Diario de Campo en
+  vez del nombre completo (en las capturas reales aparecen como "Brayan C",
+  "Brayan P", "Brayan Q" para diferenciar homonimos del mismo grupo). Los
+  supervisores usan la misma idea pero como un **codigo interno abreviado**
+  en la columna "Responsable" del Diario de Campo (ej. "Luis Fernando" ->
+  algo como "LF"). **Confirmado 2026-09-09**: el codigo/nickname se escribe
+  **manualmente** al crear el empleado, no se autogenera a partir del
+  nombre — largo libre, de 1 a varias letras segun se necesite para
+  diferenciar homonimos.
 
 ### 4.1 Documentos adjuntos (R2)
 
@@ -146,13 +185,36 @@ obtencion.
 CRUDs simples en modal para catalogos que usa el CRUD de empleados, por
 ejemplo:
 
-- Roles (de empleado — **a confirmar si es el mismo concepto que los "roles
-  nuevos" de la seccion 3, o un catalogo distinto**, ej. cargo/puesto:
-  mecanico, auxiliar, supervisor, SISO, etc. — estas categorias de cargo SI
-  se ven reflejadas en `diario sept.pdf`, columnas `mec`/`aux`/`sup y siso x
-  hora`, que ademas sugieren una tarifa de costo por hora asociada a cada
-  categoria de cargo — **pendiente confirmar si el calculo de costo por
-  actividad/rol entra en el alcance de este modulo o es un tema aparte**).
+- **Categoria/cargo del empleado** — catalogo distinto del rol de login de
+  la seccion 3 (**confirmado 2026-09-09**). Categorias identificadas:
+  **Campo/Operario** (nombre exacto **pendiente**, el cliente puede usar
+  otro termino), **Supervisor**, **SISO** y **Administrativo** — supervisor
+  y SISO son categorias distintas entre si, aunque ambas puedan coincidir
+  con un rol de login de la seccion 3. Estas categorias SI se ven
+  reflejadas en `diario sept.pdf`, columnas `mec`/`aux`/`sup y siso x hora`.
+  **Confirmado 2026-09-10**: el calculo de costo por hora segun estas
+  categorias es **un tema aparte, fuera del alcance de este modulo**.
+  **Modelo de visibilidad en la Programacion, con nombres confirmados
+  2026-09-10**: las 4 categorias de cargo se agrupan en **2 categorias
+  superiores** — **"Campo"** y **"Administrativos"** — que organizan el
+  selector de empleados de la Programacion en **2 columnas**:
+  - Columna "Campo": empleados con categoria Campo/Operario.
+  - Columna "Administrativos": empleados con categoria Administrativo,
+    Supervisor o SISO (el cargo especifico "Administrativo" queda anidado
+    dentro de esta categoria superior del mismo nombre — cuidado con
+    confundir ambos niveles al implementar).
+  Ademas, cada usuario tiene un **habilitar/inhabilitar individual** para
+  aparecer en el selector de la Programacion — no es una exclusion fija por
+  categoria (un Administrativo puntual podria habilitarse si hace falta).
+  Por defecto se espera que los Administrativos permanezcan inhabilitados,
+  pero la regla real la define ese toggle por persona, no la categoria por
+  si sola.
+- **CRUD de Certificados generales, campos confirmados (2026-09-09)**:
+  nombre, estado activo/inactivo, e icono (ver bullet de iconos en la
+  seccion 4.4). Cada certificado creado aqui aparece automaticamente como
+  columna dinamica en la vista/formulario del empleado, donde se adjunta el
+  archivo real via R2 con su fecha de obtencion/vencimiento (mismo
+  mecanismo que la seccion 4.1).
 - Planta de trabajo.
 - Posiblemente mas catalogos similares (**pendiente**, el usuario indico
   "quiza mas con sus propios minicruds" sin especificar cuales).
@@ -164,6 +226,11 @@ mas compleja que un catalogo simple:
 
 - Existe un catalogo de **empresas** (sitios cliente de mano de obra: Argos,
   Corona, Calidra, etc. — ver nota de terminologia en seccion 1).
+- **Empresa por defecto (confirmado 2026-09-09)**: al crear una empresa se
+  puede marcar como la "general" (una sola a la vez), para que se
+  preseleccione automaticamente en el campo Empresa de la Programacion —
+  en la practica una misma empresa se repite en casi todas las filas del
+  dia, y esto evita reseleccionarla cada vez.
 - Cada empresa exige **inducciones/certificaciones obligatorias** para poder
   trabajar alli (ej. induccion de seguridad de Argos, induccion de Corona).
   Estas son **distintas** de los certificados tecnicos generales del
@@ -185,15 +252,36 @@ mas compleja que un catalogo simple:
     exigido por una empresa especifica) debe vivir en una tabla de catalogo
     editable, no en columnas fijas.
 - **Regla de elegibilidad (bloqueo automatico)**: en el selector de
-  empleados de la Programacion (seccion 5), un empleado **no es
+  empleados de la Programacion (seccion 6), un empleado **no es
   seleccionable** para una actividad de una empresa determinada si le falta
-  alguna induccion obligatoria de esa empresa, o si la tiene vencida. Esto
-  es una validacion de negocio real (cumplimiento/seguridad), no solo un
-  filtro visual.
+  alguna induccion **obligatoria de esa empresa**, o si la tiene vencida.
+  Esto es una validacion de negocio real (cumplimiento/seguridad), no solo
+  un filtro visual. **Confirmado 2026-09-09**: esta regla de bloqueo aplica
+  unicamente a las inducciones por empresa, NO a los certificados generales
+  (ver bullet siguiente).
+- **Certificados generales, informativos, no bloqueantes (confirmado
+  2026-09-09)**: a diferencia de las inducciones por empresa, los
+  certificados generales del empleado (alturas, espacios confinados,
+  seccion 4.1) NO bloquean su seleccion en la Programacion aunque esten
+  vencidos o falten. Si deben mostrar una **alerta visual** cuando esten
+  vencidos, distinta del icono normal de posesion. **Confirmado
+  2026-09-10**: el icono con animacion de parpadeo/pulso + tooltip es
+  especificamente para **vencido** (el empleado si tiene el certificado
+  pero ya caduco). **Resuelto visualmente en el prototipo (ver seccion 13)**:
+  el tercer estado ("nunca obtenido") usa un icono gris apagado
+  (`shield-off`, sin parpadeo), distinto del verde vigente y del ambar
+  parpadeante de vencido — pendiente que el cliente valide este tratamiento
+  de 3 estados antes de darlo por definitivo.
 - Se muestran **iconos** junto a cada empleado indicando que certificaciones
   tiene vigentes (ej. icono de alturas, icono de espacios confinados),
   tanto en el CRUD de empleados como, presumiblemente, en el selector de la
   Programacion.
+- **Correccion 2026-09-10**: la frase "la cantidad de columnas depende de la
+  cantidad de roles", documentada originalmente en la seccion 6
+  (Programacion), en realidad se referia a **este CRUD de Empleados**: la
+  cantidad de columnas dinamicas en la vista/formulario del empleado
+  depende de cuantos certificados e inducciones existan en estos catalogos,
+  no de "roles" ni de la pantalla de Programacion.
 
 **Implicacion tecnica** (para cuando se implemente, no ejecutar aun): esto
 sugiere un modelo de datos tipo catalogo-configurable (algo como
@@ -212,17 +300,19 @@ ciclo de vida** (ver flujo en seccion 2). Campos observados en el Excel real
 
 | Campo | Quien lo llena | Notas |
 |---|---|---|
-| Fecha del trabajo | Supervisor (Programacion) | |
-| Empresa | Supervisor (Programacion) | Ej. ARGOS, CORONA — ver seccion 4.4 |
-| Equipo | Supervisor (Programacion) | Ej. "Rioclaro", "TP1 Trituradora", "Transporte", "Taller San Luis" — parece ser un catalogo de equipos/frentes de trabajo, no necesariamente el mismo concepto de "Activo" del modulo de reportes preventivos |
+| Fecha del trabajo | Automatica | **Confirmado 2026-09-09**: es informativa, el supervisor no la edita manualmente |
+| Empresa | Supervisor (Programacion) | Ej. ARGOS, CORONA — ver seccion 4.4. Una empresa puede quedar marcada como "por defecto" y preseleccionarse sola |
+| Equipo | Supervisor (Programacion), texto libre manual | Ej. "Rioclaro", "TP1 Trituradora", "Taller San Luis" — **confirmado 2026-09-09**: no es un catalogo, se escribe manualmente (el usuario indico "luego miramos si creamos algo", queda abierto a futuro) |
 | Proceso | Supervisor (Programacion o al ejecutar) | Ej. "Cambiar banda", "SST", "Coordinador" |
-| Actividad (texto libre) | Supervisor (app, al ejecutar) | Descripcion tecnica larga y detallada de lo realizado — texto libre extenso, no un catalogo cerrado |
-| Nombre de las personas | Supervisor (Programacion + ejecucion) | Lista de personas del grupo en esa actividad |
-| N° de personas | Calculado o manual | |
-| Horas | Supervisor (ejecucion) | Ver logica de horas en seccion 7 |
+| Actividad — **version programada** (confirmado 2026-09-09) | Supervisor (Programacion) | Descripcion general/corta al agendar (ej. "Realizar cambio de cauchos") — texto libre |
+| Actividad — **version ejecutada** (confirmado 2026-09-09) | Supervisor (app, al ejecutar) | Descripcion tecnica larga y detallada de lo realmente realizado — texto libre extenso (ej. "Se cortan cauchos y se fabrican ojos chinos en estos para su facil calibracion..."). Es un **segundo texto que se guarda aparte, no reemplaza la version programada** — ambas quedan disponibles. Filas como "TRANSPORTE AEROVAN 463 GRUPO 2 ARGOS", "Descanso", "Incapacidad", "Licencia" o "Permiso" NO son un tipo de actividad especial — son actividades normales, tipicamente marcadas como secundarias, donde este mismo campo describe la situacion |
+| Nombre de las personas | Viene fijo de la Programacion (confirmado 2026-09-09) | Lista de personas asignadas en la Programacion — el Diario de Campo no permite reasignar personas distintas, solo la muestra. Puede incluir varias personas en una sola fila (ej. una fila de "Descanso" con 6-11 nombres) |
+| N° de personas | Automatico (confirmado 2026-09-09) | Se calcula a partir de cuantas personas se seleccionaron en "Nombre de las personas", no se digita a mano |
+| Horas | **Valor final mostrado** (confirmado 2026-09-09) | Nunca muestra la hora originalmente programada: muestra la hora **corregida por el administrativo** si existe, o si no la **reportada por el supervisor en la app** al cierre del dia — misma regla de "hora final" que la Bitacora (seccion 8). Es opcional, no obligatorio (ver seccion 7) |
 | Jornada | Supervisor (ejecucion) | DIURNO / NOCTURNO |
 | Comentarios | Administrativo (cierre) | |
-| ZCOM, Linea, OT SAP, Acta Entrega Solicitada, WE | Administrativo (cierre) | Codigos de integracion/seguimiento con el sistema del cliente (ej. SAP de Argos) — **pendiente confirmar significado exacto de cada uno y si son obligatorios siempre o solo para ciertas empresas/procesos** |
+| ZCOM, Linea, OT SAP, Acta Entrega Solicitada, WE (y al menos 1 columna adicional vista en captura, encabezado cortado/ilegible) | Administrativo (cierre), **texto libre manual (confirmado 2026-09-09)** | Codigos de integracion/seguimiento con el sistema del cliente (ej. SAP de Argos). **Decision de alcance**: por ahora se implementan como campos de texto libre sin validar ni significado de negocio definido — el usuario indico explicitamente "aun no sabemos que son, pongamosle tipo texto". Sigue pendiente si a futuro deben volverse configurables por empresa |
+| `mec`, `aux`, `sup y siso x hora` | Confirmado presente en el Excel real (2026-09-09) | Columnas de tarifa/costo por categoria de cargo (seccion 4.3) — **sigue pendiente confirmar si el calculo de costo entra en el alcance de este modulo** |
 | Columnas de certificacion por persona en la actividad (ej. `siso`, `Rescatista`, `Sup`, `Ing`, y otras abreviadas sin confirmar) | Deriva de seccion 4.4 | Marca que certificaciones cubren las personas asignadas a esa actividad especifica |
 
 **Pendiente explicito**: el significado exacto de `ZCOM`, `OT SAP`, `Acta
@@ -235,39 +325,73 @@ empresa (siguiendo el mismo principio de flexibilidad de la seccion 4.4).
 ## 6. Programacion De Actividades (Web, Supervisores)
 
 - La crea el **supervisor** desde la web.
+- **Ventana de edicion (confirmado 2026-09-09)**: el supervisor solo puede
+  modificar la Programacion del **dia actual o el dia inmediatamente
+  anterior**. No puede editar programaciones mas antiguas que eso.
 - **Organizada por grupos**: las actividades se agrupan (ej. una cuadrilla o
   equipo de trabajo), y al exportar/enviar la programacion (ej. por
   WhatsApp), el orden de salida respeta el orden de grupo.
-  **Pendiente**: definir si "grupo" es un catalogo propio (con nombre,
-  supervisor fijo, etc.) o simplemente un agrupador visual de la tabla de
-  programacion.
+  **Confirmado 2026-09-09**: el listado se reagrupa/reordena automaticamente
+  por grupo en tiempo real al crear una actividad nueva (una actividad del
+  grupo 1 sube directo al bloque del grupo 1, no se ordena manualmente
+  despues). Ademas existe un **boton "Organizar"** que reordena todo el
+  listado por grupo bajo demanda, y el reposicionamiento **manual** tambien
+  esta disponible, especialmente para actividades que aun no tienen grupo
+  asignado.
+  **Resuelto 2026-09-10**: "grupo" es **solamente un agrupador visual** de
+  la tabla de programacion, no un catalogo propio (sin nombre ni supervisor
+  fijo asociado como entidad independiente).
 - **Actividad primaria vs. secundaria**: cada persona puede tener **una sola
   actividad primaria** en el periodo (ej. el dia), pero **N actividades
   secundarias**. Al crear una actividad, se indica si es primaria o
   secundaria para las personas involucradas. Esto implica una validacion:
   el sistema debe impedir asignar una segunda actividad primaria a la misma
   persona en el mismo periodo.
+  **Confirmado 2026-09-09**: la regla de elegibilidad por inducciones de
+  empresa (seccion 4.4) solo aplica a la actividad **primaria**. Las
+  actividades **secundarias** no se filtran por certificados ni
+  inducciones, porque normalmente son "novedades" (descanso, incapacidad,
+  transporte, permisos) que no implican trabajo de campo real en la
+  empresa.
 - Selecciona **empresa** y **area** (combobox).
-- Selecciona **uno o varios empleados** (combobox), **filtrado por
-  elegibilidad** segun la seccion 4.4 (no aparecen o no son seleccionables
-  los empleados sin las inducciones vigentes que exige la empresa elegida).
-- **La cantidad de columnas depende de la cantidad de roles** (**pendiente**:
-  aclarar exactamente que significa esto — ¿una columna de horas por cada rol
-  involucrado en la actividad? ¿columnas distintas segun el tipo de empleado
-  seleccionado?).
-- Horas de trabajo posible/estimado (**pendiente**: definicion exacta del
-  campo).
-- Cada actividad tiene un **supervisor asignado**.
+- Selecciona **uno o varios empleados**, mostrados en **2 columnas por
+  categoria** (nombres confirmados 2026-09-10, ver seccion 4.3):
+  **"Campo"** y **"Administrativos"** (esta ultima agrupa cargo
+  Administrativo, Supervisor y SISO habilitados). Se combinan estos
+  filtros:
+  - **Habilitado/inhabilitado por usuario** (seccion 4.3): cada persona
+    tiene un toggle individual que controla si aparece en este selector,
+    independiente de su categoria.
+  - **Por elegibilidad de empresa** (seccion 4.4): solo aplica a la
+    actividad **primaria** (ver bullet de primaria/secundaria arriba). No
+    aparecen o no son seleccionables los empleados sin las inducciones
+    obligatorias vigentes que exige la empresa elegida. Los certificados
+    generales NO aplican a este filtro (son informativos, ver seccion 4.4).
+- **Correccion 2026-09-10**: el punto "la cantidad de columnas depende de la
+  cantidad de roles" no era sobre esta pantalla — el usuario aclaro que se
+  referia al **CRUD de Empleados** (seccion 4.4): la cantidad de columnas
+  dinamicas ahi depende de cuantos certificados e inducciones existan en
+  esos catalogos, no de roles ni de la Programacion.
+- Horas de trabajo posible/estimado: campo manual, **opcional, no
+  obligatorio** (confirmado 2026-09-09 — ver tabla de la seccion 5).
+- Cada actividad tiene un **supervisor asignado**, mostrado con su codigo
+  interno abreviado en la columna "Responsable" (ver nickname en seccion 4).
 - Puede haber **varias actividades por dia**: un boton "+" agrega una fila
   nueva de actividad, se llena y se guarda.
-- **Pendiente**: el usuario indico que enviara pantallazos/ejemplos
-  concretos de como son las programaciones reales (mencionado el
-  2026-09-07, aun no llegan al cierre de esta version del documento).
+- **Pantallazos reales recibidos e incorporados el 2026-09-09** (capturas de
+  `DIARIO DE CAMPO TRABAJOS MAN & TEC.xlsx`, columnas FECHA/EMPRESA/EQUIPO/
+  ACTIVIDAD/PERSONAS/HORAS/JORNADA/NOMBRE DE LAS PERSONAS/RESP/GRUPO) — ver
+  tabla de campos actualizada en la seccion 5.
 
 ## 7. Registro De Horas Y Evidencias (App Android, Supervisores)
 
 Funcionalidad **nueva** dentro de la app Android existente, para el rol
 supervisor (a diferenciar del rol inspector ya existente en la app):
+
+**Alcance de este repositorio (confirmado 2026-09-09)**: la app Android en
+si se desarrolla en un repositorio aparte (Android Studio), fuera de este
+repo Laravel. Lo que corresponde construir y **documentar** desde aqui son
+las **APIs** que esa app consume — no la interfaz movil.
 
 - El supervisor registra **evidencias y comentarios** sobre la actividad
   programada que se ejecuto.
@@ -280,6 +404,8 @@ supervisor (a diferenciar del rol inspector ya existente en la app):
   - Si **si trabajo**, no se ingresa la cantidad de horas directamente: se
     ingresa **hora de inicio** y **hora final** (el sistema calcularia la
     duracion a partir de estos dos valores).
+- **Confirmado 2026-09-10**: la API debe incluir la **fecha de la
+  Programacion** a la que corresponde el registro de horas/evidencias.
 - **Pendiente**: "otros campos mas que luego detallaremos" (el usuario
   indico que hay campos adicionales sin especificar todavia).
 - Cada supervisor hace este registro para las distintas actividades
@@ -294,19 +420,47 @@ flujo en seccion 2) — **no es una tabla de captura manual independiente**.
 Con base en `bitacora.pdf` (formato real actual en Excel), la vista debe
 reproducir al menos:
 
-- Una fila por dia del mes (1 a 30/31), una columna por empleado.
-- Valor de horas trabajadas ese dia por ese empleado en la celda.
-- **Alerta visual** si hay dias con **0 horas** reportadas por el supervisor
-  para algun empleado.
-- El administrativo puede **corregir una hora**: se registra la hora nueva
-  **sin borrar la anterior** (queda historico de la correccion).
-- El valor corregido se muestra **en un color distinto** al original (en el
-  Excel actual el patron de color ya se usa para destacar celdas, ej.
-  amarillo para dias sin registro esperado, rojo para domingos/festivos).
-- El administrativo puede dejar **comentarios**, que se muestran como
-  **tooltip** sobre el dato (el Excel actual ya usa comentarios de celda de
-  Excel exactamente con este proposito, ej. "jornada nocturna-1 ED-11EN" —
-  confirma que el patron de UX que se pidio ya existe y hay que replicarlo).
+- **Navegacion (confirmado 2026-09-10)**: a diferencia de la Programacion
+  (que navega por dia), la Bitacora navega por **mes dentro de un año**,
+  con controles para avanzar/retroceder tanto de mes como de año.
+- Una fila por dia del mes (1 a 30/31), una columna por empleado —
+  **confirmado 2026-09-09**: el encabezado de columna usa el **nickname**
+  del empleado (seccion 4), no el nombre completo.
+- **Regla de que empleados aparecen como columna (confirmado 2026-09-10)**:
+  se combinan dos condiciones, ambas obligatorias — (a) el empleado tiene
+  activo el checkbox "hace parte de la Bitacora" (seccion 4), y (b) registra
+  al menos una hora en el mes que se esta viendo. Un empleado con el
+  checkbox activo pero sin horas ese mes especifico tampoco aparece esa
+  vista (aunque si aparezca en otro mes donde si tenga horas); un empleado
+  sin el checkbox nunca aparece, sin importar si tiene horas o no.
+- **Trazabilidad de 3 horas por celda (confirmado 2026-09-09)**: cada celda
+  dia/empleado no guarda un solo numero, guarda 3 valores con origen
+  distinto:
+  1. **Programada** — la hora que el supervisor puso al crear la actividad
+     en la Programacion (seccion 6).
+  2. **Reportada** — la hora que el supervisor registro en campo al cierre
+     del dia (app Android, seccion 7).
+  3. **Corregida** — la hora que un administrativo ajusto manualmente, si
+     hizo falta (opcional, no siempre existe).
+  Los 3 valores se consultan en un **tooltip** al pasar el mouse sobre la
+  celda, en este orden fijo: **izquierda = programada, centro = reportada
+  por el supervisor, derecha = corregida por el administrativo**. Ninguna
+  correccion borra los valores anteriores, todos quedan disponibles ahi.
+- **Valor final mostrado en la celda (confirmado 2026-09-09)**: por defecto
+  es la hora **reportada por el supervisor**; si existe una correccion
+  administrativa, esa pasa a ser la hora definitiva que se muestra.
+- **Alerta visual** si la hora reportada queda en blanco/0: debe verse en un
+  **color distinto** para que el administrativo detecte que hay una
+  novedad pendiente de resolver.
+- El administrativo puede dejar **comentarios**: se agregan haciendo **clic
+  en la celda, que abre un modal** (confirmado 2026-09-09 y reconfirmado
+  2026-09-10 como el unico mecanismo para agregar un comentario); luego se
+  consultan como **tooltip** sobre el dato (el Excel actual ya usa
+  comentarios de celda de Excel exactamente con este proposito, ej.
+  "jornada nocturna-1 ED-11EN"). **Resuelto 2026-09-10**: el comentario **si
+  comparte el mismo tooltip** que las 3 horas — si la celda tiene
+  comentario, se muestra junto con las horas; si no tiene comentario, el
+  tooltip solo muestra las 3 horas.
 - El Excel actual tambien totaliza por empleado: **total de horas del mes**
   vs. **horas a laborar** (una cuota fija mensual, 182 horas en el ejemplo
   visto) y una fila de **"extras"** (diferencia entre lo trabajado y la
@@ -326,7 +480,9 @@ detalle), se necesitan **2 vistas adicionales** que comparen lo programado
 
 **Estado: muy preliminar.** El usuario indico explicitamente que por ahora
 solo tiene una idea superficial de estos dos modulos, sin detalle funcional
-todavia.
+todavia. **Nota 2026-09-09**: el usuario anticipa que probablemente no se
+usen mucho en la practica, pero pide construirlos igual "por si acaso" —
+no cambia el alcance, solo indica prioridad baja.
 
 ## 10. Relacion Con El Sistema Existente Y Con Los Archivos De Referencia
 
@@ -340,10 +496,10 @@ todavia.
   distintos, dominio de datos distinto (empleados/horas/empresas-cliente de
   mano de obra en vez de activos/diagnosticos). Ver nota de terminologia en
   seccion 1 sobre "empresa" vs. `Client`.
-- Queda por definir si "supervisor" y "administrativo" son roles nuevos
-  dentro del mismo sistema de roles actual (`app/Models/Role.php`,
-  `RoleModulePermission`) o un esquema de autenticacion completamente aparte
-  (seccion 3 ya lo deja como login independiente).
+- **Resuelto 2026-09-10** (ver seccion 3): "supervisor" y "administrativo"
+  son roles de un esquema de autenticacion **completamente aparte** del
+  sistema de roles actual (`app/Models/Role.php`, `RoleModulePermission`) —
+  no se reutiliza ni se comparte con ese sistema.
 - **Archivos de referencia real recibidos el 2026-09-07** (formato actual en
   Excel del proceso que este modulo va a reemplazar/formalizar):
   - `Bitacora Septiembre 2026.xlsx` (capturas + `bitacora.pdf`): bitacora
@@ -357,24 +513,41 @@ todavia.
 ## 11. Pendientes Explicitos (No Asumir, Confirmar Con El Cliente/Usuario)
 
 - Roles administrativos nuevos: nombres y permisos exactos (¿supervisor
-  puede autocorregirse o solo el administrativo corrige?).
-- Campos completos de informacion personal del empleado.
+  puede autocorregirse o solo el administrativo corrige?) — el usuario
+  reconfirmo que aun no sabe, lo definira mas adelante (2026-09-10).
+- Campos completos de informacion personal del empleado (**avance
+  2026-09-10**: cedula, nickname, checkbox de usuario/login, fecha de
+  nacimiento, fecha de ingreso, fecha de inicio de ultimo contrato y fecha
+  de terminacion ya confirmados, ver seccion 4; el usuario indico "luego
+  miramos mas" — el resto sigue abierto).
+- Nombre exacto que usa el cliente para la categoria "Campo/Operario" de la
+  seccion 4.3 — el usuario respondio "no se" (2026-09-10).
+- Que otros mini-CRUDs de catalogos de apoyo hacen falta ademas de
+  categoria/cargo, planta de trabajo y certificados (seccion 4.3) — el
+  usuario respondio "no se si necesitemos mas" (2026-09-10).
 - Lista completa de tipos de documento/certificacion a adjuntar, y cuales
-  son genericos del empleado vs. cuales son exigidos por empresa especifica.
-- Definicion exacta de "cantidad de columnas depende de cantidad de roles"
-  en la programacion.
-- Definicion de "grupo" en la Programacion (¿catalogo propio o agrupador
-  visual?).
-- Campos completos de la programacion de actividades (pantallazos
-  prometidos, aun no llegan a esta version).
-- Campos adicionales del registro de horas/evidencias en Android.
-- Significado exacto de `ZCOM`, `OT SAP`, `Acta Entrega Solicitada`, `WE` en
-  el Diario de Campo, y si son fijos o configurables por empresa.
-- Si el calculo de costo por hora segun rol (`mec`/`aux`/`sup y siso`) entra
-  en el alcance de este modulo.
+  son genericos del empleado vs. cuales son exigidos por empresa especifica
+  (el CRUD de Certificados como tal ya quedo definido, ver seccion 4.3) —
+  el usuario indico que "se iran agregando luego" (2026-09-10).
+- Tercer estado visual para certificados generales: distinguir "nunca
+  obtenido" de "vencido" en el selector de la Programacion — **propuesta ya
+  prototipada** (icono gris apagado vs. ambar parpadeante, ver seccion 4.4 y
+  13.4), falta que el cliente la valide como definitiva.
+- Campos adicionales que debe exponer/aceptar la API de registro de
+  horas/evidencias, mas alla de la fecha de la Programacion ya confirmada
+  (seccion 7) — la app Android en si se construye en otro repositorio
+  (confirmado 2026-09-09).
+- Significado exacto de `ZCOM`, `OT SAP`, `Acta Entrega Solicitada`, `WE` y
+  una columna adicional sin identificar en el Diario de Campo —
+  **reconfirmado 2026-09-10 que hoy no se sabe**; mientras tanto se
+  implementan como texto libre (ver seccion 5).
 - Si la logica de cuota mensual (182 h) y "extras" del Excel actual debe
-  replicarse en la Bitacora web.
-- Detalle funcional de los 2 dashboards comparativos (seccion 9).
+  replicarse en la Bitacora web — **reconfirmado 2026-09-10 que sigue sin
+  definir**.
+- Detalle funcional de los 2 dashboards comparativos (seccion 9) — baja
+  prioridad esperada por el usuario (se construyen igual, 2026-09-09); la
+  pregunta especifica de que debe mostrar cada uno quedo sin resolver el
+  2026-09-10 porque no se formulo con claridad, hay que retomarla.
 
 ## 12. Estimacion De Costo Y Tiempo
 
@@ -448,3 +621,126 @@ el punto medio del rango de mercado, no una reduccion dramatica, porque la
 mayor parte del esfuerzo de este modulo especifico esta en reglas de negocio
 y flujos de reconciliacion (elegibilidad, primaria/secundaria, cierre
 administrativo), no en trabajo repetitivo donde la IA rinde mas.
+
+## 13. Prototipo Visual (Referencia De Diseño)
+
+**Que es y que no es**: a partir del 2026-09-10 se construyo un prototipo
+navegable de las pantallas principales de este modulo, **sin funcionalidad
+real** (sin backend, sin base de datos, sin autenticacion) — vive en una ruta
+aparte del sistema (prefijo deliberadamente no obvio, fuera del middleware
+`auth`), con datos de ejemplo tomados directamente de los Excel reales de la
+seccion 10. Su unico proposito es **validar visualmente** el diseño con el
+cliente antes de programar en serio; no cambia la regla de la cabecera de
+este documento (no implementar codigo real hasta que el alcance quede
+cerrado, seccion 11). Esta seccion documenta que muestra ese prototipo hoy,
+para poder comparar contra las secciones 3-9 y detectar que falta por
+definir o proyectar.
+
+### 13.1 Estructura comun (sidebar/layout)
+
+**Confirmado 2026-09-11**: el sidebar de este prototipo debe ser **identico,
+visual y funcionalmente**, al sidebar real de la plataforma
+(`resources/views/components/admin/sidebar.blade.php` +
+`layouts/admin.blade.php`), no una version simplificada aparte. Se replico:
+
+- Fondo blanco, acento naranja de marca (`#d55b20`) en el item de menu
+  activo, misma tipografia/espaciados que el sidebar real.
+- Colapso de escritorio (boton con flecha, persistido en `localStorage`) y
+  drawer movil off-canvas con boton de hamburguesa — misma mecanica Alpine.js
+  que la plataforma real, con una clave de `localStorage` propia
+  (`preview_personal_*`) para no mezclar su estado con el sidebar real (misma
+  app, mismo origen/navegador).
+- Los 5 items de menu del prototipo (Login, Programacion, Diario de Campo,
+  Bitacora mensual, Empleados) son especificos de este modulo — el sidebar
+  real tiene items distintos segun el rol autenticado (Dashboard,
+  Indicadores, Clientes, etc., ver seccion 3 sobre independencia de roles).
+
+### 13.2 Pantalla por pantalla
+
+- **Login** (seccion 3): formulario con campo **Usuario** (no email, igual
+  convencion que el login actual del sistema) + contraseña, panel lateral de
+  marca. Botón "Ingresar" navega directo a Programación (sin autenticar,
+  es mockup).
+- **Programación** (seccion 6): navegación por **calendario** (día actual
+  por defecto, se puede saltar a cualquier fecha — hoy y ayer se muestran
+  como "Editable", el resto "Solo lectura", igual que la regla de ventana de
+  edición confirmada). Tabla única agrupada visualmente por "Grupo" (evita
+  desalineación de columnas entre grupos). Modal "Nueva actividad" con
+  Empresa/Área/Grupo/Equipo/Jornada/Responsable/Actividad/Horas, selector de
+  "Actividad primaria para", y selector de personas en 2 columnas
+  (Campo/Administrativos) filtrado por elegibilidad de inducciones —
+  ver discrepancia abierta en 13.4. Botón "Copiar como imagen" (exporta la
+  tabla del día a PNG vía `html2canvas-pro`, con copiado a portapapeles o
+  descarga como respaldo en móvil).
+- **Diario de Campo** (seccion 5): tabla ancha con FECHA/EMPRESA/EQUIPO/
+  ACTIVIDAD (versión programada en negrita + versión ejecutada expandible
+  "ver detalle ejecutado")/PERSONAS/N°/HORAS/JORNADA/Comentarios/ZCOM/Línea/
+  OT SAP/Acta entrega/WE, con scroll contenido en el div (barra visible
+  horizontal y vertical, igual tratamiento que Bitácora).
+- **Bitácora mensual** (seccion 8): navegación por mes/año. Columnas de
+  empleado derivadas de los mismos registros de Empleados (nickname real,
+  no una lista independiente), filtradas por "hace parte de la Bitácora" +
+  horas registradas ese mes. Celda con trazabilidad de 3 horas
+  (programada/reportada/corregida) en tooltip, modal de corrección
+  administrativa, alerta ámbar si no reportó, totales de horas/cuota/extras
+  en el pie. Scroll contenido con barra visible en ambos sentidos.
+- **Empleados** (seccion 4): tabla con Acciones (editar + toggle
+  Activo/Inactivo)/Nombre completo/Nickname/Abreviatura/Cédula/Categoría/
+  Nacimiento (+edad calculada)/Ingreso/Contrato desde-hasta/Usuario/
+  Bitácora/Accesos (tarjeta hover con estado por empresa)/Certificados
+  (iconos de 3 estados: vigente/vencido/nunca obtenido, ver 4.4). Campana de
+  notificaciones (contratos por vencer, certificados por vencer, cumpleaños
+  próximos, todo con umbral de "menos de 1 mes" salvo cumpleaños a 7 días).
+  CRUDs en modal para "Empresas e inducciones" (con edición inline de
+  nombres, marcar obligatoria, marcar empresa por defecto) y "Certificados"
+  (nombre + ícono seleccionable de una librería curada).
+
+### 13.3 Decisiones de diseño validadas por el prototipo
+
+Cosas que no estaban resueltas antes de prototipar y que el ejercicio dejó
+zanjadas (quedan aquí como referencia, no se repiten en la seccion 11):
+
+- Tercer estado visual de certificados (13.1/4.4, arriba).
+- El icono de alerta debe ser el mismo ícono del certificado/inducción (no
+  un signo de exclamación genérico), con animación de parpadeo solo para
+  "vencido" — "no_posee" queda neutro, sin alarmar.
+- Patrón de exportar-como-imagen para compartir la Programación por
+  WhatsApp (sección 9 original solo pedía el botón, sin detalle de mecánica)
+  resuelto como: `html2canvas` sobre el bloque exportable, con
+  copiar-a-portapapeles como primario y descarga como respaldo si el
+  navegador no soporta `ClipboardItem` con imágenes (típico en móvil).
+
+### 13.4 Que falta por proyectar (comparar contra secciones 3-9)
+
+Brechas conocidas entre lo ya prototipado visualmente y lo documentado — o
+puntos donde el prototipo tomó una decisión que **contradice** lo ya
+confirmado y necesita reconciliarse con el cliente antes de cerrar alcance:
+
+- **Discrepancia a resolver (no asumir)**: la sección 6 confirma
+  (2026-09-09) que la regla de elegibilidad por inducciones **solo aplica a
+  la actividad primaria**, y que las secundarias no se filtran. El
+  prototipo, por instrucción explícita del 2026-09-11, hoy **oculta
+  completamente** de la lista de selección a cualquier empleado sin
+  inducción vigente — sin distinguir primaria de secundaria. Falta
+  confirmar con el cliente cuál de las dos reglas es la definitiva antes de
+  programar la validación real.
+- **Sin prototipar aún**: subida real de documentos a R2 con fecha de
+  obtención/vencimiento (sección 4.1) — el prototipo solo muestra el
+  ícono de estado final, no el formulario de carga.
+- **Sin prototipar aún**: modal de histórico de documentos/contratos
+  anteriores de un empleado (sección 4.2).
+- **Sin prototipar aún**: mini-CRUD de "Categoría/cargo" en sí (sección
+  4.3) — en el prototipo la categoría es un select fijo de 2 opciones
+  (Campo/Administrativos) dentro del formulario de empleado, no un catálogo
+  gestionable con las 4 categorías reales (Campo/Operario, Supervisor,
+  SISO, Administrativo).
+- **Sin prototipar aún**: mini-CRUD de "Planta de trabajo" (sección 4.3).
+- **Sin prototipar**, y fuera de alcance de un mockup web: la app Android
+  de registro de horas/evidencias (sección 7) y los 2 dashboards
+  comparativos (sección 9) — quedan pendientes de una fase de diseño propia
+  cuando se retomen (sección 11).
+- El prototipo asume una sola empresa "por defecto" (ARGOS) preseleccionada
+  y localStorage separado del real — comportamiento correcto solo dentro del
+  propio prototipo, no algo que deba migrarse literalmente a la
+  implementación real (ahí "empresa por defecto" es un dato de negocio, no
+  una preferencia de UI).

@@ -457,3 +457,24 @@ Route::middleware('auth')->group(function () {
         Route::get('/elements/{element}/pending-diagnostics', [InspectorReportController::class, 'getPendingDiagnostics'])->name('elements.pending-diagnostics');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| VISTA PREVIA DE DISEÑO — Gestión de Personal y Programación (mockup)
+|--------------------------------------------------------------------------
+| Prototipo visual sin funcionalidad real (ver NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md).
+| A propósito NO usa middleware 'auth' del sistema actual: es un login/rol
+| completamente aparte (ver seccion 3 del documento). Prefijo deliberadamente
+| no obvio y sin enlace desde ningun nav real para que nadie caiga aqui por error.
+| Solo para mostrarle a Mantec como se veria — quitar antes de un cierre formal
+| de alcance si no se conserva como base real del modulo.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('preview-rrhh-7f3k2q')->name('preview-personal.')->group(function () {
+    Route::view('/', 'preview-personal.index')->name('index');
+    Route::view('/login', 'preview-personal.login')->name('login');
+    Route::view('/programacion', 'preview-personal.programacion')->name('programacion');
+    Route::view('/diario-campo', 'preview-personal.diario-campo')->name('diario-campo');
+    Route::view('/bitacora', 'preview-personal.bitacora')->name('bitacora');
+    Route::view('/empleados', 'preview-personal.empleados')->name('empleados');
+});
