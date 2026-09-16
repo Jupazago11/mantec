@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             ElementComponentSeeder::class,
             DemoUsersSeeder::class,
             SystemModuleSeeder::class,
+            PersonalModuleSeeder::class,
         ]);
     }
 }

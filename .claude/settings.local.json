@@ -6,7 +6,8 @@
       "Bash(ls /home/jupazago/Documentos/mantecv1/ 2>/dev/null)",
       "Bash(mkdir -p /home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/managed-element-types/partials)",
       "Bash(wsl mkdir *)",
-      "Bash(mkdir -p \"/mnt/wsl/Ubuntu/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/pendientes/partials\")"
+      "Bash(mkdir -p \"/mnt/wsl/Ubuntu/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/pendientes/partials\")",
+      "Bash(wsl.exe -e bash -lc \"uptime; curl -s -o /dev/null -w 'http=%{http_code}\\\\n' http://127.0.0.1:8000/personal/login\")"
     ],
     "additionalDirectories": [
       "\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\managed-element-types",

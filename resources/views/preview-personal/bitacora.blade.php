@@ -40,25 +40,21 @@
         $dias[] = ['numero' => $n, 'nombre' => \Carbon\Carbon::parse("2026-09-{$n}")->translatedFormat('l'), 'festivo' => \Carbon\Carbon::parse("2026-09-{$n}")->isSunday()];
     }
 
-    $valores = $esMesConDatos ? [
-        1 => ['Norman' => 9.5, 'Alais' => 10, 'Espinosa 1' => 9.5, 'Jeison' => 7, 'Wilmar' => 9.5, 'Sara' => 9.5, 'Conrado' => 10, 'Espinosa 2' => 10, 'Monsalve' => 12, 'Alex Sierra' => 12, 'Geferson' => 12, 'Alejandro' => 'L', 'Herrera' => 12, 'Luis Fdo M' => 9.5, 'Yesid' => 10, 'Geronimo' => 12, 'J Manuel' => 12, 'Camila' => 9.5, 'Pachon' => 10, 'Cristian M' => 12, 'Evelio' => 10, 'Brayan R' => 8, 'Brahian Q' => 10, 'Omar' => 10, 'Nedy Johana' => 12, 'Danilo' => 10, 'Brayam P' => 9.5, 'Valbuena' => 9.5, 'Ana C' => 9.5, 'Diego O' => 10, 'Brayan C' => 10, 'Diego S' => 12, 'Wilmar Guzman' => 12, 'Jose Alberto' => 12, 'Neider' => 12, 'Luis M' => 12, 'Diana Suan' => 8],
-        2 => ['Bonilla' => 12, 'Norman' => 9.5, 'Alais' => 13.5, 'Espinosa 1' => 9.5, 'Jeison' => 7, 'Wilmar' => 9.5, 'Sara' => 9.5, 'Conrado' => 10, 'Espinosa 2' => 9.5, 'Monsalve' => 12, 'Alex Sierra' => 13.5, 'Geferson' => 12, 'Alejandro' => 'L', 'Herrera' => 12, 'Luis Fdo M' => 9.5, 'Alan' => 12, 'Yesid' => 10, 'Geronimo' => 10, 'J Manuel' => 12, 'Camila' => 9.5, 'Pachon' => 10, 'Cristian M' => 12, 'Evelio' => 10, 'Brayan R' => 12, 'Anderson' => 13.5, 'Brahian Q' => 10, 'Omar' => 10, 'Nedy Johana' => 12, 'Danilo' => 13.5, 'Brayam P' => 9.5, 'Valbuena' => 9.5, 'Ana C' => 9.5, 'Eder' => 12, 'Diego O' => 10, 'Brayan C' => 13.5, 'Diego S' => 12, 'Wilmar Guzman' => 12, 'Jose Alberto' => 12, 'Neider' => 12, 'Luis M' => 12],
-        3 => ['Bonilla' => 12, 'Norman' => 9.5, 'Alais' => 10, 'Espinosa 1' => 10, 'Jeison' => [null, 7, 'jornada nocturna-1 ED-11EN'], 'Wilmar' => 9.5, 'Sara' => 9.5, 'Conrado' => 10, 'Espinosa 2' => 9.5, 'Monsalve' => 12, 'Alex Sierra' => 10, 'Alejandro' => 'L', 'Herrera' => 12, 'Luis Fdo M' => 9.5, 'Alan' => 12, 'Yesid' => 10, 'Geronimo' => 10, 'J Manuel' => 10, 'Camila' => 9.5, 'Pachon' => 10, 'Cristian M' => 10, 'Brayan R' => 10, 'Anderson' => 10, 'Brahian Q' => 12, 'Omar' => 10, 'Nedy Johana' => 10, 'Danilo' => 10, 'Brayam P' => 13.5, 'Valbuena' => 9.5, 'Ana C' => 9.5, 'Eder' => 12, 'Diego O' => 10, 'Brayan C' => 10, 'Diego S' => 12, 'Jose Alberto' => 12, 'Luis M' => 12],
-        4 => ['Bonilla' => 10.5, 'Norman' => 13.5, 'Alais' => 22.5, 'Espinosa 1' => 8, 'Jeison' => 10.5, 'Wilmar' => 6, 'Sara' => 6, 'Conrado' => 16, 'Espinosa 2' => 8, 'Monsalve' => 11, 'Alex Sierra' => 16, 'Geferson' => 9, 'Alejandro' => 'L', 'Herrera' => 10.5, 'Luis Fdo M' => 12, 'Alan' => 10.5, 'Yesid' => 10.5, 'Pachon' => 10.5, 'Evelio' => 13.5, 'Anderson' => 7, 'Brahian Q' => 10.5, 'Omar' => 12, 'Danilo' => 13.5, 'Ana C' => 12.5, 'Eder' => 13.5, 'Wilmar Guzman' => 10.5, 'Jose Alberto' => 17, 'Neider' => 12],
-        5 => ['Bonilla' => 12, 'Alais' => 4, 'Jeison' => 10.5, 'Sara' => 7, 'Alex Sierra' => 12.5, 'Geferson' => 8.5, 'Yesid' => 12, 'Pachon' => 12, 'Brayan R' => 13.5, 'Brahian Q' => 7, 'Omar' => 10.5, 'Valbuena' => 12],
-        6 => ['Luis Fdo M' => 12, 'Yesid' => 12, 'Pachon' => 12],
-    ] : [];
+    // Fuente unica compartida con Programacion — ver _horas-mes-data.php.
+    // 'totales' se calcula ahi mismo sumando 'valores', asi el total del
+    // pie de esta tabla SIEMPRE coincide con la suma de lo que se ve en
+    // las celdas de los dias 1-6 (unicos con datos de ejemplo por ahora —
+    // el resto del mes aun no tiene captura, ver dias 7-30 mas abajo).
+    $horasMesData = $esMesConDatos ? include resource_path('views/preview-personal/_horas-mes-data.php') : ['valores' => [], 'totales' => []];
+    $valores = $horasMesData['valores'];
+    $totalesReales = $horasMesData['totales'];
 
-    $totalesReales = $esMesConDatos ? [
-        'Bonilla' => 46.5, 'Norman' => 42, 'Alais' => 56, 'Espinosa 1' => 37, 'Jeison' => 35.5, 'Wilmar' => 34.5, 'Sara' => 34.5, 'Conrado' => 53,
-        'Espinosa 2' => 37, 'Monsalve' => 59.5, 'Alex Sierra' => 51.5, 'Geferson' => 53.5, 'Alejandro' => 0, 'Herrera' => 46.5, 'Luis Fdo M' => 52.5, 'Alan' => 34.5,
-        'Yesid' => 64.5, 'Geronimo' => 32, 'J Manuel' => 34, 'Camila' => 28.5, 'Pachon' => 64.5, 'Cristian M' => 34, 'Evelio' => 30, 'Brayan R' => 49.5,
-        'Anderson' => 38.5, 'Brahian Q' => 39, 'Omar' => 42, 'Nedy Johana' => 30, 'Danilo' => 48, 'Brayam P' => 47, 'Valbuena' => 52.5, 'Ana C' => 28.5,
-        'Eder' => 34, 'Diego O' => 0, 'Brayan C' => 40.5, 'Diego S' => 50.5, 'Wilmar Guzman' => 72, 'Jose Alberto' => 52, 'Neider' => 72, 'Luis M' => 72,
-        'Diana Suan' => 20,
-    ] : [];
-
-    $cuota = 182;
+    // Cuota por defecto cuando el mes aun no tiene una guardada — se
+    // sobreescribe en el navegador (localStorage, por año-mes) desde que el
+    // usuario la edita, ver Alpine mas abajo. "Se ponen manualmente" porque
+    // el mes real de horas laborables varia (festivos, dias del mes, etc.),
+    // no es una constante fija para siempre.
+    $cuotaDefault = 182;
 
     // Regla confirmada 2026-09-10: solo aparece si (a) tiene la bandera
     // "hace parte de la Bitacora" activa Y (b) registra al menos una hora
@@ -81,7 +77,10 @@
 @endphp
 
 @section('content')
-<div class="mx-auto max-w-[1900px] space-y-4">
+<div
+    class="mx-auto max-w-[1900px] space-y-4"
+    x-data="bitacora({ year: {{ $year }}, month: {{ $month }}, cuotaDefault: {{ $cuotaDefault }}, claves: @js(collect($empleados)->pluck('clave')), totales: @js($totalesReales) })"
+>
 
     <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -109,9 +108,15 @@
                         <i data-lucide="chevrons-right" class="h-4 w-4"></i>
                     </a>
                 </div>
-                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                    Cuota mensual: {{ $cuota }} h
-                </span>
+                <label class="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700" title="Cuota de horas a laborar este mes — se define manualmente cada mes, no es un valor fijo">
+                    Cuota mensual:
+                    <input
+                        type="number" min="0" step="0.5"
+                        x-model.number="cuota" @change="guardarCuota()"
+                        class="w-14 rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-xs font-semibold text-slate-800"
+                    >
+                    h
+                </label>
                 <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
                     {{ count($empleados) }} empleados
                 </span>
@@ -159,13 +164,16 @@
                                                 corregida: @js($c['corregida']),
                                                 comentario: @js($c['comentario']),
                                                 nuevaCorreccion: '',
+                                                nuevoComentario: '',
                                                 get final() { return this.corregida !== null && this.corregida !== '' ? this.corregida : this.reportada; },
                                                 get esTexto() { return this.final !== null && this.final !== '' && isNaN(Number(this.final)); },
                                                 get alerta() { return !this.esTexto && (this.final === null || this.final === '' || Number(this.final) === 0); },
-                                                abrirModal() { this.nuevaCorreccion = this.corregida ?? ''; this.modal = true; },
+                                                abrirModal() { this.nuevaCorreccion = this.corregida ?? ''; this.nuevoComentario = this.comentario ?? ''; this.modal = true; },
                                                 guardar() {
                                                     const v = this.nuevaCorreccion.trim();
                                                     this.corregida = v === '' ? null : v;
+                                                    const c = this.nuevoComentario.trim();
+                                                    this.comentario = c === '' ? null : c;
                                                     this.modal = false;
                                                 },
                                             }"
@@ -211,7 +219,7 @@
                                                     </p>
 
                                                     <label class="mb-1 mt-3 block text-xs font-medium text-slate-600">Comentario</label>
-                                                    <textarea x-model="comentario" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. jornada nocturna-1 ED-11EN"></textarea>
+                                                    <textarea x-model="nuevoComentario" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. jornada nocturna-1 ED-11EN"></textarea>
 
                                                     <div class="mt-4 flex justify-end gap-2">
                                                         <button @click="modal = false" class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
@@ -235,15 +243,15 @@
                     </tr>
                     <tr class="bg-slate-50 text-xs text-slate-500">
                         <td class="sticky-col whitespace-nowrap px-3 py-1.5">Horas a laborar</td>
-                        @foreach ($empleados as $emp)
-                            <td class="px-2 py-1.5 text-center">{{ $cuota }}</td>
-                        @endforeach
+                        <template x-for="clave in claves" :key="clave">
+                            <td class="px-2 py-1.5 text-center" x-text="cuota"></td>
+                        </template>
                     </tr>
                     <tr class="bg-slate-50 text-xs font-semibold text-red-500">
                         <td class="sticky-col whitespace-nowrap px-3 py-1.5">Extras</td>
-                        @foreach ($empleados as $emp)
-                            <td class="px-2 py-1.5 text-center">{{ isset($totalesReales[$emp['clave']]) ? $totalesReales[$emp['clave']] - $cuota : '—' }}</td>
-                        @endforeach
+                        <template x-for="clave in claves" :key="clave">
+                            <td class="px-2 py-1.5 text-center" x-text="extras(clave)"></td>
+                        </template>
                     </tr>
                 </tfoot>
             </table>
@@ -259,3 +267,31 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function bitacora({ year, month, cuotaDefault, claves, totales }) {
+        // La cuota se "pone manualmente" cada mes (confirmado 2026-09-15):
+        // no es un numero fijo para siempre, varia mes a mes (festivos,
+        // dias habiles, etc). Se guarda en localStorage por año-mes para
+        // que sobreviva a un refresh sin necesitar backend — mismo patron
+        // de persistencia ya usado para el colapso del sidebar
+        // (preview_personal_sidebar_collapsed en _layout.blade.php).
+        const storageKey = `preview_personal_cuota_${year}-${month}`;
+        const guardada = localStorage.getItem(storageKey);
+        return {
+            claves,
+            totales,
+            cuota: guardada !== null ? Number(guardada) : cuotaDefault,
+            guardarCuota() {
+                if (this.cuota === '' || this.cuota === null || isNaN(this.cuota)) return;
+                localStorage.setItem(storageKey, String(this.cuota));
+            },
+            extras(clave) {
+                const total = this.totales[clave];
+                return total === undefined ? '—' : total - this.cuota;
+            },
+        };
+    }
+</script>
+@endpush

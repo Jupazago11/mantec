@@ -88,7 +88,7 @@
 @endphp
 
 @section('content')
-<div class="mx-auto max-w-[1900px] space-y-4">
+<div class="mx-auto max-w-[1900px] space-y-4" x-data="diarioCampo()">
     <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -98,9 +98,21 @@
                     "Horas" muestra siempre el valor final (corregida si existe, si no la reportada por el supervisor).
                 </p>
             </div>
-            <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                1/09/2026
-            </span>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                    1/09/2026
+                </span>
+                <button
+                    @click="exportarComoImagen('1-09-2026')"
+                    :disabled="exportando"
+                    class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Genera una imagen del Diario de Campo para pegarla en WhatsApp (o descargarla en móvil)"
+                >
+                    <i data-lucide="image-down" class="h-4 w-4" x-show="!exportando"></i>
+                    <i data-lucide="loader-2" class="h-4 w-4 animate-spin" x-show="exportando" x-cloak></i>
+                    <span x-text="exportando ? 'Generando...' : 'Copiar como imagen'"></span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -108,7 +120,11 @@
         <i data-lucide="move-horizontal" class="h-3.5 w-3.5"></i> Desliza horizontalmente para ver todas las columnas
     </p>
 
-    <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
+    {{-- areaExportable: lo que captura "Copiar como imagen" — mismo patron
+         que Programacion (ver programacion.blade.php). --}}
+    <div id="areaExportable" class="space-y-2">
+        <p class="text-sm font-semibold text-slate-700">Diario de Campo — 1/09/2026</p>
+        <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="scroll-container-visible">
         <table class="preventive-table divide-y divide-slate-200 text-sm">
             <thead class="sticky-table-head bg-slate-50">
@@ -162,11 +178,25 @@
             </tbody>
         </table>
         </div>
+        </div>
     </div>
 
     <p class="mt-4 text-xs text-slate-400">
         Las columnas grises (ZCOM / Línea / OT SAP / Acta entrega / WE) se muestran como texto libre a propósito —
         su significado exacto y si son fijos o configurables por empresa sigue pendiente de confirmar.
     </p>
+
+    {{-- Toast de resultado de la exportacion --}}
+    <div x-show="mensajeExport" x-cloak x-transition class="fixed bottom-4 right-4 z-50 max-w-xs rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl" x-text="mensajeExport"></div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function diarioCampo() {
+        return {
+            ...imageExporterMixin('diario-de-campo'),
+        };
+    }
+</script>
+@endpush

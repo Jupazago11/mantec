@@ -460,14 +460,81 @@ Route::middleware('auth')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| PERSONAL Y PROGRAMACIÓN — Fase 1 real (login + Empleados + Empresas)
+|--------------------------------------------------------------------------
+| Backend real, independiente del guard 'web' (ver seccion 3 del documento
+| NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md y el plan de la seccion
+| 13.5/Fase 1). Superadmin entra por el /login de siempre y accede aqui via
+| PersonalGuard::isSuperadmin() — no tiene fila en `employees`.
+| Programación, Diario de Campo y Bitácora ya son reales (Fase 2a/2b/2c,
+| secciones 14.1/14.2/14.3). El mockup de abajo (preview-rrhh-7f3k2q)
+| sigue existiendo solo como referencia visual, sin enlace desde el
+| sidebar real.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('personal')->name('personal.')->group(function () {
+    Route::get('/login', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'login'])->name('login.attempt');
+
+    Route::middleware('personal.auth')->group(function () {
+        Route::post('/logout', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'logout'])->name('logout');
+
+        // Destino cuando el actor esta logueado pero su rol no tiene
+        // ningun permiso marcado todavia (ver PersonalGuard::firstAccessibleRoute).
+        Route::view('/sin-acceso', 'personal.sin-acceso')->name('sin-acceso');
+
+        Route::get('/empleados', [\App\Http\Controllers\Personal\EmployeeController::class, 'index'])->name('empleados.index');
+        Route::post('/empleados', [\App\Http\Controllers\Personal\EmployeeController::class, 'store'])->name('empleados.store');
+        Route::put('/empleados/{employee}', [\App\Http\Controllers\Personal\EmployeeController::class, 'update'])->name('empleados.update');
+        Route::patch('/empleados/{employee}/toggle-status', [\App\Http\Controllers\Personal\EmployeeController::class, 'toggleStatus'])->name('empleados.toggle-status');
+
+        Route::post('/empresas', [\App\Http\Controllers\Personal\CompanyController::class, 'store'])->name('empresas.store');
+        Route::put('/empresas/{company}', [\App\Http\Controllers\Personal\CompanyController::class, 'update'])->name('empresas.update');
+        Route::patch('/empresas/{company}/toggle-archived', [\App\Http\Controllers\Personal\CompanyController::class, 'toggleArchived'])->name('empresas.toggle-archived');
+        Route::patch('/empresas/{company}/mark-default', [\App\Http\Controllers\Personal\CompanyController::class, 'markDefault'])->name('empresas.mark-default');
+
+        // Fase 2a — Programacion real (seccion 14.1 del documento).
+        // update/destroy: editar/eliminar una actividad ya creada — una
+        // actividad cerrada en Diario de Campo deja de ser modificable
+        // para supervisor (ver ActivityController::canModify).
+        Route::get('/programacion', [\App\Http\Controllers\Personal\ActivityController::class, 'index'])->name('programacion.index');
+        Route::post('/programacion', [\App\Http\Controllers\Personal\ActivityController::class, 'store'])->name('programacion.store');
+        Route::put('/programacion/{activity}', [\App\Http\Controllers\Personal\ActivityController::class, 'update'])->name('programacion.update');
+        Route::delete('/programacion/{activity}', [\App\Http\Controllers\Personal\ActivityController::class, 'destroy'])->name('programacion.destroy');
+        Route::get('/programacion/dias-con-datos', [\App\Http\Controllers\Personal\ActivityController::class, 'diasConDatos'])->name('programacion.dias-con-datos');
+
+        // Fase 2b — Diario de Campo real (seccion 14.2). Mismo objeto
+        // Activity, enriquecido con el cierre administrativo.
+        Route::get('/diario-campo', [\App\Http\Controllers\Personal\FieldDiaryController::class, 'index'])->name('diario-campo.index');
+        Route::patch('/diario-campo/{activity}', [\App\Http\Controllers\Personal\FieldDiaryController::class, 'close'])->name('diario-campo.close');
+
+        // Fase 2c — Bitacora real (seccion 14.3). Proyeccion mensual sobre
+        // activities + correcciones administrativas por dia/persona. Solo
+        // administrativo/superadmin (seccion 8 excluye al supervisor).
+        Route::get('/bitacora', [\App\Http\Controllers\Personal\BitacoraController::class, 'index'])->name('bitacora.index');
+        Route::post('/bitacora/entries', [\App\Http\Controllers\Personal\BitacoraController::class, 'saveEntry'])->name('bitacora.entries.store');
+        Route::post('/bitacora/quota', [\App\Http\Controllers\Personal\BitacoraController::class, 'saveQuota'])->name('bitacora.quota.store');
+
+        // Roles y permisos dinamicos — exclusivo de superadmin, no forma
+        // parte de los permisos configurables (evita auto-escalacion).
+        Route::get('/roles', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'index'])->name('roles.index');
+        Route::post('/roles', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'store'])->name('roles.store');
+        Route::put('/roles/{personalRole}', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{personalRole}', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'destroy'])->name('roles.destroy');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
 | VISTA PREVIA DE DISEÑO — Gestión de Personal y Programación (mockup)
 |--------------------------------------------------------------------------
 | Prototipo visual sin funcionalidad real (ver NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md).
 | A propósito NO usa middleware 'auth' del sistema actual: es un login/rol
 | completamente aparte (ver seccion 3 del documento). Prefijo deliberadamente
 | no obvio y sin enlace desde ningun nav real para que nadie caiga aqui por error.
-| Solo para mostrarle a Mantec como se veria — quitar antes de un cierre formal
-| de alcance si no se conserva como base real del modulo.
+| Todos los modulos (Empleados, Empresas, Programación, Diario de Campo,
+| Bitácora) ya tienen backend real arriba (/personal) — este bloque sigue
+| existiendo solo como referencia visual de diseño.
 |--------------------------------------------------------------------------
 */
 Route::prefix('preview-rrhh-7f3k2q')->name('preview-personal.')->group(function () {

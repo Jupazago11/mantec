@@ -6,7 +6,29 @@ codigo a partir de este documento hasta que el alcance quede cerrado (ver
 seccion 11, Pendientes).
 
 Fecha de inicio del levantamiento: 2026-09-05
-Ultima actualizacion: 2026-09-11 (se agrega la seccion 13 documentando el
+Ultima actualizacion: 2026-09-16 (implementacion REAL del Escalon B
+confirmado — login administrativo independiente + Empleados + Empresas +
+**Programacion** con base de datos real, guard `personal` propio,
+incluyendo las dos reglas de negocio que el mockup no validaba (primaria
+unica por persona/dia, ventana de edicion del supervisor). Diario de
+Campo/Bitacora siguen siendo el mockup de la seccion 13 por ahora — ver
+secciones 14 y 14.1)
+
+Actualizacion anterior: 2026-09-15 (Mantec confirma oficialmente el Escalon B
+de la seccion 12.4 — $3.200.000, Programacion + Diario de Campo + Bitacora,
+sin gestion documental completa ni tableros comparativos. Se ajusta el
+prototipo de Empleados al alcance real contratado, se quita el bloqueo de
+elegibilidad y los certificados generales de Programacion, se reemplaza su
+selector de personas por un combobox buscable con horas acumuladas del mes,
+y la cuota mensual de la Bitacora pasa de constante fija a editable por mes
+— ver seccion 13.5)
+
+Actualizacion anterior: 2026-09-14 (se corrige la seccion 6: primaria/secundaria
+es una propiedad de la actividad completa, no una marca individual por
+persona dentro de la misma actividad — ver seccion 6.1. Se ajusta el
+prototipo de Programacion en consecuencia)
+
+Actualizacion anterior: 2026-09-11 (se agrega la seccion 13 documentando el
 prototipo visual navegable construido para revisar el diseño con el cliente,
 se resuelve visualmente el tercer estado de certificados pendiente en 4.4/11,
 y se deja registrada una discrepancia sin resolver entre el prototipo y la
@@ -353,6 +375,43 @@ empresa (siguiendo el mismo principio de flexibilidad de la seccion 4.4).
   inducciones, porque normalmente son "novedades" (descanso, incapacidad,
   transporte, permisos) que no implican trabajo de campo real en la
   empresa.
+
+  **Correccion 2026-09-14 (ver 6.1)**: primaria/secundaria es una propiedad
+  de la **actividad completa**, no una marca individual por persona dentro
+  de la misma actividad.
+
+### 6.1 Correccion: Primaria/Secundaria Es Por Actividad, No Por Persona
+
+El prototipo inicial (seccion 13) implemento la marca P/S **por persona
+dentro de una misma actividad** (ej. una fila con 4 personas donde una
+aparecia como "P" y las otras 3 como "S"). El cliente aclaro el 2026-09-14
+que esto es incorrecto: **una actividad es primaria o secundaria como
+unidad completa**, y esa condicion aplica por igual a todas las personas
+asignadas en ella. No existe el caso de una actividad con unas personas en
+primaria y otras en secundaria al mismo tiempo.
+
+En la practica esto significa que al crear una actividad se elige un unico
+"Tipo de actividad" (Primaria/Secundaria) para toda la fila, no un selector
+de "cual de estas personas es la primaria". La regla de "una sola actividad
+primaria por persona por dia" (parrafo anterior) se sigue cumpliendo, pero
+se valida a nivel de "en cuantas actividades marcadas como Primaria
+distintas aparece la misma persona ese dia", no dentro de una sola
+actividad.
+
+**Ya corregido en el prototipo (seccion 13)**: la vista de Programacion
+(`resources/views/preview-personal/programacion.blade.php`) ahora guarda
+`tipo` ('P'/'S') a nivel de actividad, la tabla muestra un unico badge P/S
+junto al texto de la Actividad (no uno por persona), la columna Personas
+quedo como texto simple separado por comas (sin badges/pills por persona,
+lo que ademas redujo el ancho de la tabla), y el modal "Nueva actividad"
+reemplazo el selector "Actividad primaria para" (por persona) por un
+selector unico "Tipo de actividad" (Primaria/Secundaria) que aplica a toda
+la fila.
+
+**Pendiente**: la validacion real de "no permitir una segunda actividad
+Primaria para la misma persona el mismo dia" sigue sin implementarse (el
+prototipo no valida nada, es solo mockup) — queda para cuando se construya
+el backend real.
 - Selecciona **empresa** y **area** (combobox).
 - Selecciona **uno o varios empleados**, mostrados en **2 columnas por
   categoria** (nombres confirmados 2026-09-10, ver seccion 4.3):
@@ -462,11 +521,12 @@ reproducir al menos:
   comentario, se muestra junto con las horas; si no tiene comentario, el
   tooltip solo muestra las 3 horas.
 - El Excel actual tambien totaliza por empleado: **total de horas del mes**
-  vs. **horas a laborar** (una cuota fija mensual, 182 horas en el ejemplo
-  visto) y una fila de **"extras"** (diferencia entre lo trabajado y la
-  cuota, casi siempre negativa en el ejemplo). **Pendiente confirmar si este
-  calculo de cuota/extras debe replicarse en la vista web** o si es un
-  calculo aparte que hace la empresa fuera del alcance de este modulo.
+  vs. **horas a laborar** (una cuota mensual, 182 horas en el ejemplo
+  visto, que **se define manualmente cada mes** — no es una constante fija
+  para siempre, confirmado 2026-09-15) y una fila de **"extras"**
+  (diferencia entre lo trabajado y la cuota, casi siempre negativa en el
+  ejemplo). **Resuelto 2026-09-15 (ver seccion 13.5)**: si se replica en la
+  vista web — la cuota es editable por mes desde la propia Bitacora.
 
 ## 9. Dashboards Comparativos (Programado Vs. Reportado)
 
@@ -541,9 +601,9 @@ no cambia el alcance, solo indica prioridad baja.
   una columna adicional sin identificar en el Diario de Campo —
   **reconfirmado 2026-09-10 que hoy no se sabe**; mientras tanto se
   implementan como texto libre (ver seccion 5).
-- Si la logica de cuota mensual (182 h) y "extras" del Excel actual debe
-  replicarse en la Bitacora web — **reconfirmado 2026-09-10 que sigue sin
-  definir**.
+- ~~Si la logica de cuota mensual (182 h) y "extras" del Excel actual debe
+  replicarse en la Bitacora web~~ — **resuelto 2026-09-15, ver seccion
+  13.5**: si se replica, y la cuota se define manualmente cada mes.
 - Detalle funcional de los 2 dashboards comparativos (seccion 9) — baja
   prioridad esperada por el usuario (se construyen igual, 2026-09-09); la
   pregunta especifica de que debe mostrar cada uno quedo sin resolver el
@@ -622,6 +682,49 @@ mayor parte del esfuerzo de este modulo especifico esta en reglas de negocio
 y flujos de reconciliacion (elegibilidad, primaria/secundaria, cierre
 administrativo), no en trabajo repetitivo donde la IA rinde mas.
 
+### 12.4 Escalones De Alcance Negociados (2026-09-07 En Adelante)
+
+**Nota interna**, mismo caracter que el resto de la seccion 12 — no copiar
+literalmente al cliente.
+
+Tras cotizar el alcance completo en $4.000.000-$4.200.000 (12.2), la cliente
+(Doña Ruby Ocampo) empezo a negociar recortes de alcance. A la fecha hay
+tres escalones distintos sobre la mesa (no confundirlos):
+
+**Escalon A — Alcance completo (12 puntos)**: $4.000.000 - $4.200.000, ya
+cotizado (12.2). Incluye gestion documental completa (R2, vencimientos,
+alertas configurables, historico — puntos 2-5 de la lista en lenguaje
+cliente), catalogos editables, Programacion/Diario/Bitacora, conexion con
+la app Android, y los 2 dashboards comparativos.
+
+**Escalon B — WhatsApp 2026-09-07, ya comunicado a la cliente**: Doña Ruby
+pidio explicitamente obviar los puntos de gestion documental completa
+("Podemos obviar el punto dos tres y cuatro... Que quede solo para
+programación bitácora y diario de campo"). Se le confirmo por WhatsApp el
+mismo dia: **$3.200.000, aprox. 3-4 semanas**, aclarando que "hay items que
+no se pueden quitar para el correcto funcionamiento" (ej. un catalogo
+minimo de empleados/empresas sigue siendo indispensable para que
+Programacion funcione, aunque sea sin el CRUD completo de documentos/R2).
+Este escalon **tampoco incluye** los 2 dashboards comparativos (punto 12) —
+el mensaje solo menciona programacion, bitacora y diario de campo.
+
+**Escalon C — Consultado 2026-09-14, aun no comunicado a la cliente**:
+¿cuanto cobrar por el alcance completo (12.1) menos unicamente los 2
+dashboards comparativos (punto 12), es decir conservando la gestion
+documental completa (R2/vencimientos/alertas/historico) que en el Escalon B
+si se habia quitado? Aplicando la misma logica de descuento que ya rindio
+9%-15% en 12.2 (proporcion de semanas de la pieza "2 dashboards
+comparativos" en 12.1, que es 0,5-1 de las 9,5-15 semanas totales, ~5%-7%
+del esfuerzo):
+
+- Puntos 1-11 (todo menos dashboards): **≈ $3.900.000**
+- Punto 12 solo (2 dashboards comparativos): **≈ $250.000 - $300.000**
+
+Este escalon C es un punto medio entre A ($4.2M) y B ($3.2M) que **todavia
+no se le ha ofrecido a la cliente** — queda como referencia interna por si
+se retoma la negociacion sobre si conservar o no la gestion documental
+completa.
+
 ## 13. Prototipo Visual (Referencia De Diseño)
 
 **Que es y que no es**: a partir del 2026-09-10 se construyo un prototipo
@@ -667,7 +770,8 @@ visual y funcionalmente**, al sidebar real de la plataforma
   edición confirmada). Tabla única agrupada visualmente por "Grupo" (evita
   desalineación de columnas entre grupos). Modal "Nueva actividad" con
   Empresa/Área/Grupo/Equipo/Jornada/Responsable/Actividad/Horas, selector de
-  "Actividad primaria para", y selector de personas en 2 columnas
+  "Tipo de actividad" (Primaria/Secundaria, aplica a toda la actividad —
+  corregido 2026-09-14, ver 6.1), y selector de personas en 2 columnas
   (Campo/Administrativos) filtrado por elegibilidad de inducciones —
   ver discrepancia abierta en 13.4. Botón "Copiar como imagen" (exporta la
   tabla del día a PNG vía `html2canvas-pro`, con copiado a portapapeles o
@@ -744,3 +848,481 @@ confirmado y necesita reconciliarse con el cliente antes de cerrar alcance:
   propio prototipo, no algo que deba migrarse literalmente a la
   implementación real (ahí "empresa por defecto" es un dato de negocio, no
   una preferencia de UI).
+
+### 13.5 Prototipo De Empleados Reducido Al Alcance Contratado (2026-09-15)
+
+Mantec confirmó oficialmente el **Escalón B** de la sección 12.4
+($3.200.000 — Programación + Diario de Campo + Bitácora, sin gestión
+documental completa ni tableros comparativos). Se ajustó el prototipo de
+Empleados (`resources/views/preview-personal/empleados.blade.php`) para
+dejar de mostrar funcionalidad que no está contratada, evitando que el
+mockup prometa visualmente algo que no se va a construir en esta etapa:
+
+- **Se quitó del prototipo**: campana de notificaciones (avisos de
+  contrato/certificado por vencer, cumpleaños), CRUD de "Certificados
+  generales" (alturas, espacios confinados — sección 4.3), columna
+  "Certificados" de la tabla, columna "Accesos" (tooltip de
+  vigente/vencido por empresa) y su leyenda. Todo esto es parte de la
+  gestión documental completa (puntos 2-5 de la propuesta, sección 12.4)
+  que Mantec no contrató en esta fase.
+- **Se simplificó, no se quitó**: el CRUD de "Empresas e inducciones" pasó
+  a ser solo "Empresas" — nombre, marcar por defecto, archivar/restablecer
+  (ya no borra registros, los archiva — mismo criterio que
+  activo/inactivo en empleados). Se quitó el sub-CRUD de inducciones
+  obligatorias por empresa. Confirmado explícitamente por el usuario
+  2026-09-15: Empleados sí necesita poder crear/editar/archivar empresas
+  (las usa el selector de Empresa en Programación), pero no gestionar
+  inducciones ni certificados.
+- **Resuelto 2026-09-15**: se quitó también de Programación el bloqueo de
+  selección por inducciones (`elegible(emp)` ya no existe en
+  `programacion.blade.php`) — consistente con que Empleados ya no
+  administra inducciones. El selector de personas de la sección 6 ahora
+  muestra **todos** los empleados activos, sin filtrar por empresa. Se
+  quitaron también los íconos de certificados generales de ese selector
+  (dependían del CRUD de Certificados, tampoco contratado). De paso se
+  reemplazó la grilla fija de checkboxes (Campo/Administrativos) por un
+  **combobox buscable** (escribir para filtrar, clic para agregar como
+  chip removible) — con todos los empleados visibles una lista fija ya no
+  era práctica. Cada persona muestra sus **horas acumuladas en el mes**
+  (dato de referencia, no bloqueante) tomadas del mismo archivo compartido
+  que usa la Bitácora (`_horas-mes-data.php`, extraído de los
+  `$totalesReales` que antes vivían solo en `bitacora.blade.php`).
+- **Resuelto 2026-09-15**: la "cuota mensual" de horas a laborar (sección
+  8, antes constante fija `$cuota = 182` en PHP) ahora es **editable
+  manualmente por mes** desde la propia Bitácora (input numérico junto al
+  navegador de mes/año), persistida en `localStorage` por año-mes — sigue
+  sin haber backend real en el prototipo, así que no sobrevive a un cambio
+  de navegador/dispositivo, pero sí a un refresh. Confirma la duda abierta
+  de la sección 8: el cálculo de cuota/extras **sí se replica** en la
+  vista web, y la cuota no es un número fijo para siempre.
+
+## 14. Implementación Real — Fase 1 (Login + Empleados + Empresas)
+
+**2026-09-16**: arranca la construcción del backend real del módulo, por
+fuera del mockup de la sección 13 (que sigue existiendo intacto en
+`/preview-rrhh-7f3k2q/*`, sin auth, solo como referencia visual para
+Programación/Diario de Campo/Bitácora hasta que se retomen en una Fase 2).
+
+**Alcance de esta Fase 1**: login administrativo real e independiente,
+CRUD real de Empleados, CRUD real de Empresas, acceso por rol. Nada de
+persistencia de Programación/actividades, horas, Bitácora, inducciones
+por empresa, certificados generales, documentos en R2, notificaciones,
+API Android ni dashboards — eso sigue siendo Fase 2 en adelante (ver
+sección 12.4 para el mapeo contra lo efectivamente contratado, Escalón B).
+
+**URL real**: `/personal/*` (`/personal/login`, `/personal/empleados`) —
+prefijo nuevo, limpio, separado del mockup.
+
+**Arquitectura de autenticación** (ver sección 3 — login/roles
+"completamente independientes" del sistema actual):
+- Guard nuevo `personal` (sesión) sobre un modelo nuevo `App\Models\Employee`
+  (tabla `employees`), sin relación con `App\Models\User`/`Role`/
+  `RoleModulePermission` del sistema actual.
+- **Superadmin no se duplica**: sigue entrando por el `/login` de siempre
+  (guard `web` existente) y accede a `/personal/*` porque
+  `App\Support\PersonalGuard::check()` acepta el guard `personal` **o**
+  un usuario `web` con `role.key === 'superadmin'`. No tiene fila en
+  `employees` — invisible en los catálogos del módulo, como pide la
+  sección 3.
+- `employees.role` es una columna string simple (`'supervisor'` |
+  `'administrativo'` | `null`), no una tabla de permisos — los nombres
+  formales de rol siguen pendientes de cierre con el cliente (sección 11);
+  una tabla completa tipo `RoleModulePermission` sería adelantarse a un
+  requisito aún abierto.
+- Empleados de categoría **Campo nunca tienen `role` ni acceso de login**
+  — validado en `EmployeeController`, no como constraint de base de datos.
+
+**CRUD de Empleados**: mismos campos que el prototipo ya redujo en la
+sección 13.5 (nombre, nickname, abreviatura, categoría, activo, hace
+parte de la Bitácora), más lo que el login real sí necesita: checkbox
+"Tiene usuario de acceso" → usuario/contraseña/rol, condicionado a
+categoría Administrativos. "Eliminar" un empleado sigue sin existir —
+solo activar/inactivar, igual que en el prototipo.
+
+**CRUD de Empresas**: igual que el prototipo ya lo dejó en la sección
+13.5 — nombre, marcar por defecto, archivar/restablecer (nunca borrado
+destructivo). Alimenta el selector de Empresa que Programación seguirá
+usando cuando se construya en Fase 2.
+
+**Bootstrap local**: `PersonalModuleSeeder` (registrado en
+`DatabaseSeeder`) crea una empresa (`ARGOS`, por defecto) y un empleado
+administrativo de arranque (`personal.admin` / `123456`) — mismo
+mecanismo que ya usa `UserSeeder` para el `superadmin` actual.
+
+**Archivos clave**: `app/Models/Employee.php`, `app/Models/Company.php`,
+`app/Support/PersonalGuard.php`, `app/Http/Middleware/EnsurePersonalAccess.php`,
+`app/Http/Controllers/Personal/*`, `resources/views/personal/*`,
+`resources/views/layouts/personal*.blade.php`,
+`database/migrations/2026_09_16_*`, bloque `Route::prefix('personal')` en
+`routes/web.php`.
+
+**Validado localmente (2026-09-16)**: migraciones aplican y revierten
+limpio; login real funciona (creado vía formulario → logout → login de
+nuevo); empleado con `has_login=false` no puede entrar aunque tenga
+password en base de datos; empleado Campo con intento de `has_login`/`role`
+es rechazado con mensaje visible en el modal; superadmin entra a
+`/personal/empleados` sin login nuevo y no aparece en la tabla; cerrar
+sesión de `/personal` no cierra la sesión del panel admin real; los 4
+endpoints JSON de Empresas (crear/renombrar/marcar por defecto/archivar)
+responden correctamente; las rutas del mockup (`/preview-rrhh-7f3k2q/*`)
+siguen funcionando sin cambios.
+
+**Pendiente / Fase 2**: migrar Diario de Campo y Bitácora a base de datos
+real (horas con trazabilidad de 3 valores, cuota mensual persistida
+server-side en vez de `localStorage`), retomar inducciones por empresa y
+certificados generales si el cliente contrata esa ampliación (sección
+12.4, "gestión de documentos" y "tableros comparativos"), y cerrar los
+nombres formales de rol con el cliente (sección 11) para eventualmente
+reemplazar la columna `role` simple por algo más granular si hace falta.
+
+### 14.1 Fase 2a — Programación real
+
+**2026-09-16**: Programación pasa a base de datos real, dentro del mismo
+`/personal/*`. Diario de Campo y Bitácora siguen en el mockup — por diseño
+(sección 2) son *proyecciones sobre las mismas actividades* de
+Programación, así que no tenía sentido construirlas antes de que existiera
+la tabla real.
+
+**Tablas nuevas**: `activities` (fecha, empresa, grupo, área — catálogo
+"ilustrativo" sin captura real, sección 6 —, equipo, actividad, tipo P/S,
+horas estimadas, jornada, responsable — ahora FK real a `employees`, no un
+string de abreviatura suelto) y el pivot `activity_employee` (personas de
+la actividad). `activity_type` vive en `activities`, no en el pivot —
+confirma la corrección de la sección 6.1 (es propiedad de la actividad
+completa).
+
+**Dos reglas de negocio que el mockup NO validaba, y aquí sí, de verdad**
+(sección 6):
+- **Primaria única por persona/día**: al guardar una actividad primaria,
+  se verifica que ninguna de las personas ya tenga otra actividad primaria
+  esa misma fecha — si la tiene, se rechaza nombrando a quién. El mockup
+  decía explícitamente "no validado en este mockup"; ya no aplica esa
+  salvedad.
+- **Ventana de edición del supervisor**: "el supervisor solo puede
+  modificar la Programación del día actual o el día anterior" ahora se
+  aplica de verdad — pero **solo** cuando quien actúa tiene
+  `role = 'supervisor'`. Administrativo y superadmin no tienen esa
+  restricción (no hay base textual para restringirlos igual, y la sección
+  11 sigue sin cerrar los permisos exactos entre roles — supuesto
+  explícito, ajustable).
+
+**Cambios de UX respecto al mockup** (todos documentados como decisión
+consciente, no descuido):
+- Navegación de fecha pasa de todo-en-Alpine a `?date=` con recarga de
+  página — el mockup cargaba ~40 actividades de ejemplo completas en
+  memoria, algo que no escala con datos reales. Mismo patrón que ya usa
+  Bitácora hoy.
+- El calendario sigue siendo un modal navegable por mes sin recargar toda
+  la página, pero ahora pide los días con datos a un endpoint nuevo
+  (`GET /personal/programacion/dias-con-datos`) en vez de tenerlos todos
+  en memoria.
+- Se quitó el botón "Organizar" — con datos reales el orden por grupo
+  siempre lo da el `ORDER BY` del backend, el botón no tenía nada que
+  hacer.
+- Se quitó la negrita visual de las filas de "transporte" — en el mockup
+  era un flag manual solo en los datos de ejemplo; la sección 5 ya aclara
+  que esas filas no son un tipo especial, y sin un campo real no hay de
+  dónde inferirlo.
+- "Horas acumuladas este mes" en el buscador de personas **sigue siendo
+  dato de ejemplo** (mismo archivo que usa Bitácora) — para empleados
+  reales nuevos (no estaban en el Excel de muestra) simplemente no muestra
+  nada, hasta que exista Bitácora real.
+
+**Bugs encontrados y corregidos durante la verificación por HTTP** (no
+solo curl feliz — se probó activamente hasta romper algo):
+- `Rule::exists()->where('columna', false)` rompía contra Postgres
+  (bindeaba el booleano PHP como cadena vacía → `invalid input syntax for
+  type boolean`) — se cambió a la forma de closure
+  (`->where(fn ($q) => $q->where('columna', false))`), que sí arma un
+  `where()` normal de query builder.
+- El endpoint de días-con-datos devolvía timestamps ISO completos
+  (`"2026-09-16T05:00:00.000000Z"`) en vez de `"2026-09-16"` — el cast de
+  fecha del modelo se aplica incluso en `pluck()` de una sola columna; el
+  `Set` de JS del calendario nunca hubiera matcheado. Se normaliza con
+  `->toDateString()` antes de responder JSON.
+- Las horas estimadas se mostraban como `"10.00"` en vez de `"10"` (cast
+  `decimal:2`) — se corrige con `+0` al mostrarlas.
+
+**Validado localmente (2026-09-16)**: migraciones aplican y revierten
+limpio; actividad creada vía formulario real se ve correctamente agrupada
+por grupo en la tabla; segunda actividad primaria para la misma persona el
+mismo día rechazada con mensaje visible; actividad secundaria para esa
+misma persona ese mismo día sí permitida; supervisor de prueba rechazado
+al intentar programar una fecha de hace 10 días; superadmin sin esa
+restricción, mismo caso permitido; endpoint de días-con-datos devuelve el
+formato correcto tras el fix; mockup (`/preview-rrhh-7f3k2q/*`) sigue
+funcionando sin cambios; acceso sin sesión a `/personal/programacion`
+redirige correctamente al login.
+
+**Pendiente**: edición/eliminación de una actividad ya creada (el mockup
+tampoco la tenía — solo creación; se deja explícito por si se necesita
+después), Diario de Campo y Bitácora reales (siguientes en la lista,
+ahora que `activities` ya existe para que ambas se apoyen en ella).
+
+### 14.2 Fase 2b — Diario de Campo real
+
+**2026-09-16**: Diario de Campo pasa a base de datos real. Por diseño
+(sección 2 y 5) **no es una tabla nueva** — es el mismo registro
+`Activity` de Programación, mostrado y enriquecido con los campos que se
+completan a lo largo de su ciclo de vida (supervisor crea → supervisor
+ejecuta → administrativo cierra). Bitácora sigue en el mockup — sigue
+dependiendo de datos de horas reportadas que solo puede dar la app Android
+(sección 7, repositorio aparte, aún no existe).
+
+**Columnas nuevas sobre `activities`** (sección 5, tabla completa):
+`process`, `executed_description`, `corrected_hours`, `reported_hours`
+(todas nullable, sin migración adicional pendiente cuando exista la app),
+`comments`, `zcom`, `line_code`, `ot_sap`, `acta_entrega`, `we_code`, más
+auditoría de cierre `closed_by_employee_id` (FK `employees`) y
+`closed_at`.
+
+**Decisiones de diseño**:
+- `reported_hours` queda en el esquema pero **no es editable desde esta
+  pantalla todavía** — el documento la marca como "Supervisor, vía app",
+  y esa app no existe aún (sección 7). La regla de "valor final" de horas
+  (sección 5/8) ya la contempla en el modelo (`finalHours()`:
+  corregida → reportada → estimada), lista para cuando exista esa fuente.
+- "Proceso" y "Actividad ejecutada" se editan en el mismo modal de cierre
+  administrativo, aunque el documento los marca como responsabilidad del
+  supervisor — sin la app todavía alguien tiene que poder llenarlos
+  manualmente. Simplificación documentada, no definitiva.
+- **Quién puede cerrar**: administrativo y superadmin, no supervisor —
+  coincide con la sección 2 ("el ADMINISTRATIVO revisa y TERMINA de
+  llenar la actividad"). Autorización real en el controlador
+  (`abort_if(...role === 'supervisor', 403)`), no solo el botón oculto en
+  la vista (AGENTS.md sección 6) — verificado con un `PATCH` directo por
+  curl sin pasar por la UI. El supervisor sí puede **ver** Diario de
+  Campo completo, solo no editar los campos de cierre.
+- Un solo modal por fila con los 9 campos editables y un único `PATCH`,
+  en vez de inputs sueltos por celda con autoguardado (que tenía el
+  mockup, sin persistencia real detrás) — más simple de validar
+  correctamente. Reabre con errores igual que Empleados y Programación.
+- Mismo calendario y mismo endpoint `dias-con-datos` que Programación —
+  es la misma tabla `activities`.
+- Sin botón "Nueva actividad" en esta pantalla — Diario de Campo no crea,
+  solo cierra; la creación sigue siendo responsabilidad de Programación.
+
+**Validado localmente (2026-09-16) por HTTP con curl** (no solo el happy
+path): actividad creada en Programación aparece el mismo día en Diario de
+Campo con badge "Pendiente" y sin datos de cierre; al cerrarla como
+superadmin con proceso/horas corregidas/comentarios/códigos, la fila pasa
+a "Cerrado", el botón cambia a "Editar cierre" y "Horas" muestra la
+corregida (10) en vez de la programada (8); un supervisor de prueba ve la
+pantalla completa pero sin botón de cierre, y un `PATCH` directo contra
+`/personal/diario-campo/{id}` sin pasar por la UI es rechazado con `403`;
+el calendario (`dias-con-datos`) devuelve el día correcto; el mockup
+(`/preview-rrhh-7f3k2q/diario-campo`) y Programación real siguen
+funcionando sin cambios. Datos y empleado de prueba eliminados al
+terminar.
+
+**Pendiente**: edición/eliminación de actividades desde Programación
+(heredado de la sección 14.1); significado real de ZCOM/Línea/OT SAP/Acta
+entrega/WE sigue sin confirmar con el cliente (quedan como texto libre a
+propósito). Bitácora real: ver sección 14.3.
+
+### 14.3 Fase 2c — Bitácora real
+
+**2026-09-16**: Bitácora pasa a base de datos real — último módulo del
+alcance confirmado del contrato ($3.200.000, sección 12.4). Por diseño
+(sección 8) **no es una tabla de captura manual independiente**: es un
+consolidado mensual alimentado por Programación, con corrección
+administrativa opcional por día/persona.
+
+**Decisión de diseño clave, confirmada con el usuario**: la app Android
+(fuente real de "reportada", sección 7) todavía no existe. Se preguntó
+explícitamente qué mostrar en la celda mientras tanto y se confirmó usar
+`corregida ?? programada` como valor final (programada = horas calculadas
+en vivo sumando `activities.estimated_hours` por empleado/día), en vez de
+seguir literalmente el texto de la sección 8 ("por defecto es la
+reportada"). Sin la app, seguir el texto literal habría dejado casi toda
+la Bitácora en blanco/alerta hasta que un administrativo corrigiera
+manualmente cada día de cada persona — menos útil que el Excel actual
+mientras tanto. "Reportada" queda en el modelo (siempre "—" por ahora,
+visible en el tooltip), lista para cuando exista la app — mismo criterio
+ya usado con `reported_hours` en Diario de Campo (sección 14.2).
+Consecuencia: la alerta ámbar ahora se dispara cuando **ni programada ni
+corregida** existen ese día (antes se habría disparado por la mera
+ausencia de "reportada", que hoy es sistemáticamente ausente).
+
+**Tablas nuevas**: `bitacora_entries` (corrección administrativa por
+empleado/día — `corrected_value` es **texto libre**, admite códigos como
+"L" = licencia, confirmado en el mockup 2026-09-09/10; más `comment` y
+auditoría `corrected_by_employee_id`) y `bitacora_quotas` (cuota de horas
+por año-mes — reemplaza el `localStorage` que usaba el mockup como
+solución temporal). "Programada" no se guarda en ninguna tabla nueva: se
+calcula en vivo desde `activities`/`activity_employee` (ya existentes
+desde Fase 2a), sin mezclarse con `corrected_hours` de Diario de Campo
+(esa es una corrección a nivel actividad, no a nivel persona/día).
+
+**Quién accede**: a diferencia de Programación y Diario de Campo, la
+sección 8 titula Bitácora "Web, Administrativos Y Superadmin" — el
+supervisor no tiene acceso ni de lectura aquí (no solo de edición). Se
+aplica `abort_if(...role === 'supervisor', 403)` en las tres rutas
+(`index`, guardar corrección, guardar cuota), y el enlace se oculta del
+sidebar para ese rol.
+
+**Bug encontrado y corregido antes de reportar éxito**: la vista portada
+del mockup usaba `posicionarPopover()` (helper JS de los tooltips de
+celda) que solo existía en el layout del mockup, no en el layout real —
+se portó a `layouts/personal.blade.php` antes de verificar, junto con el
+mismo fix de clase CSS (`scroll-container-visible` → `table-scroll-container`)
+ya aplicado en Diario de Campo.
+
+**Validado localmente (2026-09-16) por HTTP con curl**: dos actividades
+de prueba en Programación (8h y 10h, mismo empleado, días distintos) se
+reflejan correctamente como "programada" en sus celdas, con total del mes
+= 18; un empleado con `in_bitacora = false` con horas ese mes no aparece
+como columna; una corrección de texto ("L", licencia) se guarda, se
+muestra en la celda, y el total del mes baja de 18 a 10 (el texto no
+suma); la cuota mensual se guarda y persiste tras recargar (ya no
+depende de `localStorage`), y "Extras" recalcula correctamente; un
+supervisor de prueba recibe `403` tanto en `GET /personal/bitacora` como
+en los dos POST de guardado directos por curl, y no ve el enlace en su
+sidebar; mockup, Programación real y Diario de Campo real siguen
+funcionando sin cambios. Datos y empleados de prueba eliminados al
+terminar.
+
+**Pendiente**: sincronización con la app Android (cuando exista, activa
+la columna "reportada" real y probablemente amerite revisar si el
+fallback a "programada" sigue teniendo sentido o debe retirarse);
+calendario real de festivos colombianos (hoy solo domingo = festivo,
+simplificación heredada del mockup); dashboards comparativos
+programado-vs-reportado (sección 9, fuera del Escalón B contratado).
+Con esto, los tres módulos del alcance confirmado (Programación, Diario
+de Campo, Bitácora) están completos en su versión real.
+
+### 14.4 Editar/eliminar actividades en Programación
+
+**2026-09-16**: Programación real (14.1) solo permitía crear. Se agrega
+editar y eliminar una actividad ya creada, reusando el patrón dual
+crear/editar que ya probó Empleados (`formAction`/`formMethod` Alpine
+dinámicos, un solo modal, botón "Editar" por fila que llama
+`editarActividad(actividad)`). Esto obligó a convertir los campos simples
+del modal de `old()`-en-Blade a `x-model` de Alpine — antes solo
+alcanzaba para crear.
+
+**Regla nueva**: una actividad ya cerrada en Diario de Campo (`closed_at`
+no nulo) deja de ser editable/eliminable para supervisor, sin importar la
+ventana de edición — el administrativo ya la revisó y finalizó (sección
+2). Administrativo/superadmin sí pueden seguir corrigiéndola (son quienes
+la cerraron). Se implementó `ActivityController::canModify()`, que
+extiende el `isEditable()` ya existente con este chequeo, usado tanto
+para mostrar/ocultar los botones en la vista como para autorización real
+en `update()`/`destroy()` (`abort_if(..., 403)`, no solo UI oculta).
+
+Las reglas de negocio de `store()` (ventana de edición del supervisor,
+primaria única por persona/día) se extrajeron a un método privado
+`validated()` reutilizado por `update()` — el chequeo de primaria única
+excluye la propia actividad al editar. Eliminar es borrado real
+(`delete()`, no archivado — las actividades son registros operativos, no
+catálogos); el pivot `activity_employee` ya tenía `cascadeOnDelete()`
+desde Fase 2a.
+
+**No se puede mover una actividad a otro día desde este modal** — el
+campo fecha sigue fijo a la página que se está viendo (toda actividad
+visible ya tiene esa fecha, por el propio filtro de `index()`). Si hace
+falta cambiar de día, se elimina y se crea de nuevo.
+
+**Validado localmente (2026-09-16) por HTTP con curl**: actividad de
+prueba editada (empresa, área, equipo, horas, jornada) — cambios
+reflejados correctamente; intento de editar violando la regla de primaria
+única rechazado con el mensaje correcto, sin persistir cambios, y el
+modal reabre en modo edición (no creación) gracias al `activity_id`
+oculto; eliminación real confirmada en base de datos, incluyendo cascada
+del pivot; actividad cerrada desde Diario de Campo — supervisor de prueba
+ya no ve los botones editar/eliminar en esa fila y recibe `403` real en
+ambos `PUT`/`DELETE` directos por curl; superadmin sigue viendo los
+botones y pudo editar esa misma actividad cerrada sin problema; mockup,
+Diario de Campo y Bitácora reales siguen funcionando sin cambios. Datos y
+empleado de prueba eliminados al terminar.
+
+### 14.5 Roles y permisos dinámicos
+
+**2026-09-16**: `employees.role` (string fijo `'supervisor'`/
+`'administrativo'`) se reemplaza por un sistema configurable de subroles.
+Antes, agregar un rol nuevo (ej. "SISO") o cambiar qué ve "Supervisor"
+requería una sesión de código — cada regla estaba hardcodeada como
+`role === 'supervisor'` en 4 controladores distintos. Ahora es un módulo
+nuevo ("Roles y permisos", exclusivo de superadmin) donde se crean/
+renombran roles y se marca qué módulos ve cada uno, sin tocar código.
+
+**Independiente del sistema actual**: existían tablas `Role`/
+`RoleModulePermission`/`SystemModule` en el guard `web`, pero **no
+estaban conectadas a ninguna verificación real** (se confirmó por
+búsqueda en el código — cero referencias a `can_view`/`modulePermissions`
+fuera de los modelos). Se decidió no reutilizarlas ni tocar el sistema
+actual — tabla nueva `personal_roles`, exclusiva de este módulo.
+
+**Lista fija de 6 permisos** (confirmada con el usuario, no una matriz
+genérica ver/crear/editar): `ver_empleados` (Empleados y Empresas),
+`ver_programacion`, `editar_programacion_sin_limite` (sin esto, la
+ventana de edición de hoy/ayer de la sección 6 sigue aplicando — mismo
+permiso gobierna si se puede tocar una actividad ya cerrada),
+`ver_diario_campo`, `cerrar_diario_campo`, `ver_bitacora` (un solo
+permiso para ver y usar, igual que antes). Son columnas boolean directas
+en `personal_roles`, no una tabla de permisos aparte — la lista es fija,
+no un catálogo de módulos que vaya a crecer.
+
+**Migración de datos, no solo de esquema**: `employees.personal_role_id`
+(FK a `personal_roles`) reemplaza a `role`. La misma migración siembra
+los roles "Administrativo" (los 6 permisos en `true`) y "Supervisor"
+(`editar_programacion_sin_limite`/`cerrar_diario_campo`/`ver_bitacora`
+en `false`, resto `true`) con los permisos exactos que ya tenían en la
+práctica antes de este cambio — incluyendo que Empleados/Empresas nunca
+tuvieron restricción de rol hasta ahora — y backfillea cada empleado
+existente según su `role` string. El deploy de este cambio no le quita
+acceso a nadie; el usuario ajusta desde la UI nueva de ahí en adelante.
+
+**"Roles y permisos" es exclusivo de superadmin, a propósito no
+configurable** — no forma parte de los 6 permisos ni del sidebar
+dinámico: si un subrol pudiera administrar permisos, podría
+autoasignarse acceso (escalación de privilegios).
+
+**`PersonalGuard::can(string $permiso)` centraliza la autorización** —
+superadmin siempre `true`; un `Employee` depende del booleano
+correspondiente en su `personalRole`. Reemplaza cada
+`PersonalGuard::employee()?->role === 'supervisor'` que existía en
+`ActivityController`, `FieldDiaryController` y `BitacoraController`, más
+el chequeo especial que solo ocultaba Bitácora en el sidebar (ahora cada
+ítem, incluido Empleados/Empresas que antes no tenían ninguna
+restricción, se muestra según su permiso).
+
+**Bug preexistente encontrado y corregido durante la verificación** (no
+introducido hoy, ya estaba desde Fase 1): la validación de
+`EmployeeController` referenciaba `$employee` dentro de un closure
+`->after()` sin capturarlo en el `use()` — `Undefined variable $employee`
+al editar un empleado con acceso habilitado y contraseña en blanco (el
+caso normal de "no cambiar la contraseña"). Corregido agregando
+`$employee` al `use()`.
+
+**Validado localmente (2026-09-16) por HTTP con curl**: migración aplica,
+revierte limpio (empleados con un rol que no existía en el mundo
+original de 2 roles quedan en `role = null` tras revertir — pérdida de
+información esperada, no corrupción) y reaplica correctamente; rol
+"SISO" creado sin ningún permiso — empleado de prueba con ese rol recibe
+`403` en las 5 pantallas del módulo; `/personal/roles` da `403` a un
+empleado con rol "Administrativo" (no superadmin); ventana de edición de
+Programación, bloqueo de actividad cerrada, cierre de Diario de Campo y
+bloqueo total de Bitácora — las 4 reglas ya construidas siguen
+funcionando igual que antes, ahora impulsadas por el permiso en vez del
+nombre del rol; reasignar el rol de un empleado desde Empleados cambia su
+acceso de inmediato (sin caché); eliminar un rol con empleados asignados
+rechazado con mensaje claro, uno sin empleados sí se puede eliminar;
+renombrar un rol se refleja de inmediato en los empleados que lo tienen
+(vía FK, no texto duplicado); mockup y el resto de Personal siguen
+funcionando sin cambios. Datos y empleados de prueba eliminados al
+terminar.
+
+**Seguimiento 2026-09-16 (mismo día)**: el login siempre redirigía a
+Empleados sin importar el rol — un rol sin ese permiso (ej. SISO) entraba
+bien pero caía directo en un `403`. Corregido:
+`PersonalGuard::firstAccessibleRoute()` recorre los permisos en el mismo
+orden que el sidebar (Empleados → Programación → Diario de Campo →
+Bitácora) y devuelve la primera ruta accesible; `PersonalAuthController`
+la usa para ambos flujos de login (empleado y superadmin). Si el rol no
+tiene ningún permiso, cae en `/personal/sin-acceso` — pantalla explicando
+la situación con botón de cerrar sesión, en vez de un `403` crudo justo
+después de loguearse. Validado por HTTP: rol sin permisos →
+`/personal/sin-acceso`; rol con un solo permiso (`ver_diario_campo`) →
+aterriza directo ahí, no en Empleados; superadmin sigue aterrizando en
+Empleados como antes (sin regresión). Datos de prueba eliminados.

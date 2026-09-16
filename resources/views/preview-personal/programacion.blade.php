@@ -17,30 +17,25 @@
 
     // Fuente unica de empleados (confirmado 2026-09-11): la Programacion ya
     // no mantiene su propio catalogo de personas por separado — usa los
-    // mismos registros que Empleados/Bitacora. 'empresas' se deriva del
-    // campo 'accesos' compartido (completo=true -> vigente, completo=false
-    // -> vencido, ausente -> no_posee via el fallback que ya usa el JS de
-    // esta vista); 'certs' se aplana de lista a mapa label => estado.
+    // mismos registros que Empleados/Bitacora.
+    //
+    // Correccion 2026-09-15: tras confirmar Mantec el Nivel 1 (seccion
+    // 12.4 del documento), ya no hay bloqueo de seleccion por inducciones
+    // de empresa ni certificados generales — ambos eran parte de la
+    // gestion documental completa que no se contrato. Todos los empleados
+    // activos aparecen en el buscador de personas (ver seccion 6.1/13.5).
+    // 'horas_mes' viene del mismo archivo compartido que usa la Bitacora
+    // (_horas-mes-data.php) para mostrar cuantas horas lleva acumuladas
+    // cada persona este mes al seleccionarla.
     $empleadosCompartidos = include resource_path('views/preview-personal/_empleados-data.php');
-    $estadoAcceso = function (array $accesos, string $empresa) {
-        foreach ($accesos as $a) {
-            if ($a['empresa'] === $empresa) {
-                return $a['completo'] ? 'vigente' : 'vencido';
-            }
-        }
-        return 'no_posee';
-    };
+    $horasMes = include resource_path('views/preview-personal/_horas-mes-data.php');
     $empleados = collect($empleadosCompartidos)
+        ->filter(fn ($e) => $e['activo'])
         ->map(fn ($e) => [
             'nombre' => $e['nickname'],
             'categoria' => $e['categoria'],
             'abreviatura' => $e['abreviatura'],
-            'empresas' => collect($empresasCatalogo)
-                ->pluck('nombre')
-                ->mapWithKeys(fn ($empresa) => [$empresa => $estadoAcceso($e['accesos'], $empresa)])
-                ->filter(fn ($estado) => $estado !== 'no_posee')
-                ->all(),
-            'certs' => collect($e['certs'])->pluck('estado', 'label')->all(),
+            'horasMes' => $horasMes[$e['codigo_bitacora'] ?? $e['nickname']] ?? null,
         ])
         ->values()
         ->all();
@@ -53,61 +48,67 @@
     $fechaEjemplo = '2026-09-07';
     $fechaCuatro = '2026-09-04';
 
+    // Correccion 2026-09-14: primaria/secundaria es una propiedad de la
+    // ACTIVIDAD completa (aplica a todas las personas asignadas en ella),
+    // no una marca individual por persona dentro de la misma fila — ver
+    // seccion 6 del documento. Las filas de "novedad" (transporte, descanso,
+    // incapacidad, licencia, permiso, "actividad varias" sin equipo) van
+    // como secundarias; el trabajo tecnico real va como primaria.
     $actividades = [
-        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'personas' => [['nombre' => 'Pachón', 'tipo' => 'P'], ['nombre' => 'Yesid', 'tipo' => 'S']], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Conductor y otras actividades', 'personas' => [['nombre' => 'Monsalve', 'tipo' => 'P']], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'personas' => [['nombre' => 'Gerónimo', 'tipo' => 'P']], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 1. Argos', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'tipo' => 'P', 'personas' => ['Pachón', 'Yesid'], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Conductor y otras actividades', 'tipo' => 'P', 'personas' => ['Monsalve'], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'tipo' => 'P', 'personas' => ['Gerónimo'], 'horas' => 12, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 1. Argos', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Camino', 'actividad' => 'Realizar cambio camino de molienda', 'personas' => [['nombre' => 'Cristian M', 'tipo' => 'P'], ['nombre' => 'Anderson', 'tipo' => 'S']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Rotor', 'actividad' => 'Realizar montaje Rotor Secundario', 'personas' => [['nombre' => 'Eder', 'tipo' => 'P'], ['nombre' => 'J Manuel', 'tipo' => 'S'], ['nombre' => 'Brayan Q', 'tipo' => 'S'], ['nombre' => 'Alan', 'tipo' => 'S']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'Lubricación', 'actividad' => 'Realizar Gamas de Lubricación', 'personas' => [['nombre' => 'Omar', 'tipo' => 'P'], ['nombre' => 'Brayan C', 'tipo' => 'S']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Herramientero y otras actividades', 'personas' => [['nombre' => 'Evelio', 'tipo' => 'P']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'SST', 'personas' => [['nombre' => 'Nedy Johana', 'tipo' => 'P']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Coordinador', 'personas' => [['nombre' => 'Conrado', 'tipo' => 'P']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Aerovan 463, Grupo 2. Argos', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Camino', 'actividad' => 'Realizar cambio camino de molienda', 'tipo' => 'P', 'personas' => ['Cristian M', 'Anderson'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Rotor', 'actividad' => 'Realizar montaje Rotor Secundario', 'tipo' => 'P', 'personas' => ['Eder', 'J Manuel', 'Brayan Q', 'Alan'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => 'Lubricación', 'actividad' => 'Realizar Gamas de Lubricación', 'tipo' => 'P', 'personas' => ['Omar', 'Brayan C'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => 'Gr-J', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Herramientero y otras actividades', 'tipo' => 'P', 'personas' => ['Evelio'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'SST', 'tipo' => 'P', 'personas' => ['Nedy Johana'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Coordinador', 'tipo' => 'P', 'personas' => ['Conrado'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 2, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Aerovan 463, Grupo 2. Argos', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => 'Confiabilidad', 'actividad' => 'Preventivo Bandas', 'personas' => [['nombre' => 'Wilmar', 'tipo' => 'P'], ['nombre' => 'Espinosa 2', 'tipo' => 'S'], ['nombre' => 'Herrera', 'tipo' => 'S'], ['nombre' => 'Ana C', 'tipo' => 'S'], ['nombre' => 'Norman', 'tipo' => 'S']], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => 'F-C', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'SST', 'personas' => [['nombre' => 'Camila', 'tipo' => 'P']], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Supervisor', 'personas' => [['nombre' => 'Fernando', 'tipo' => 'P']], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Transporte Carro, Grupo 3. Corona', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => 'Confiabilidad', 'actividad' => 'Preventivo Bandas', 'tipo' => 'P', 'personas' => ['Wilmar', 'Espinosa 2', 'Herrera', 'Ana C', 'Norman'], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => 'F-C', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'SST', 'tipo' => 'P', 'personas' => ['Camila'], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Supervisor', 'tipo' => 'P', 'personas' => ['Fernando'], 'horas' => 9.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Transporte Carro, Grupo 3. Corona', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Rotor', 'actividad' => 'Realizar montaje Rotor Secundario', 'personas' => [['nombre' => 'Danilo', 'tipo' => 'P'], ['nombre' => 'Brayan R', 'tipo' => 'S'], ['nombre' => 'J David', 'tipo' => 'S']], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'Lm', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'personas' => [['nombre' => 'Valbuena', 'tipo' => 'P']], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'Lm', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 4. Argos', 'personas' => [], 'horas' => null, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Rotor', 'actividad' => 'Realizar montaje Rotor Secundario', 'tipo' => 'P', 'personas' => ['Danilo', 'Brayan R', 'J David'], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'Lm', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'tipo' => 'P', 'personas' => ['Valbuena'], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'Lm', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 4. Argos', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Taller San Luis', 'actividad' => 'Actividad Varias', 'personas' => [['nombre' => 'Espinosa 1', 'tipo' => 'S'], ['nombre' => 'Diego S', 'tipo' => 'S']], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Incapacidad', 'personas' => [['nombre' => 'Bonilla', 'tipo' => 'S']], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Descanso', 'personas' => [['nombre' => 'Diego O', 'tipo' => 'S'], ['nombre' => 'Jeison', 'tipo' => 'S'], ['nombre' => 'Alex Sierra', 'tipo' => 'S'], ['nombre' => 'Brayam P', 'tipo' => 'S']], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Taller San Luis', 'actividad' => 'Actividad Varias', 'tipo' => 'S', 'personas' => ['Espinosa 1', 'Diego S'], 'horas' => 10, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Incapacidad', 'tipo' => 'S', 'personas' => ['Bonilla'], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaEjemplo, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Descanso', 'tipo' => 'S', 'personas' => ['Diego O', 'Jeison', 'Alex Sierra', 'Brayam P'], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
 
         // 4/09/2026 — segundo dia real capturado (mismo Excel), para
         // demostrar navegacion a otra fecha con datos distintos.
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'personas' => [['nombre' => 'Herrera', 'tipo' => 'P'], ['nombre' => 'Alan', 'tipo' => 'S']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Cinta', 'actividad' => 'Montar ángulos', 'personas' => [['nombre' => 'Pachón', 'tipo' => 'P'], ['nombre' => 'Yesid', 'tipo' => 'S'], ['nombre' => 'Brayan Q', 'tipo' => 'S']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'Banda U1U06', 'actividad' => 'Realizar empalme vulcanizado Avería', 'personas' => [['nombre' => 'Jeison', 'tipo' => 'P'], ['nombre' => 'Alais', 'tipo' => 'S'], ['nombre' => 'Alex Sierra', 'tipo' => 'S'], ['nombre' => 'Brayan C', 'tipo' => 'S'], ['nombre' => 'Alberto Zurbaran', 'tipo' => 'S']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Conductor y otras actividades', 'personas' => [['nombre' => 'Monsalve', 'tipo' => 'P']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'personas' => [['nombre' => 'Bonilla', 'tipo' => 'P']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Coordinador', 'personas' => [['nombre' => 'Conrado', 'tipo' => 'P']], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Aerovans 463, Grupo 1. Argos', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'tipo' => 'P', 'personas' => ['Herrera', 'Alan'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'TP2 Cinta', 'actividad' => 'Montar ángulos', 'tipo' => 'P', 'personas' => ['Pachón', 'Yesid', 'Brayan Q'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => 'Banda U1U06', 'actividad' => 'Realizar empalme vulcanizado Avería', 'tipo' => 'P', 'personas' => ['Jeison', 'Alais', 'Alex Sierra', 'Brayan C', 'Alberto Zurbaran'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => 'B', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Conductor y otras actividades', 'tipo' => 'P', 'personas' => ['Monsalve'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'tipo' => 'P', 'personas' => ['Bonilla'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Coordinador', 'tipo' => 'P', 'personas' => ['Conrado'], 'horas' => 10.5, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 1, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Aerovans 463, Grupo 1. Argos', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'personas' => [['nombre' => 'Omar', 'tipo' => 'P'], ['nombre' => 'Neider', 'tipo' => 'S']], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'F', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'personas' => [['nombre' => 'Fernando', 'tipo' => 'P']], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 4. Argos', 'personas' => [], 'horas' => null, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => 'TP1 Trituradora', 'actividad' => 'Realizar actividades varias en la TP1 y estar disponibles para atender cualquier evento', 'tipo' => 'P', 'personas' => ['Omar', 'Neider'], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => 'F', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Supervisor', 'tipo' => 'P', 'personas' => ['Fernando'], 'horas' => 12, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 4, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Transporte Taxi, Grupo 4. Argos', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Nocturno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => 'Elevador', 'actividad' => 'Realizar Procedimientos', 'personas' => [['nombre' => 'Wilmar', 'tipo' => 'P']], 'horas' => 6, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'SST', 'personas' => [['nombre' => 'Sara', 'tipo' => 'P']], 'horas' => 6, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Transporte, Grupo 3. Corona', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
+        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => 'Elevador', 'actividad' => 'Realizar Procedimientos', 'tipo' => 'P', 'personas' => ['Wilmar'], 'horas' => 6, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'SST', 'tipo' => 'P', 'personas' => ['Sara'], 'horas' => 6, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => 3, 'empresa' => 'CORONA', 'equipo' => '', 'actividad' => 'Transporte, Grupo 3. Corona', 'tipo' => 'S', 'personas' => [], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => true],
 
-        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Trabajo en Casa', 'actividad' => 'Terminar Informes de Gamas', 'personas' => [['nombre' => 'Anderson', 'tipo' => 'S']], 'horas' => 7, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Taller San Luis', 'actividad' => 'Actividad Varias', 'personas' => [['nombre' => 'Espinosa 2', 'tipo' => 'S'], ['nombre' => 'Diego S', 'tipo' => 'S'], ['nombre' => 'Espinosa 1', 'tipo' => 'S']], 'horas' => 8, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Licencia', 'personas' => [['nombre' => 'Alejandro', 'tipo' => 'S']], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Permiso cita odontológica', 'personas' => [['nombre' => 'Brayam P', 'tipo' => 'S']], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
-        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Descanso', 'personas' => [
-            ['nombre' => 'Diego O', 'tipo' => 'S'], ['nombre' => 'J Manuel', 'tipo' => 'S'], ['nombre' => 'Luis Meza', 'tipo' => 'S'], ['nombre' => 'Wilmar Guzman', 'tipo' => 'S'],
-            ['nombre' => 'Danilo', 'tipo' => 'S'], ['nombre' => 'J David', 'tipo' => 'S'], ['nombre' => 'Brayan R', 'tipo' => 'S'], ['nombre' => 'Valbuena', 'tipo' => 'S'],
-            ['nombre' => 'Ana C', 'tipo' => 'S'], ['nombre' => 'Norman', 'tipo' => 'S'], ['nombre' => 'Camila', 'tipo' => 'S'], ['nombre' => 'Eder', 'tipo' => 'S'],
-            ['nombre' => 'Cristian M', 'tipo' => 'S'], ['nombre' => 'Gerónimo', 'tipo' => 'S'], ['nombre' => 'Evelio', 'tipo' => 'S'], ['nombre' => 'Nedy Johana', 'tipo' => 'S'],
-            ['nombre' => 'Wilmar Guzman', 'tipo' => 'S'],
+        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Trabajo en Casa', 'actividad' => 'Terminar Informes de Gamas', 'tipo' => 'S', 'personas' => ['Anderson'], 'horas' => 7, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => 'Taller San Luis', 'actividad' => 'Actividad Varias', 'tipo' => 'S', 'personas' => ['Espinosa 2', 'Diego S', 'Espinosa 1'], 'horas' => 8, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Licencia', 'tipo' => 'S', 'personas' => ['Alejandro'], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Permiso cita odontológica', 'tipo' => 'S', 'personas' => ['Brayam P'], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
+        ['fecha' => $fechaCuatro, 'grupo' => null, 'empresa' => 'ARGOS', 'equipo' => '', 'actividad' => 'Descanso', 'tipo' => 'S', 'personas' => [
+            'Diego O', 'J Manuel', 'Luis Meza', 'Wilmar Guzman',
+            'Danilo', 'J David', 'Brayan R', 'Valbuena',
+            'Ana C', 'Norman', 'Camila', 'Eder',
+            'Cristian M', 'Gerónimo', 'Evelio', 'Nedy Johana',
+            'Wilmar Guzman',
         ], 'horas' => null, 'jornada' => 'Diurno', 'responsable' => '', 'transporte' => false],
     ];
 @endphp
@@ -146,7 +147,7 @@
 
             <div class="flex flex-wrap gap-2">
                 <button
-                    @click="exportarComoImagen()"
+                    @click="exportarComoImagen(fechaSeleccionada)"
                     :disabled="exportando || gruposVisibles().length === 0"
                     class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     title="Genera una imagen de la programación para pegarla en WhatsApp (o descargarla en móvil)"
@@ -186,20 +187,20 @@
         <table class="preventive-table divide-y divide-slate-200 text-sm">
             <thead class="sticky-table-head bg-slate-50">
                 <tr>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Empresa</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Equipo</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:18rem">Actividad</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:14rem">Personas</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Horas</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Jornada</th>
-                    <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resp.</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Empresa</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Equipo</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:13rem">Actividad</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Personas</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Horas</th>
+                    <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Jornada">Jorn.</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resp.</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 bg-white">
                 <template x-for="item in filasConEncabezados()" :key="item.key">
-                    <tr :class="item.tipo === 'grupo' ? 'bg-slate-800' : (item.transporte ? 'bg-slate-50 font-semibold hover:bg-slate-100' : 'hover:bg-slate-50')">
-                        <template x-if="item.tipo === 'grupo'">
-                            <td colspan="7" class="px-4 py-2">
+                    <tr :class="item.rowType === 'grupo' ? 'bg-slate-800' : (item.transporte ? 'bg-slate-50 font-semibold hover:bg-slate-100' : 'hover:bg-slate-50')">
+                        <template x-if="item.rowType === 'grupo'">
+                            <td colspan="7" class="px-3 py-1.5">
                                 <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white">
                                     <i data-lucide="users" class="h-3.5 w-3.5"></i>
                                     <span x-text="item.grupo ? ('Grupo ' + item.grupo) : 'Sin grupo asignado'"></span>
@@ -207,38 +208,34 @@
                             </td>
                         </template>
 
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5 whitespace-nowrap" x-text="item.empresa"></td>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 whitespace-nowrap" x-text="item.empresa"></td>
                         </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5 whitespace-nowrap text-slate-600" x-text="item.equipo || '—'"></td>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 whitespace-nowrap text-slate-600" x-text="item.equipo || '—'"></td>
                         </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5" x-text="item.actividad"></td>
-                        </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5">
-                                <template x-if="item.personas.length === 0">
-                                    <span class="text-slate-400">—</span>
-                                </template>
-                                <span class="flex flex-wrap gap-1">
-                                    <template x-for="p in item.personas" :key="p.nombre">
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                                            <span :class="p.tipo === 'P' ? 'bg-[#d55b20] text-white' : 'bg-slate-300 text-slate-700'" class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold" x-text="p.tipo"></span>
-                                            <span x-text="p.nombre"></span>
-                                        </span>
-                                    </template>
-                                </span>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2">
+                                <span
+                                    :class="item.tipo === 'P' ? 'bg-[#d55b20] text-white' : 'bg-slate-300 text-slate-700'"
+                                    class="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full align-[-2px] text-[10px] font-bold"
+                                    :title="item.tipo === 'P' ? 'Actividad primaria' : 'Actividad secundaria'"
+                                    x-text="item.tipo"
+                                ></span>
+                                <span x-text="item.actividad"></span>
                             </td>
                         </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5 whitespace-nowrap" x-text="item.horas ?? '—'"></td>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 text-slate-600" x-text="item.personas.length ? item.personas.join(', ') : '—'"></td>
                         </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5 whitespace-nowrap" x-text="item.jornada"></td>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 whitespace-nowrap" x-text="item.horas ?? '—'"></td>
                         </template>
-                        <template x-if="item.tipo === 'fila'">
-                            <td class="px-4 py-2.5 whitespace-nowrap text-slate-500" x-text="item.responsable || '—'"></td>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 whitespace-nowrap text-center text-slate-600" :title="item.jornada" x-text="item.jornada === 'Nocturno' ? 'N' : 'D'"></td>
+                        </template>
+                        <template x-if="item.rowType === 'fila'">
+                            <td class="px-3 py-2 whitespace-nowrap text-slate-500" x-text="item.responsable || '—'"></td>
                         </template>
                     </tr>
                 </template>
@@ -249,7 +246,8 @@
     </div>
 
     <p class="mt-4 text-xs text-slate-400">
-        "P" = actividad primaria (solo una por persona/día) · "S" = secundaria (varias permitidas).
+        "P" / "S" junto a la Actividad = la actividad completa es primaria o secundaria (aplica a todas las personas
+        de esa fila) · una persona solo puede estar en una actividad primaria por día, pero en varias secundarias.
         Las filas en negrita son de transporte — se escriben como texto libre en Actividad, no son un tipo especial.
     </p>
 
@@ -311,7 +309,7 @@
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-xs font-medium text-slate-600">Empresa</label>
-                    <select x-model="form.empresa" @change="onEmpresaCambiada()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <select x-model="form.empresa" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                         <template x-for="e in empresas" :key="e.nombre">
                             <option :value="e.nombre" x-text="e.nombre + (e.defecto ? ' (por defecto)' : '')"></option>
                         </template>
@@ -359,69 +357,85 @@
                     <input type="number" step="0.5" x-model.number="form.horas" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. 10">
                 </div>
                 <div>
-                    <label class="mb-1 block text-xs font-medium text-slate-600">Actividad primaria para</label>
-                    <select x-model="form.primaria" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                        <option :value="null">Ninguno (todas secundarias)</option>
-                        <template x-for="emp in personasElegiblesParaPrimaria()" :key="emp.nombre">
-                            <option :value="emp.nombre" x-text="emp.nombre"></option>
-                        </template>
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Tipo de actividad</label>
+                    <select x-model="form.tipo" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="P">Primaria</option>
+                        <option value="S">Secundaria</option>
                     </select>
                     <p class="mt-1 text-[11px] text-slate-400">
-                        Aparecen las personas ya seleccionadas abajo — todas cumplen la inducción de
-                        <span x-text="form.empresa"></span> vigente, requisito para poder seleccionarlas.
+                        Aplica a todas las personas de esta actividad. Cada persona solo puede tener
+                        una actividad primaria por día (no validado en este mockup).
                     </p>
                 </div>
             </div>
 
             <div class="mt-5">
-                <div class="mb-2 flex items-center justify-between">
-                    <p class="text-xs font-medium text-slate-600">
-                        Personas de la actividad —
-                        <span x-text="form.personas.length"></span> seleccionada(s)
-                    </p>
-                    <p class="text-[11px] text-slate-400">
-                        Solo se muestran las personas con la inducción de <span x-text="form.empresa"></span> vigente
-                        — quien no cumple no aparece, ni siquiera como secundaria.
-                    </p>
-                </div>
+                <p class="mb-2 text-xs font-medium text-slate-600">
+                    Personas de la actividad —
+                    <span x-text="form.personas.length"></span> seleccionada(s)
+                </p>
 
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <template x-for="col in ['Campo', 'Administrativos']" :key="col">
-                        <div>
-                            <div class="mb-2 rounded-lg bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white" x-text="col"></div>
-                            <div class="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
-                                <template x-for="emp in empleados.filter(e => e.categoria === col && elegible(e))" :key="emp.nombre">
-                                    <div class="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
-                                        <label class="flex min-w-0 items-center gap-2 text-sm">
-                                            <input type="checkbox" @change="togglePersona(emp)" :checked="personaSeleccionada(emp)">
-                                            <span class="truncate" x-text="emp.nombre"></span>
-                                            <span x-show="form.primaria === emp.nombre" class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#d55b20] text-[10px] font-bold text-white">P</span>
-                                        </label>
-                                        <span class="flex shrink-0 items-center gap-1">
-                                            <template x-for="(estado, cert) in emp.certs" :key="cert">
-                                                <span
-                                                    class="flex h-5 w-5 items-center justify-center rounded-full"
-                                                    :class="{
-                                                        'bg-emerald-100': estado === 'vigente',
-                                                        'bg-amber-100': estado === 'vencido',
-                                                        'bg-slate-100': estado === 'no_posee',
-                                                    }"
-                                                    :title="cert + ': ' + (estado === 'vigente' ? 'vigente' : estado === 'vencido' ? 'vencido' : 'no registra este certificado')"
-                                                >
-                                                    <i
-                                                        :data-lucide="estado === 'vigente' ? 'shield-check' : estado === 'vencido' ? 'shield-alert' : 'shield-off'"
-                                                        class="h-3 w-3"
-                                                        :class="estado === 'vigente' ? 'text-emerald-600' : estado === 'vencido' ? 'text-amber-600 animate-pulse' : 'text-slate-300'"
-                                                    ></i>
-                                                </span>
-                                            </template>
-                                        </span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                {{-- Chips de personas ya seleccionadas --}}
+                <div class="mb-2 flex flex-wrap gap-1.5" x-show="form.personas.length > 0">
+                    <template x-for="nombre in form.personas" :key="nombre">
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-3 pr-1.5 text-xs text-slate-700">
+                            <span x-text="nombre"></span>
+                            <span class="text-slate-400" x-text="horasMesTexto(nombre)"></span>
+                            <button type="button" @click="quitarPersona(nombre)" class="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-red-500">
+                                <i data-lucide="x" class="h-3 w-3"></i>
+                            </button>
+                        </span>
                     </template>
                 </div>
+
+                {{-- Combobox: buscar y agregar personas, agrupadas por
+                     categoria. Reemplaza la grilla de checkboxes anterior —
+                     con todos los empleados visibles (sin filtro de
+                     elegibilidad, ver 6.1/13.5) una lista fija ya no era
+                     practica. Muestra horas acumuladas del mes junto a cada
+                     nombre (mismo dato de _horas-mes-data.php que usa la
+                     Bitacora). --}}
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                    <div class="relative">
+                        <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+                        <input
+                            type="text"
+                            x-model="busquedaPersona"
+                            @focus="open = true"
+                            placeholder="Buscar persona por nombre..."
+                            class="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm"
+                        >
+                    </div>
+                    <div x-show="open" x-cloak x-transition class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <template x-for="col in ['Campo', 'Administrativos']" :key="col">
+                            <template x-if="personasFiltradas(col).length > 0">
+                                <div>
+                                    <div class="sticky top-0 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400" x-text="col"></div>
+                                    <template x-for="emp in personasFiltradas(col)" :key="emp.nombre">
+                                        <button
+                                            type="button"
+                                            @click="togglePersona(emp); busquedaPersona = ''"
+                                            class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                                        >
+                                            <span class="flex min-w-0 items-center gap-2">
+                                                <input type="checkbox" tabindex="-1" :checked="personaSeleccionada(emp)" class="pointer-events-none">
+                                                <span class="truncate" x-text="emp.nombre"></span>
+                                            </span>
+                                            <span class="shrink-0 text-xs text-slate-400" x-text="horasMesTexto(emp.nombre)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </template>
+                        <p class="px-3 py-3 text-center text-xs text-slate-400" x-show="personasFiltradas('Campo').length === 0 && personasFiltradas('Administrativos').length === 0">
+                            Sin resultados.
+                        </p>
+                    </div>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-400">
+                    "Horas este mes" es lo acumulado en la Bitácora hasta ahora — referencia para no
+                    sobrecargar a quien ya lleva muchas horas, no bloquea la selección.
+                </p>
             </div>
 
             <div class="mt-6 flex justify-end gap-2">
@@ -434,11 +448,10 @@
 @endsection
 
 @push('scripts')
-{{-- html2canvas-pro (no html2canvas a secas): este proyecto usa Tailwind 4,
-     que emite colores oklch() por defecto, y el html2canvas original (2023)
-     no sabe parsear esa funcion de color — falla al clonar el documento.
-     html2canvas-pro es el fork mantenido que agrega ese soporte. --}}
-<script src="https://cdn.jsdelivr.net/npm/html2canvas-pro@2.4.2/dist/html2canvas-pro.min.js"></script>
+{{-- html2canvas-pro y el mixin exportarComoImagen()/copiarOdescargar() ya se
+     cargan una sola vez en _layout.blade.php (compartidos con Diario de
+     Campo y Empleados) — ver ese archivo para el detalle de por que hace
+     falta inlinear el CSS en el clon. --}}
 <script>
     const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -453,7 +466,7 @@
     function programacion({ actividades, empresas, empleados, areas, hoy }) {
         const emptyForm = () => {
             const porDefecto = empresas.find(e => e.defecto)?.nombre ?? empresas[0]?.nombre ?? null;
-            return { empresa: porDefecto, area: null, grupo: null, equipo: '', jornada: 'Diurno', responsable: null, actividad: '', horas: null, personas: [], primaria: null };
+            return { empresa: porDefecto, area: null, grupo: null, equipo: '', jornada: 'Diurno', responsable: null, actividad: '', horas: null, personas: [], tipo: 'P' };
         };
         const [hy, hm] = hoy.split('-').map(Number);
 
@@ -480,76 +493,7 @@
                 // vacios.
                 this.$nextTick(() => window.lucide?.createIcons());
             },
-            exportando: false,
-            mensajeExport: null,
-            async exportarComoImagen() {
-                if (this.exportando) return;
-                if (!window.html2canvas) {
-                    this.mostrarMensaje('No se pudo cargar la librería de exportación (revisa la conexión/consola).');
-                    console.error('exportarComoImagen: window.html2canvas no está definido — el script del CDN no cargó.');
-                    return;
-                }
-                this.exportando = true;
-                const el = document.getElementById('areaExportable');
-                // La tabla vive dentro de .table-scroll-container (overflow-x:
-                // auto), que recorta y solo deja ver el ancho de pantalla — su
-                // scrollWidth SI reporta el ancho real completo (a diferencia
-                // del contenedor externo, que al clipear no "hereda" ese
-                // ancho). onclone quita el recorte solo en el DOM clonado que
-                // usa html2canvas para renderizar, sin tocar ni parpadear la
-                // pagina real.
-                const scrollBox = el.querySelector('.table-scroll-container');
-                const fullWidth = scrollBox ? scrollBox.scrollWidth : el.scrollWidth;
-                try {
-                    const canvas = await window.html2canvas(el, {
-                        backgroundColor: '#ffffff',
-                        scale: 2,
-                        windowWidth: fullWidth,
-                        width: fullWidth,
-                        onclone: (clonedDoc) => {
-                            clonedDoc.getElementById('areaExportable')
-                                ?.querySelector('.table-scroll-container')
-                                ?.style.setProperty('overflow', 'visible');
-                        },
-                    });
-                    canvas.toBlob(async (blob) => {
-                        if (!blob) {
-                            this.exportando = false;
-                            this.mostrarMensaje('No se pudo generar la imagen (canvas vacío).');
-                            console.error('exportarComoImagen: canvas.toBlob devolvió null.');
-                            return;
-                        }
-                        await this.copiarOdescargar(blob);
-                        this.exportando = false;
-                    }, 'image/png');
-                } catch (err) {
-                    this.exportando = false;
-                    this.mostrarMensaje('No se pudo generar la imagen: ' + (err?.message || err));
-                    console.error('exportarComoImagen: html2canvas lanzó un error:', err);
-                }
-            },
-            async copiarOdescargar(blob) {
-                try {
-                    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Este navegador no soporta escribir imágenes en el portapapeles');
-                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                    this.mostrarMensaje('Imagen copiada — pégala directo en WhatsApp (Ctrl+V).');
-                } catch (err) {
-                    console.warn('copiarOdescargar: no se pudo copiar al portapapeles, se descarga en su lugar:', err);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `programacion-${this.fechaSeleccionada}.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    URL.revokeObjectURL(url);
-                    this.mostrarMensaje('No se pudo copiar automáticamente: la imagen se descargó.');
-                }
-            },
-            mostrarMensaje(texto) {
-                this.mensajeExport = texto;
-                setTimeout(() => { this.mensajeExport = null; }, 5000);
-            },
+            ...imageExporterMixin('programacion'),
             esEditable() {
                 return this.fechaSeleccionada === this.hoy || this.fechaSeleccionada === sumarDias(this.hoy, -1);
             },
@@ -589,51 +533,33 @@
                 this.fechaSeleccionada = fechaStr;
                 this.calendarioAbierto = false;
             },
-            empresaEstado(emp) {
-                return emp.empresas[this.form.empresa] ?? 'no_posee';
-            },
-            elegible(emp) {
-                return this.empresaEstado(emp) === 'vigente';
-            },
+            busquedaPersona: '',
             personaSeleccionada(emp) {
-                return this.form.personas.some(p => p.nombre === emp.nombre);
+                return this.form.personas.includes(emp.nombre);
             },
             togglePersona(emp) {
-                const idx = this.form.personas.findIndex(p => p.nombre === emp.nombre);
+                const idx = this.form.personas.indexOf(emp.nombre);
                 if (idx >= 0) {
                     this.form.personas.splice(idx, 1);
-                    if (this.form.primaria === emp.nombre) this.form.primaria = null;
                 } else {
-                    // Se agrega como secundaria por defecto; la elegibilidad de
-                    // empresa solo importa si luego se marca como primaria
-                    // (ver "Actividad primaria para" arriba).
-                    this.form.personas.push({ nombre: emp.nombre, tipo: 'S' });
+                    this.form.personas.push(emp.nombre);
                 }
             },
-            personasElegiblesParaPrimaria() {
-                return this.form.personas
-                    .map(p => this.empleados.find(e => e.nombre === p.nombre))
-                    .filter(emp => emp && this.elegible(emp));
+            quitarPersona(nombre) {
+                const idx = this.form.personas.indexOf(nombre);
+                if (idx >= 0) this.form.personas.splice(idx, 1);
             },
-            onEmpresaCambiada() {
-                // Al cambiar de empresa, quien ya estaba seleccionado pero no
-                // tiene la induccion vigente de la nueva empresa deja de ser
-                // elegible — se quita de la seleccion, no solo se oculta.
-                this.form.personas = this.form.personas.filter(p => {
-                    const emp = this.empleados.find(e => e.nombre === p.nombre);
-                    return emp && this.elegible(emp);
-                });
-                if (this.form.primaria && !this.form.personas.some(p => p.nombre === this.form.primaria)) {
-                    this.form.primaria = null;
-                }
-                this.$nextTick(() => window.lucide?.createIcons());
+            personasFiltradas(categoria) {
+                const q = this.busquedaPersona.trim().toLowerCase();
+                return this.empleados.filter(e => e.categoria === categoria && (!q || e.nombre.toLowerCase().includes(q)));
+            },
+            horasMesTexto(nombre) {
+                const emp = this.empleados.find(e => e.nombre === nombre);
+                return emp && emp.horasMes !== null ? `· ${emp.horasMes}h este mes` : '';
             },
             guardarActividad() {
                 if (!this.form.actividad) { return; }
-                const primariaValida = this.personasElegiblesParaPrimaria().some(e => e.nombre === this.form.primaria);
-                const primaria = primariaValida ? this.form.primaria : null;
-                const personas = this.form.personas.map(p => ({ nombre: p.nombre, tipo: p.nombre === primaria ? 'P' : 'S' }));
-                this.actividades.push({ ...this.form, personas, fecha: this.fechaSeleccionada, transporte: false });
+                this.actividades.push({ ...this.form, fecha: this.fechaSeleccionada, transporte: false });
                 this.modalAbierto = false;
                 this.organizar();
             },
@@ -652,9 +578,9 @@
             filasConEncabezados() {
                 const out = [];
                 for (const grupo of this.gruposVisibles()) {
-                    out.push({ tipo: 'grupo', grupo, key: 'g-' + grupo });
+                    out.push({ rowType: 'grupo', grupo, key: 'g-' + grupo });
                     this.filasDelGrupo(grupo).forEach((row, idx) => {
-                        out.push({ tipo: 'fila', key: 'f-' + grupo + '-' + idx, ...row });
+                        out.push({ rowType: 'fila', key: 'f-' + grupo + '-' + idx, ...row });
                     });
                 }
                 return out;

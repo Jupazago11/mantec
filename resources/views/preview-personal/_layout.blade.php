@@ -72,6 +72,20 @@
         .scroll-container-visible::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+
+        /* Modo compacto para "Copiar como imagen" (Programacion): se aplica
+           solo al DOM clonado dentro del onclone de html2canvas, nunca a la
+           vista real — un poco mas apretado que la pantalla en vivo para que
+           quepan mas filas en la imagen exportada. Al no estar dentro de un
+           @layer (a diferencia de las utilidades de Tailwind), esta regla
+           gana el cascade sin necesitar !important ni mayor especificidad. */
+        .exporting-compact .preventive-table th,
+        .exporting-compact .preventive-table td {
+            padding-block: 5px;
+            padding-inline: 10px;
+            font-size: 12.5px;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
@@ -208,6 +222,135 @@
                 top = rect.top - altoEstimado - 6;
             }
             return `position:fixed; top:${top}px; left:${left}px; width:${ancho}px; z-index:9999;`;
+        }
+    </script>
+
+    {{-- html2canvas-pro (no html2canvas a secas): este proyecto usa Tailwind 4,
+         que emite colores oklch() por defecto, y el html2canvas original
+         (2023) no sabe parsear esa funcion de color — falla al clonar el
+         documento. html2canvas-pro es el fork mantenido que agrega ese
+         soporte. Cargado aqui (no por pagina) porque Programacion, Diario de
+         Campo y Empleados comparten el mismo boton "Copiar como imagen". --}}
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas-pro@2.4.2/dist/html2canvas-pro.min.js"></script>
+    <script>
+        // Mixin reutilizable para el boton "Copiar como imagen": arma con
+        // html2canvas-pro un PNG de #areaExportable y lo copia al
+        // portapapeles (o lo descarga si el navegador no soporta
+        // ClipboardItem con imagenes, tipico en movil). Cada pagina hace
+        // `x-data="{ ...imageExporterMixin('prefijo-archivo'), ...restoDeEstado }"`.
+        //
+        // Por que hace falta inlinear el CSS en el clon (visto 2026-09-14):
+        // la imagen exportada podia salir sin ningun estilo (tabla plana,
+        // fuente serif por defecto), porque el <link> externo a app-*.css
+        // no siempre se vuelve a aplicar de forma confiable dentro del clon
+        // que arma html2canvas — se vio con "Tracking Prevention" de Edge
+        // bloqueando ese recurso. Se probo foreignObjectRendering como
+        // alternativa, pero fallo con un error de carga de imagen SVG en el
+        // mismo navegador (una imagen SVG tampoco puede volver a buscar el
+        // CSS externo). El arreglo real es copiar el CSS ya aplicado en la
+        // pagina real como texto literal dentro de un <style> del clon, asi
+        // no depende de ninguna carga de red durante la exportacion.
+        function imageExporterMixin(filenamePrefix) {
+            return {
+                exportando: false,
+                mensajeExport: null,
+                async exportarComoImagen(fileLabel = null) {
+                    if (this.exportando) return;
+                    if (!window.html2canvas) {
+                        this.mostrarMensaje('No se pudo cargar la librería de exportación (revisa la conexión/consola).');
+                        console.error('exportarComoImagen: window.html2canvas no está definido — el script del CDN no cargó.');
+                        return;
+                    }
+                    const el = document.getElementById('areaExportable');
+                    if (!el) {
+                        console.error('exportarComoImagen: no se encontró #areaExportable en esta página.');
+                        return;
+                    }
+                    this.exportando = true;
+                    // La tabla vive dentro de .table-scroll-container o
+                    // .scroll-container-visible (segun la pagina), que
+                    // recorta y solo deja ver el ancho/alto de pantalla — su
+                    // scrollWidth SI reporta el ancho real completo (a
+                    // diferencia del contenedor externo, que al clipear no
+                    // "hereda" ese ancho). onclone quita el recorte solo en
+                    // el DOM clonado que usa html2canvas para renderizar, sin
+                    // tocar ni parpadear la pagina real.
+                    const scrollBox = el.querySelector('.table-scroll-container, .scroll-container-visible');
+                    const fullWidth = scrollBox ? scrollBox.scrollWidth : el.scrollWidth;
+                    try {
+                        const canvas = await window.html2canvas(el, {
+                            backgroundColor: '#ffffff',
+                            scale: 2,
+                            windowWidth: fullWidth,
+                            width: fullWidth,
+                            onclone: (clonedDoc) => {
+                                const area = clonedDoc.getElementById('areaExportable');
+                                const box = area?.querySelector('.table-scroll-container, .scroll-container-visible');
+                                box?.style.setProperty('overflow', 'visible');
+                                box?.style.setProperty('max-height', 'none');
+                                // Un poco mas compacto que la vista en vivo,
+                                // para que quepan mas filas en la imagen (ver
+                                // regla .exporting-compact mas arriba en este
+                                // mismo archivo).
+                                area?.classList.add('exporting-compact');
+
+                                try {
+                                    const cssText = Array.from(document.styleSheets)
+                                        .map((sheet) => {
+                                            try {
+                                                return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n');
+                                            } catch (e) {
+                                                return ''; // hoja cross-origin sin acceso a cssRules
+                                            }
+                                        })
+                                        .join('\n');
+                                    const styleTag = clonedDoc.createElement('style');
+                                    styleTag.textContent = cssText;
+                                    clonedDoc.head.appendChild(styleTag);
+                                } catch (e) {
+                                    console.warn('exportarComoImagen: no se pudo inlinear el CSS para el clon:', e);
+                                }
+                            },
+                        });
+                        canvas.toBlob(async (blob) => {
+                            if (!blob) {
+                                this.exportando = false;
+                                this.mostrarMensaje('No se pudo generar la imagen (canvas vacío).');
+                                console.error('exportarComoImagen: canvas.toBlob devolvió null.');
+                                return;
+                            }
+                            await this.copiarOdescargar(blob, `${filenamePrefix}-${fileLabel ?? new Date().toISOString().slice(0, 10)}.png`);
+                            this.exportando = false;
+                        }, 'image/png');
+                    } catch (err) {
+                        this.exportando = false;
+                        this.mostrarMensaje('No se pudo generar la imagen: ' + (err?.message || err));
+                        console.error('exportarComoImagen: html2canvas lanzó un error:', err);
+                    }
+                },
+                async copiarOdescargar(blob, filename) {
+                    try {
+                        if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Este navegador no soporta escribir imágenes en el portapapeles');
+                        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                        this.mostrarMensaje('Imagen copiada — pégala directo en WhatsApp (Ctrl+V).');
+                    } catch (err) {
+                        console.warn('copiarOdescargar: no se pudo copiar al portapapeles, se descarga en su lugar:', err);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                        this.mostrarMensaje('No se pudo copiar automáticamente: la imagen se descargó.');
+                    }
+                },
+                mostrarMensaje(texto) {
+                    this.mensajeExport = texto;
+                    setTimeout(() => { this.mensajeExport = null; }, 5000);
+                },
+            };
         }
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

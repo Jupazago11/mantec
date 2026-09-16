@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Employee;
 use App\Models\User;
 
 return [
@@ -42,6 +43,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Guard independiente para el modulo "Personal y Programacion" —
+        // ver seccion 3 de NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md.
+        // Superadmin no usa este guard, sigue entrando por 'web' (ver
+        // App\Support\PersonalGuard).
+        'personal' => [
+            'driver' => 'session',
+            'provider' => 'employees',
+        ],
     ],
 
     /*
@@ -71,6 +81,11 @@ return [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
+
+        'employees' => [
+            'driver' => 'eloquent',
+            'model' => Employee::class,
+        ],
     ],
 
     /*
