@@ -317,6 +317,65 @@ class ActivityControllerAjaxTest extends TestCase
         $response->assertDontSee('new Date().toISOString()', false);
     }
 
+    // Pedido 2026-09-21: despues de "Actividad" va una columna con la
+    // CANTIDAD de personas (no la lista), luego Horas, luego Jornada — la
+    // lista de nombres (Personas) se corrio para despues de Jornada. Se
+    // verifica el orden real de los encabezados en el HTML, no solo que
+    // "Cant." exista en algun lado de la pagina.
+    public function test_programacion_index_shows_cantidad_column_between_actividad_and_horas(): void
+    {
+        $admin = $this->superadmin();
+
+        $response = $this->actingAs($admin)->get(route('personal.programacion.index'));
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $posActividad = strpos($html, '>Actividad<');
+        $posCant = strpos($html, '>Cant.<');
+        $posHoras = strpos($html, '>Horas<');
+        $posJornada = strpos($html, 'title="Jornada"');
+        $posPersonas = strpos($html, '>Personas<');
+
+        $this->assertNotFalse($posActividad);
+        $this->assertNotFalse($posCant);
+        $this->assertNotFalse($posHoras);
+        $this->assertNotFalse($posJornada);
+        $this->assertNotFalse($posPersonas);
+        $this->assertTrue($posActividad < $posCant, 'Cant. debe ir despues de Actividad');
+        $this->assertTrue($posCant < $posHoras, 'Horas debe ir despues de Cant.');
+        $this->assertTrue($posHoras < $posJornada, 'Jornada debe ir despues de Horas');
+        $this->assertTrue($posJornada < $posPersonas, 'Personas debe ir despues de Jornada');
+    }
+
+    // El numero que se ve en la columna "Cant." lo calcula Alpine en el
+    // navegador (a.personas.length, ver x-text del <td>) a partir de este
+    // mismo arreglo — no hay forma de ejecutar ese JS desde un test
+    // PHPUnit, asi que lo que se puede verificar del lado servidor es que
+    // el payload que alimenta esa cuenta trae realmente a las 2 personas
+    // asignadas (serialize() en ActivityController, campo "personas").
+    public function test_programacion_index_payload_includes_all_personas_for_cantidad_column(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $p1 = $this->empleadoParaHoras('cantuno');
+        $p2 = $this->empleadoParaHoras('cantdos');
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(),
+            'company_id' => $company->id,
+            'description' => 'Actividad con dos personas',
+            'activity_type' => 'P',
+            'shift' => 'Diurno',
+        ]);
+        $activity->personas()->sync([$p1->id, $p2->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.programacion.index'));
+
+        $response->assertOk();
+        $response->assertSee('cantuno', false);
+        $response->assertSee('cantdos', false);
+    }
+
     public function test_superadmin_can_delete_activity_via_ajax(): void
     {
         $admin = $this->superadmin();

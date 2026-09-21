@@ -109,16 +109,17 @@
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Equipo</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Proceso</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:13rem">Actividad</th>
-                        <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Personas</th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Cantidad de personas">Cant.</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Horas</th>
                         <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Jornada">Jorn.</th>
+                        <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Personas</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resp.</th>
                     </tr>
                 </thead>
                 <template x-for="grupo in gruposOrdenados()" :key="grupo.grupoNum ?? 'sin-grupo'">
                     <tbody class="divide-y divide-slate-100 bg-white">
                         <tr class="bg-slate-800">
-                            <td colspan="9" class="px-3 py-1.5">
+                            <td colspan="10" class="px-3 py-1.5">
                                 <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white">
                                     <i data-lucide="users" class="h-3.5 w-3.5"></i>
                                     <span x-text="grupo.grupoNum ? `Grupo ${grupo.grupoNum}` : 'Sin grupo asignado'"></span>
@@ -163,6 +164,9 @@
                                     ></span>
                                     <span x-text="a.description"></span>
                                 </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-center text-slate-600" x-text="a.personas.length || '—'"></td>
+                                <td class="px-3 py-2 whitespace-nowrap" x-text="a.estimated_hours ?? '—'"></td>
+                                <td class="px-3 py-2 whitespace-nowrap text-center text-slate-600" :title="a.shift" x-text="a.shift === 'Nocturno' ? 'N' : 'D'"></td>
                                 <td class="px-3 py-2 text-slate-600">
                                     <span x-show="a.personas.length === 0">—</span>
                                     {{-- Hover con nombre completo + horas acumuladas del mes
@@ -176,11 +180,17 @@
                                             x-data="{ open: false, estilo: '' }"
                                             @mouseleave="open = false"
                                         >
+                                            {{-- Separador ", " fusionado en el mismo span que el
+                                                 nombre (antes era un <span> aparte) — dos <span>
+                                                 vecinos sin espacio de por medio en el HTML fuente
+                                                 se perdia visualmente tanto en el navegador como en
+                                                 la imagen exportada (html2canvas). Un solo nodo de
+                                                 texto "Nombre, " no deja margen para que se pierda. --}}
                                             <span
                                                 @mouseenter="open = true; estilo = posicionarPopover($el, 220, 64)"
                                                 class="cursor-default border-b border-dotted border-slate-300"
-                                                x-text="p.nickname"
-                                            ></span><span x-text="idx < a.personas.length - 1 ? ', ' : ''"></span>
+                                                x-text="p.nickname + (idx < a.personas.length - 1 ? ', ' : '')"
+                                            ></span>
                                             <template x-teleport="body">
                                                 <div x-show="open" x-cloak x-transition :style="estilo" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-xl">
                                                     <p class="font-semibold text-slate-800" x-text="p.nombre"></p>
@@ -190,8 +200,6 @@
                                         </span>
                                     </template>
                                 </td>
-                                <td class="px-3 py-2 whitespace-nowrap" x-text="a.estimated_hours ?? '—'"></td>
-                                <td class="px-3 py-2 whitespace-nowrap text-center text-slate-600" :title="a.shift" x-text="a.shift === 'Nocturno' ? 'N' : 'D'"></td>
                                 <td class="px-3 py-2 whitespace-nowrap text-slate-500">
                                     <span x-show="!a.responsible_employee_id">—</span>
                                     <span
