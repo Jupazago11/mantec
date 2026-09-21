@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'personal.auth' => \App\Http\Middleware\EnsurePersonalAccess::class,
+            'personal.api.employee' => \App\Http\Middleware\EnsureTokenableIsEmployee::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

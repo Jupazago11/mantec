@@ -26,7 +26,11 @@ class CompanyController extends Controller
             'archived' => false,
         ]);
 
-        return response()->json(['success' => true, 'company' => $company]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Empresa creada correctamente.',
+            'company' => $company,
+        ]);
     }
 
     public function update(Request $request, Company $company): JsonResponse
@@ -39,7 +43,11 @@ class CompanyController extends Controller
 
         $company->update(['name' => trim($validated['name'])]);
 
-        return response()->json(['success' => true, 'company' => $company]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Empresa renombrada correctamente.',
+            'company' => $company,
+        ]);
     }
 
     public function toggleArchived(Company $company): JsonResponse
@@ -56,7 +64,15 @@ class CompanyController extends Controller
 
         $company->save();
 
-        return response()->json(['success' => true, 'company' => $company]);
+        $message = $company->archived
+            ? 'Empresa archivada correctamente.'
+            : 'Empresa restablecida correctamente.';
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'company' => $company,
+        ]);
     }
 
     public function markDefault(Company $company): JsonResponse
@@ -75,6 +91,10 @@ class CompanyController extends Controller
             $company->update(['is_default' => true]);
         });
 
-        return response()->json(['success' => true, 'company' => $company->fresh()]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Empresa marcada por defecto correctamente.',
+            'company' => $company->fresh(),
+        ]);
     }
 }

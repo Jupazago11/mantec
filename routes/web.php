@@ -506,7 +506,23 @@ Route::prefix('personal')->name('personal.')->group(function () {
         // Fase 2b — Diario de Campo real (seccion 14.2). Mismo objeto
         // Activity, enriquecido con el cierre administrativo.
         Route::get('/diario-campo', [\App\Http\Controllers\Personal\FieldDiaryController::class, 'index'])->name('diario-campo.index');
-        Route::patch('/diario-campo/{activity}', [\App\Http\Controllers\Personal\FieldDiaryController::class, 'close'])->name('diario-campo.close');
+        Route::patch('/diario-campo/{activity}/inline-update', [\App\Http\Controllers\Personal\FieldDiaryController::class, 'inlineUpdate'])->name('diario-campo.inline-update');
+
+        // Fase 3 — "Ver como supervisor" (seccion 14.18): pantalla minima
+        // solo para superadmin, para prototipar la logica del API que
+        // consumira la app Android real (seccion 7). No reemplaza la
+        // sesion — SupervisorViewController verifica isSuperadmin() y
+        // que la actividad sea realmente del empleado elegido en cada
+        // request.
+        Route::get('/ver-como/{employee}', [\App\Http\Controllers\Personal\SupervisorViewController::class, 'index'])->name('ver-como.index');
+        Route::post('/ver-como/{employee}/actividades/{activity}', [\App\Http\Controllers\Personal\SupervisorViewController::class, 'store'])->name('ver-como.store');
+
+        // Seccion 14.20 — evidencias (foto/video) del registro del
+        // supervisor, subidas a R2 bajo el prefijo propio
+        // "personal-actividades/" (ActivityEvidencePathBuilder).
+        Route::post('/ver-como/{employee}/actividades/{activity}/evidencias', [\App\Http\Controllers\Personal\ActivityEvidenceController::class, 'store'])->name('ver-como.evidencias.store');
+        Route::get('/ver-como/{employee}/actividades/{activity}/evidencias/{evidence}/abrir', [\App\Http\Controllers\Personal\ActivityEvidenceController::class, 'open'])->name('ver-como.evidencias.open');
+        Route::delete('/ver-como/{employee}/actividades/{activity}/evidencias/{evidence}', [\App\Http\Controllers\Personal\ActivityEvidenceController::class, 'destroy'])->name('ver-como.evidencias.destroy');
 
         // Fase 2c — Bitacora real (seccion 14.3). Proyeccion mensual sobre
         // activities + correcciones administrativas por dia/persona. Solo
@@ -517,10 +533,16 @@ Route::prefix('personal')->name('personal.')->group(function () {
 
         // Roles y permisos dinamicos — exclusivo de superadmin, no forma
         // parte de los permisos configurables (evita auto-escalacion).
+        // Jerarquia Rol (PersonalCategory) -> Subrol (PersonalRole), una
+        // sola pantalla agrupada (personal.roles.index).
         Route::get('/roles', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'index'])->name('roles.index');
         Route::post('/roles', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'store'])->name('roles.store');
         Route::put('/roles/{personalRole}', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'update'])->name('roles.update');
-        Route::delete('/roles/{personalRole}', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'destroy'])->name('roles.destroy');
+        Route::patch('/roles/{personalRole}/toggle-active', [\App\Http\Controllers\Personal\PersonalRoleController::class, 'toggleActive'])->name('roles.toggle-active');
+
+        Route::post('/categorias', [\App\Http\Controllers\Personal\PersonalCategoryController::class, 'store'])->name('categorias.store');
+        Route::put('/categorias/{personalCategory}', [\App\Http\Controllers\Personal\PersonalCategoryController::class, 'update'])->name('categorias.update');
+        Route::patch('/categorias/{personalCategory}/toggle-active', [\App\Http\Controllers\Personal\PersonalCategoryController::class, 'toggleActive'])->name('categorias.toggle-active');
     });
 });
 

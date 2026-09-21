@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ReportDetail;
 use App\Models\ReportDetailFile;
+use App\Services\Access\ElementAccessService;
 use App\Support\ReportFilePathBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,11 +14,21 @@ use Illuminate\Support\Facades\Storage;
 
 class InspectorSyncFileController extends Controller
 {
+    public function __construct(
+        private readonly ElementAccessService $elementAccessService,
+    ) {
+    }
+
     public function store(Request $request, ReportDetail $reportDetail): JsonResponse
     {
         $user = Auth::user();
 
-        abort_unless((int) $reportDetail->user_id === (int) $user->id, 403);
+        $reportDetail->loadMissing('element');
+
+        abort_unless(
+            (bool) $reportDetail->status && $this->elementAccessService->canAccess($user, $reportDetail->element),
+            403
+        );
 
         $validated = $request->validate([
             'file' => ['required', 'file', 'max:1048576'],
@@ -26,8 +37,6 @@ class InspectorSyncFileController extends Controller
 
         $file = $validated['file'];
         $sortOrder = $validated['sort_order'] ?? 0;
-
-        $reportDetail->loadMissing('element');
 
         $built = ReportFilePathBuilder::build($reportDetail->element, $file);
 

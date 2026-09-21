@@ -217,11 +217,18 @@
             let left = rect.right - ancho;
             if (left < 8) left = 8;
             if (left + ancho > window.innerWidth - 8) left = window.innerWidth - ancho - 8;
-            let top = rect.bottom + 6;
-            if (top + altoEstimado > window.innerHeight - 8) {
-                top = rect.top - altoEstimado - 6;
+
+            if (rect.bottom + 6 + altoEstimado <= window.innerHeight - 8) {
+                const top = rect.bottom + 6;
+                return `position:fixed; top:${top}px; left:${left}px; width:${ancho}px; z-index:9999;`;
             }
-            return `position:fixed; top:${top}px; left:${left}px; width:${ancho}px; z-index:9999;`;
+
+            // Ver mismo fix y motivo en layouts/personal.blade.php
+            // (2026-09-18): anclar por "bottom" en vez de "top = rect.top -
+            // altoEstimado" evita el hueco enorme cuando el contenido real
+            // es mucho mas corto que el techo maximo estimado.
+            const bottom = window.innerHeight - rect.top + 6;
+            return `position:fixed; bottom:${bottom}px; left:${left}px; width:${ancho}px; z-index:9999;`;
         }
     </script>
 
@@ -319,7 +326,15 @@
                                 console.error('exportarComoImagen: canvas.toBlob devolvió null.');
                                 return;
                             }
-                            await this.copiarOdescargar(blob, `${filenamePrefix}-${fileLabel ?? new Date().toISOString().slice(0, 10)}.png`);
+                            // Fecha local del navegador (no toISOString(),
+                            // que siempre convierte a UTC y puede saltar
+                            // de dia respecto a la hora de Colombia).
+                            const hoyLocal = (() => {
+                                const d = new Date();
+                                const pad2 = (n) => String(n).padStart(2, '0');
+                                return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                            })();
+                            await this.copiarOdescargar(blob, `${filenamePrefix}-${fileLabel ?? hoyLocal}.png`);
                             this.exportando = false;
                         }, 'image/png');
                     } catch (err) {

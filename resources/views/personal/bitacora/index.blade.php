@@ -15,10 +15,6 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Bitácora mensual</h1>
-                <p class="mt-1 text-xs text-slate-500">
-                    Solo aparecen empleados marcados como "hace parte de la Bitácora" que además
-                    registren al menos una hora ese mes — el resto no sale como columna.
-                </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
@@ -99,10 +95,19 @@
                                             comentario: @js($c['comentario']),
                                             nuevaCorreccion: @js($reabrirEsta ? old('corrected_value') : ($c['corregida'] ?? '')),
                                             nuevoComentario: @js($reabrirEsta ? old('comment') : ($c['comentario'] ?? '')),
-                                            get final() { return this.corregida !== null && this.corregida !== '' ? this.corregida : this.programada; },
+                                            {{-- Prioridad corregida > reportada > programada (seccion 14.19)
+                                                 — antes solo comparaba corregida/programada porque "reportada"
+                                                 siempre llegaba en null desde el backend; ya no es el caso
+                                                 desde que "Ver como supervisor" (seccion 14.18) alimenta datos
+                                                 reales. --}}
+                                            get final() { return this.corregida !== null && this.corregida !== '' ? this.corregida : (this.reportada ?? this.programada); },
                                             get esTexto() { return this.final !== null && this.final !== '' && isNaN(Number(this.final)); },
                                             get alerta() { return !this.esTexto && (this.final === null || this.final === '' || Number(this.final) === 0); },
-                                            abrirModal() { this.nuevaCorreccion = this.corregida ?? ''; this.nuevoComentario = this.comentario ?? ''; this.modal = true; },
+                                            // nuevaCorreccion/nuevoComentario ya arrancan con el valor guardado
+                                            // (arriba, en la inicializacion de x-data) — abrirModal() ya NO los
+                                            // reinicia, para que cerrar el modal por error no borre lo que ya
+                                            // se habia escrito y no guardado.
+                                            abrirModal() { this.modal = true; },
                                         }"
                                         class="relative"
                                     >
@@ -129,7 +134,7 @@
                                         </div>
                                         </template>
 
-                                        <div x-show="modal" x-cloak class="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4" style="top:0;left:0;height:100vh;width:100vw;">
+                                        <div x-show="modal" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" style="top:0;left:0;height:100vh;width:100vw;">
                                             <div @click.outside="modal = false" class="w-full max-w-sm rounded-2xl bg-white p-5 text-left shadow-xl">
                                                 <form method="POST" action="{{ route('personal.bitacora.entries.store') }}">
                                                     @csrf

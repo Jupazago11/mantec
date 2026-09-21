@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\InspectorSyncController;
 use App\Http\Controllers\Api\InspectorSyncFileController;
 use App\Http\Controllers\Api\InspectorOfflineCatalogController;
 use App\Http\Controllers\Api\InspectorMeasurementThicknessController;
+use App\Http\Controllers\Api\Personal\AuthApiController as PersonalAuthApiController;
+use App\Http\Controllers\Api\Personal\ActivityController as PersonalActivityController;
+use App\Http\Controllers\Api\Personal\ActivityEvidenceController as PersonalActivityEvidenceController;
 
 Route::post('/login', [AuthApiController::class, 'login']);
 
@@ -40,4 +43,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/areas/{area}/weekly-elements-status', [InspectorReportController::class, 'getWeeklyElementsStatus']);
 
     });
+});
+
+// Seccion 14.24 — API del supervisor (app Android), guard Sanctum
+// separado del Inspector: token de Employee, no de User. El login no
+// requiere token (obviamente); todo lo demas exige ademas
+// personal.api.employee para que un token de Inspector (User) no pueda
+// llamar estas rutas (Sanctum es polimorfico, auth:sanctum por si solo
+// aceptaria cualquier tokenable valido).
+Route::post('/personal/login', [PersonalAuthApiController::class, 'login'])
+    ->middleware('throttle:5,1')
+    ->name('api.personal.login');
+
+Route::middleware(['auth:sanctum', 'personal.api.employee'])->prefix('personal')->name('api.personal.')->group(function () {
+    Route::post('/logout', [PersonalAuthApiController::class, 'logout'])->name('logout');
+
+    Route::get('/actividades', [PersonalActivityController::class, 'index'])->name('actividades.index');
+    Route::post('/actividades/{activity}', [PersonalActivityController::class, 'store'])->name('actividades.store');
+
+    Route::post('/actividades/{activity}/evidencias', [PersonalActivityEvidenceController::class, 'store'])->name('actividades.evidencias.store');
+    Route::get('/actividades/{activity}/evidencias/{evidence}', [PersonalActivityEvidenceController::class, 'show'])->name('actividades.evidencias.show');
+    Route::delete('/actividades/{activity}/evidencias/{evidence}', [PersonalActivityEvidenceController::class, 'destroy'])->name('actividades.evidencias.destroy');
 });

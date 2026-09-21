@@ -274,6 +274,12 @@
                                                         <span>{{ $file->file_type === 'video' ? 'Video' : 'Imagen' }}</span>
                                                         <span>{{ $file->created_at?->format('Y-m-d H:i') }}</span>
                                                     </div>
+
+                                                    @if($file->uploader)
+                                                        <div class="text-[11px] text-slate-500">
+                                                            Subido por {{ $file->uploader->name }}
+                                                        </div>
+                                                    @endif
                                                 </div>
                                             </div>
                                         @endforeach

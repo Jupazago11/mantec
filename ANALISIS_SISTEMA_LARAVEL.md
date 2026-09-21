@@ -1,6 +1,6 @@
 # Analisis Del Sistema Laravel - Mantec
 
-Ultima actualizacion: 2026-08-26  
+Ultima actualizacion: 2026-09-17  
 Estado del documento: canonico y de mantenimiento continuo
 
 ## 1. Proposito
@@ -340,6 +340,66 @@ Un inspector genera o sincroniza un ReportDetail sobre:
 - diagnostico
 - condicion
 - semana/anio
+
+### 8.1.1 Fusion de reportes duplicados el mismo dia (2026-09-17)
+
+Cuando el mismo activo+componente+diagnostico se reporta mas de una vez
+dentro de 24 horas, el sistema no crea un ReportDetail independiente:
+actualiza el ultimo reporte vigente (`status=true`), sin importar si el
+segundo reporte lo hizo un inspector distinto. Este criterio ya existia
+solo en el flujo web y ahora es identico en los dos canales:
+
+- Web: `InspectorReportController::store`.
+- API/Android (sync offline-first): `InspectorSyncController::store`.
+
+Logica compartida en dos servicios nuevos:
+
+- [app/Services/Reports/ReportDetailMerger.php](/home/jupazago/Documentos/mantecv1/mantec/app/Services/Reports/ReportDetailMerger.php):
+  busca el reporte fusionable (misma terna, `status=true`, `created_at`
+  dentro de las ultimas 24h, con `lockForUpdate()` para evitar condicion de
+  carrera si dos inspectores sincronizan casi al mismo tiempo) y construye
+  el texto de trazabilidad.
+- [app/Services/Access/ElementAccessService.php](/home/jupazago/Documentos/mantecv1/mantec/app/Services/Access/ElementAccessService.php):
+  valida que el inspector autenticado tenga acceso real (cliente + grupo)
+  al activo del elemento, reutilizado por `InspectorSyncController` y
+  `InspectorSyncFileController`.
+
+Trazabilidad del hallazgo: si quien complementa el reporte es un inspector
+distinto al que lo creo, el hallazgo nuevo se agrega debajo del existente
+con formato `Nombre — dd/mm/aaaa HH:mm:` seguido del texto, sin limite de
+cuantos inspectores se acumulen. Si es el mismo inspector complementando su
+propio reporte, se agrega sin ese prefijo (igual que antes). La condicion,
+`execution_status` y `execution_date` siempre quedan con el valor de la
+ultima evaluacion. En el canal API, `orden`/`aviso` se mantienen sin tocar
+(igual que antes); en el canal web se siguen heredando del reporte anterior
+a ese, sin cambios de comportamiento ahi.
+
+Correccion de seguridad relacionada: `InspectorSyncController::store` no
+validaba que el inspector autenticado tuviera acceso real al
+cliente/grupo/activo reportado (solo validaba consistencia entre
+area/elemento/componente/diagnostico/condicion). Ahora usa
+`ElementAccessService` igual que el flujo web. El catalogo offline
+(`InspectorOfflineCatalogController`) ya solo entrega elementos dentro del
+alcance del inspector, por lo que en uso normal esta validacion no cambia
+nada visible; solo bloquea sincronizar un `element_id` fuera de su alcance
+actual (por ejemplo, si se le revoco el grupo entre la descarga del
+catalogo offline y la sincronizacion de un reporte capturado sin conexion).
+
+Evidencia multimedia: `InspectorSyncFileController::store` ya no exige que
+el inspector sea el creador original del `ReportDetail` (`user_id` igual al
+autenticado); ahora exige que tenga acceso real al activo, usando el mismo
+`ElementAccessService`. Esto permite que, tras una fusion, el segundo o
+tercer inspector tambien pueda subir sus propias fotos/videos al mismo
+reporte. Cada archivo ya guardaba `uploaded_by` (no fue necesaria
+migracion); la vista de evidencia admin
+(`resources/views/admin/preventive-reports/evidence.blade.php`) ahora
+muestra "Subido por {nombre}" por archivo para poder identificar de cual
+inspector es cada evidencia cuando el reporte tiene aportes de mas de uno.
+
+Cobertura: [tests/Feature/Api/InspectorSyncReportMergeTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Api/InspectorSyncReportMergeTest.php),
+[tests/Feature/Api/InspectorSyncFileAccessTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Api/InspectorSyncFileAccessTest.php),
+[tests/Feature/Inspector/InspectorReportMergeTraceabilityTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Inspector/InspectorReportMergeTraceabilityTest.php),
+[tests/Feature/Admin/ReportEvidenceUploaderTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/ReportEvidenceUploaderTest.php).
 
 ### 8.2 Estado de ejecucion
 
@@ -724,6 +784,14 @@ Estado consolidado al 2026-08-26:
 - Campo `averia` en cambio de banda (checkbox "¿Avería?" en creacion y
   edicion) y fix del backdrop del wizard que no cubria toda la pantalla:
   ver [11.1](#111-campo-averia-en-cambio-de-banda-2026-08-26).
+
+Estado consolidado al 2026-09-17:
+
+- Fusion de reportes duplicados el mismo dia unificada entre web y API
+  movil, con trazabilidad por inspector (nombre + fecha/hora) cuando mas de
+  un inspector complementa el mismo hallazgo, y correccion del hueco de
+  autorizacion en el endpoint de sync movil: ver
+  [8.1.1](#811-fusion-de-reportes-duplicados-el-mismo-dia-2026-09-17).
 
 ## 17. Riesgos Y Deuda Tecnica Visible
 

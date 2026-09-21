@@ -608,6 +608,13 @@ no cambia el alcance, solo indica prioridad baja.
   prioridad esperada por el usuario (se construyen igual, 2026-09-09); la
   pregunta especifica de que debe mostrar cada uno quedo sin resolver el
   2026-09-10 porque no se formulo con claridad, hay que retomarla.
+- **Auto-llenado de horas del Responsable (2026-09-18)**: idea a futuro,
+  para Diario de Campo/Bitacora (no para Programacion) — cuando un
+  Responsable (ver seccion 14.7) cierre/evalue las actividades que
+  supervisó ese dia, sus propias horas podrian calcularse solas a partir
+  de las cuadrillas que tuvo a cargo, en vez de digitarse aparte. El
+  usuario confirmo explicitamente que es solo una referencia a futuro, sin
+  alcance definido todavia — no implementar hasta que se retome.
 
 ## 12. Estimacion De Costo Y Tiempo
 
@@ -1326,3 +1333,1522 @@ después de loguearse. Validado por HTTP: rol sin permisos →
 `/personal/sin-acceso`; rol con un solo permiso (`ver_diario_campo`) →
 aterriza directo ahí, no en Empleados; superadmin sigue aterrizando en
 Empleados como antes (sin regresión). Datos de prueba eliminados.
+
+### 14.6 Campo "Proceso" También Editable Desde Programación (2026-09-18)
+
+**2026-09-18**: la columna `process` ("Proceso") ya existía en `activities`
+desde la Fase 2b (sección 14.2, columnas del Diario de Campo), pero solo se
+podía diligenciar al cerrar una actividad como administrativo. A pedido del
+usuario, ahora también es editable desde Programación — el supervisor la
+diligencia al crear/editar la actividad, en vez de esperar al cierre
+administrativo (coincide con la sección 5, que ya marcaba "Proceso" como
+responsabilidad de "Supervisor (Programación o al ejecutar)").
+
+**Cambios**: `ActivityController::validated()` valida `process` (`nullable`,
+`max:150`, mismo límite que ya usaba `FieldDiaryController::close()` porque
+comparten la misma columna `string('process', 150)`); `store()`/`update()`
+lo persisten. En `programacion/index.blade.php` se agregó la columna
+"Proceso" en la tabla justo después de "Equipo" (con su celda de datos y el
+`colspan` del encabezado de grupo ajustado de 8 a 9), y un campo de texto
+libre "Proceso" en el modal de creación/edición, también justo después de
+"Equipo" (grid del modal pasó de 2 a 3 columnas). Se propagó `process` en
+el estado Alpine (`formActividad`, `emptyFormActividad()`,
+`editarActividad()`, `oldValues` de Blade) siguiendo el mismo patrón dual
+crear/editar que ya usaban el resto de campos simples del formulario.
+
+**Sin condición de carrera con el cierre administrativo**: una actividad ya
+cerrada en Diario de Campo deja de ser editable desde Programación
+(`canModify()`, sección 14.4), así que nunca hay dos pantallas escribiendo
+`process` al mismo tiempo — mientras está abierta solo Programación la
+toca, una vez cerrada solo Diario de Campo (para quien tenga
+`editar_programacion_sin_limite`).
+
+**Sin migración nueva**: la columna y el `$fillable` del modelo ya
+existían; el cambio es enteramente de controlador y vista.
+
+**Validado localmente (2026-09-18) por HTTP con curl** (sin suite
+automatizada para este módulo, mismo criterio que el resto de la sección
+14): actividad creada con `process="Proceso QA"` se guarda y aparece en la
+celda de la tabla justo después de Equipo, con el `colspan` del
+encabezado de grupo ya en 9; edición cambia el valor correctamente
+(`UPDATE` confirmado en base de datos); un intento de guardar `process`
+con 151 caracteres es rechazado por la validación (el valor en base de
+datos queda intacto, no se trunca ni se persiste el valor inválido);
+Diario de Campo sigue respondiendo `200` sin cambios. Empleado y
+actividad de prueba eliminados al terminar.
+
+**Seguimiento 2026-09-18 (mismo día): Equipo y Proceso pasan a combobox de
+sugerencias**: el usuario pidió evitar que Equipo/Proceso terminen con
+variantes tipo "Cemento"/"CEMENTO"/"Semento" (ensucia el filtrado futuro,
+ej. Bitácora), pero sin convertirlos en catálogo rígido — deben seguir
+siendo texto libre, y si es la primera vez que se usa el sistema (sin
+datos aún) el combobox no debe mostrar nada.
+
+**Cambios**: `ActivityController::index()` carga, para `team` y `process`,
+los valores ya usados en `activities` vía un helper nuevo
+`distinctFreeTextValues(string $column)` — `DISTINCT` + `unique()` por
+`mb_strtolower()` (agrupa "Cemento"/"CEMENTO" en una sola sugerencia, sin
+tocar el valor real guardado en cada fila) — pasados a la vista como
+`equipos`/`procesos`. En `programacion/index.blade.php`, ambos inputs se
+convirtieron en combobox: mismo patrón de popover teleportado a `body` +
+`posicionarPopover()` que ya usan Responsable y Personas en este mismo
+modal, pero aquí el input **es** el valor final (no hay selección por ID
+como en Responsable) — `x-model` sigue apuntando a
+`formActividad.team`/`formActividad.process`, y las sugerencias
+(`equiposFiltrados()`/`procesosFiltrados()`) solo filtran en vivo (case
+insensitive, `includes()`) lo ya usado antes; hacer clic en una sugerencia
+solo copia ese texto al input, no bloquea escribir algo nuevo. Sin
+sugerencias que coincidan (incluido el caso de tabla vacía), el panel
+muestra "Sin coincidencias — se guardará el texto escrito." en vez de
+nada oculto a ciegas, mismo criterio de mensaje vacío que ya usaba
+Personas.
+
+**Deliberadamente fuera de alcance**: `FieldDiaryController::close()`
+(cierre de Diario de Campo) también puede escribir `process`, y ese campo
+sigue siendo un input de texto plano sin combobox — el usuario solo pidió
+el cambio para el formulario de Programación. Sigue siendo una vía por la
+que puede colarse una variante nueva de "Proceso" sin sugerencias; queda
+como pendiente explícito si se quiere unificar.
+
+**Validado localmente (2026-09-18) por HTTP con curl**: con la tabla
+`activities` vacía, `equipos`/`procesos` llegan como arreglos vacíos al
+estado Alpine (confirmado en el HTML servido, `equipos:
+JSON.parse('[]')`); tras crear una actividad con `team="Cemento"` y otra
+con `team="CEMENTO"` (mismo día), recargar la página deja `equipos` con
+una sola sugerencia (`["CEMENTO"]`, dedupe case-insensitive funcionando)
+mientras ambas filas de la tabla siguen mostrando su texto original tal
+cual se escribió (`Cemento` y `CEMENTO`, sin normalizar el dato guardado);
+mismo comportamiento verificado para `process` (`"Coordinador"` /
+`"coordinador"` → una sola sugerencia `["Coordinador"]`). Datos y
+empleado de prueba eliminados al terminar.
+
+### 14.7 "Responsable De Actividad" Pasa A Ser Una Marca Por Rol (2026-09-18)
+
+**2026-09-18**: el selector "Responsable (supervisor)" de Programación
+(sección 6) decidía quién podía ser responsable comparando el **nombre
+exacto** del subrol contra el string `"Supervisor"` — tanto en la lista
+que ve el usuario (`ActivityController::index()`) como en la validación
+real del backend (`responsible_employee_id` en `validated()`). Frágil: si
+mañana se renombra ese subrol, o se crea uno nuevo con otro nombre que
+también deba poder ser responsable (ej. "Jefe de cuadrilla"), no hay forma
+de lograrlo sin tocar código. A pedido del usuario, se reemplaza por una
+marca configurable a nivel de **Rol** (`PersonalCategory`), no de subrol:
+todo empleado cuyo Rol tenga `responsable_actividad = true` puede elegirse
+como Responsable, sin importar el nombre de su subrol específico.
+
+**Cambios**:
+- Migración `2026_09_18_140000_add_responsable_actividad_to_personal_categories_table.php`:
+  columna `responsable_actividad` (boolean, default `false`) en
+  `personal_categories`.
+- `PersonalCategory`: nuevo campo en `$fillable`/`casts()`.
+- `PersonalCategoryController::store()`/`update()`/`serialize()`: validan,
+  persisten y devuelven `responsable_actividad` (mismo patrón AJAX ya
+  usado por el resto de esta pantalla).
+- `ActivityController::index()`: `$supervisores` ahora sale de
+  `Employee::whereHas('personalCategory', fn ($q) => $q->where('responsable_actividad', true))`
+  en vez de `whereHas('personalRole', ...->where('name', 'Supervisor'))`.
+- `ActivityController::validated()`: la regla `Rule::exists()` de
+  `responsible_employee_id` se actualizó al mismo criterio
+  (`personal_category_id` dentro de las categorías con el flag en `true`)
+  — **crítico que ambos coincidan siempre**: si el selector y la
+  validación del servidor usaran criterios distintos, el formulario
+  ofrecería opciones que el backend rechazaría. Se quitó el import de
+  `PersonalRole` en este controlador (ya no se usa para nada más ahí).
+- `resources/views/personal/roles/index.blade.php`: checkbox "Responsable
+  de actividad" en el modal Nuevo/Editar rol, justo debajo del nombre (tal
+  como se pidió), con nota explicando que aplica a todos los subroles de
+  ese Rol; badge azul "Responsable de actividad" en el encabezado de cada
+  Rol cuando está activo; estado Alpine (`emptyFormCategoria`,
+  `editarCategoria`, payload de `guardarCategoria`) propagando el campo.
+
+**Decisión de migración de datos, confirmada con el usuario**: el subrol
+"Supervisor" vive hoy dentro del Rol "Administrativo", que también agrupa
+los subroles "Administrativo" y "SISO". Activar el flag automáticamente en
+"Administrativo" durante la migración habría preservado a los 2
+supervisores actuales, pero también habría vuelto elegibles de inmediato a
+6 personas más (3 "Administrativo" + 3 "SISO") que hoy no pueden ser
+Responsable — un cambio de alcance real, no solo técnico. Se consultó
+explícitamente y el usuario eligió dejar el flag **apagado en todos los
+Roles tras el deploy** (default `false` de la columna, sin backfill).
+**Consecuencia a tener en cuenta al desplegar**: hasta que el superadmin
+active el flag manualmente desde "Roles y permisos" en el Rol que
+corresponda, el selector de Responsable quedará vacío, y cualquier
+actividad existente que ya tenga un responsable asignado (ej. Luis
+Fernando, Bonilla sup) **no podrá editarse** (ni siquiera para cambiar
+otro campo) sin antes reasignar o limpiar su Responsable — la validación
+es real en servidor, no solo un filtro visual, y aplica sobre el valor que
+ya trae el formulario aunque el usuario no lo toque.
+
+**Validado localmente (2026-09-18) por HTTP con curl** (usuario superadmin
+de prueba desechable, sin tocar ninguna cuenta real): crear un Rol nuevo
+con `responsable_actividad=true`, un subrol bajo ese Rol (sin nombre
+especial, sin ningún permiso marcado) y un empleado con ese Rol/subrol
+hace que el empleado aparezca en `supervisores[]` de Programación;
+crear una actividad con ese empleado como `responsible_employee_id` es
+aceptado (`302`, persistido en base de datos); apagar el flag del Rol
+saca al empleado de `supervisores[]` de inmediato (confirmado también por
+consulta directa a Eloquent vía tinker, no solo por HTTP) y bloquea
+guardar cualquier cambio sobre una actividad que todavía lo tenga como
+responsable (intento de edición rechazado, `302` con errores, la
+descripción original en base de datos queda intacta — no se aplicó el
+cambio); la actividad ya creada sigue mostrando el nombre del responsable
+en su fila de la tabla (comportamiento esperado: no se reescribe
+historial, solo se bloquean selecciones nuevas). Migración aplica y
+revierte limpio. Usuario, Rol, subrol, empleado y actividad de prueba
+eliminados al terminar; los 2 Roles reales (`Camposs`, `Administrativo`)
+quedan con el flag en `false`, tal como se acordó.
+
+**Confirmado contra un caso real (2026-09-18)**: el usuario mostró una
+captura real del Excel de Diario de Campo donde Bonilla (supervisor) tiene
+su propia fila de actividad ("Supervisor") sin Responsable asignado,
+mientras que las filas de cuadrilla sobre un equipo sí lo tienen ("B").
+Aclaración explícita del usuario: **no existe una regla especial** de
+"un Responsable-elegible se exime a sí mismo" — simplemente no todas las
+actividades tienen Responsable, es la costumbre de la empresa registrar al
+supervisor como una actividad más. El comportamiento actual (`personas` y
+`responsible_employee_id` ambos opcionales, sin `required`, ver
+`ActivityController::validated()`) ya es correcto tal cual está — no se
+necesita ningún cambio de validación a partir de este ejemplo.
+
+### 14.8 Autocompletar Responsable Por Grupo (2026-09-18)
+
+**2026-09-18**: pedido del usuario para agilizar la captura — cuando el
+mismo Grupo ya tiene una actividad ese día con Responsable asignado (caso
+típico: varias actividades de una misma cuadrilla/día comparten
+supervisor), escribir ese número de Grupo en una actividad nueva
+autocompleta el mismo Responsable, en vez de tener que volver a buscarlo
+cada vez. **Explícitamente acotado al día que se está viendo** — nunca
+mezcla el Grupo con el de otro día.
+
+**Cambios**:
+- `ActivityController::index()`: nueva variable `$gruposResponsables`,
+  armada sobre la misma colección `$actividades` que ya viene filtrada por
+  `where('date', $date)` — por construcción nunca puede traer datos de
+  otro día. `unique('group_number')` sobre la colección ya ordenada por
+  `group_number, id` se queda con el Responsable de la actividad más
+  antigua de ese grupo si hubiera más de uno por inconsistencia de datos.
+  Se pasa a la vista como `gruposResponsables` (mapa `numero_grupo =>
+  employee_id`).
+- `programacion/index.blade.php`: el input de Grupo del modal
+  (`name="group_number"`) suma `@change="autocompletarResponsablePorGrupo()"`.
+  El método nuevo en Alpine **nunca pisa una elección ya hecha** — solo
+  actúa si `formActividad.responsible_employee_id` sigue vacío — y busca
+  el valor en `gruposResponsables[grupo]`. Si no hay match (grupo nuevo, o
+  sin ninguna actividad con Responsable ese día todavía), no hace nada; el
+  campo se llena a mano como siempre.
+- Se dispara con `@change` (al perder foco/confirmar el valor), no en cada
+  tecla, para no autocompletar a medio escribir un número de más de un
+  dígito.
+
+**Validado localmente (2026-09-18) por HTTP con curl + navegador real
+(Selenium/Chrome)**: se crearon dos actividades de un mismo día por HTTP
+(Grupo 1 → Responsable A, Grupo 2 → Responsable B) y se confirmó
+`gruposResponsables` correcto en el HTML servido
+(`{"1":<id_A>,"2":<id_B>}`). En navegador real: abrir "Nueva actividad" y
+escribir Grupo=1 autocompleta a Responsable A; en una actividad nueva
+aparte, Grupo=2 autocompleta a Responsable B; eligiendo primero un
+Responsable a mano (B) y escribiendo después Grupo=1 (que mapea a A), el
+valor elegido a mano **no se sobrescribe** — queda en B, confirmado leyendo
+el estado real de Alpine (`Alpine.$data(...).formActividad`) dentro del
+navegador, no solo por inspección del DOM. Datos, Rol, subrol, empleados y
+usuario de prueba eliminados al terminar.
+
+**Pendiente/fuera de alcance**: la elección manual solo se protege
+mientras el campo Responsable siga con el mismo valor desde que se
+autocompletó — si el usuario lo vacía explícitamente y vuelve a disparar
+el evento de Grupo (ej. tocando el spinner), podría volver a
+autocompletarse. No se agregó seguimiento de "auto vs. manual" por ser un
+caso borde poco frecuente frente al flujo típico descrito por el usuario
+(una actividad nueva, un Grupo, una vez).
+
+### 14.9 "Responsable De Actividad" También Configurable Por Subrol (2026-09-18)
+
+**2026-09-18, mismo día que 14.7**: al ver el modal real de "Editar
+subrol" (captura del usuario, subrol "Supervisor" dentro del Rol
+"Administrativo"), el usuario notó que el checkbox nuevo de 14.7 solo vive
+en el Rol — activarlo en "Administrativo" marcaría de una vez a los 3
+subroles que agrupa (Administrativo/Supervisor/SISO), justo el problema ya
+detectado y evitado en 14.7 (por eso ahí se dejó el flag apagado por
+defecto). Pidió poder marcarlo también a nivel de uno o varios subroles
+específicos, sin tener que activar el Rol completo.
+
+**Solución**: el mismo campo `responsable_actividad`, ahora también en
+`personal_roles` (Subrol), **se combina con OR** junto al de
+`personal_categories` (Rol) — un empleado es elegible como Responsable si
+su Rol lo tiene activo, **o** si su Subrol específico lo tiene activo, o
+ambos. Esto permite dos formas de uso simultáneas: activar todo un Rol de
+una vez (para Roles simples que no necesitan mezcla), o activar solo
+"Supervisor" dentro de "Administrativo" sin tocar "Administrativo"/"SISO".
+
+**Cambios**:
+- Migración `2026_09_18_150000_add_responsable_actividad_to_personal_roles_table.php`:
+  misma columna, mismo default `false`, ahora en `personal_roles`.
+- `PersonalRole`: nuevo campo en `$fillable`/`casts()`.
+- `PersonalRoleController`: se valida y persiste igual que
+  `disponible_en_programacion` (no es un permiso de acceso, es una regla
+  de elegibilidad — se valida aparte del array `PERMISOS`).
+- `ActivityController`: nuevo método privado `responsableEligibleQuery()`
+  que centraliza el criterio OR (Rol o Subrol) en un solo lugar, reusado
+  tanto por `$supervisores` (`index()`) como por la regla `Rule::exists()`
+  de `responsible_employee_id` (`validated()`) — evita que ambos criterios
+  se desincronicen si el campo cambia de nombre o de lógica a futuro.
+- `resources/views/personal/roles/index.blade.php`: segundo checkbox
+  "Responsable de actividad" en el modal de Subrol (sección "Otra
+  configuración", junto a "Aparece como persona seleccionable en
+  Programación"), con nota explicando que se suma al del Rol; columna
+  nueva "Responsable de actividad" en la tabla de subroles (mismo patrón
+  check/minus que "Disponible en Programación"); estado Alpine
+  (`emptyFormRol`, payload de `guardarRol`) propagando el campo.
+
+**Validado localmente (2026-09-18) por HTTP con curl + tinker** (usuario
+superadmin desechable): un Rol con el flag en `false` y dos subroles bajo
+él, uno con el flag en `true` y otro en `false` — solo el empleado del
+subrol marcado aparece en `supervisores[]` de Programación y solo él pasa
+la validación real de `responsible_employee_id` (`302` aceptado); el
+mismo intento con el empleado del subrol sin marcar es rechazado (`302`
+con errores, no se persiste en base de datos, confirmado por conteo en
+BD). Chequeo de regresión aparte confirma que el caso ya validado en 14.7
+(Rol en `true`, Subrol en `false`) sigue funcionando exactamente igual.
+Migración aplica y revierte limpio. Todos los datos de prueba eliminados
+al terminar.
+
+### 14.10 Corrección: Rol Y Subrol (no OR) + Columna Acciones Fija (2026-09-18)
+
+**2026-09-18, mismo día**: al ver el modal real de "Editar subrol" (captura
+del usuario) con el Rol "Administrativo" ya activado en producción, el
+usuario señaló que **un Subrol nunca debería poder ser Responsable si su
+Rol no lo es** — la sección 14.9 lo dejó como una alternativa independiente
+(`rol.responsable_actividad OR subrol.responsable_actividad`), lo cual
+reabría exactamente el problema que 14.7 quería evitar: si alguien activa
+el Rol "Administrativo" completo (como ya pasó en producción), el `OR`
+hacía elegibles de inmediato a los 3 subroles (Administrativo/SISO/
+Supervisor) sin poder excluir ninguno, aunque sus flags individuales
+siguieran en `false`.
+
+**Corrección**: la relación pasa de `OR` a **el Rol como requisito**
+(`rol.responsable_actividad AND subrol.responsable_actividad`) — un
+Subrol nunca otorga nada si su Rol no está también activo; el Rol deja de
+ser "todos sus subroles son Responsable" y pasa a ser "requisito
+habilitante" para poder marcar subroles específicos dentro de él. Un
+empleado sin subrol asignado nunca es elegible (no hay nada que
+combinar). Cambios:
+
+- `ActivityController::responsableEligibleQuery()` renombrado a
+  `responsableEligibleRoleIds()`: ahora calcula los **IDs de Subrol**
+  elegibles (`PersonalRole::where('responsable_actividad', true)
+  ->whereIn('personal_category_id', <categorias con el flag activo>)`),
+  reusado tanto por `$supervisores` (`index()`) como por la regla
+  `Rule::exists()` de `responsible_employee_id` (`validated()`) — un solo
+  `whereIn('personal_role_id', ...)` en ambos lados, ya no hace falta el
+  `OR` con `personal_category_id` directo en el empleado.
+- `roles/index.blade.php`: la columna "Responsable de actividad" de la
+  tabla de subroles ahora muestra el **efecto real**
+  (`cat.responsable_actividad && rol.responsable_actividad`), no el flag
+  crudo del subrol — un subrol marcado con su Rol apagado ya no se ve en
+  verde si en la práctica no otorga nada. En el modal de Subrol, el
+  checkbox "Responsable de actividad" se deshabilita
+  (`categoriaActualResponsable()`) cuando el Rol no lo tiene activo, con
+  una nota ámbar indicando que hay que activarlo primero en el Rol — capa
+  de claridad en UI, la aplicación real sigue siendo la del backend
+  (AGENTS.md sección 6: nunca confiar solo en ocultar/deshabilitar en el
+  frontend).
+
+**Bug de UI encontrado de paso (mismo reporte del usuario)**: la columna
+"Acciones" (lápiz de editar subrol) quedó fuera de la vista al agregar la
+columna "Responsable de actividad" en 14.9 — la tabla ya no cabía en el
+ancho visible, y `table-scroll-container` oculta la barra de scroll a
+propósito (para otras pantallas), así que no había ninguna pista de que
+hacía falta scrollear para ver el lápiz. Se movió "Acciones" a ser la
+**primera** columna con `sticky-col` (mismo patrón ya usado en la tabla de
+Programación), quedando siempre visible sin depender del ancho de las
+columnas de permisos que se agreguen después.
+
+**Validado localmente (2026-09-18) por HTTP con curl + tinker + navegador
+real (Selenium/Chrome)**:
+- Caso crítico (antes fallaba bajo `OR`, ahora correcto): Rol con flag
+  `false` + Subrol bajo él con flag `true` → el empleado de ese subrol
+  **ya no** aparece en `supervisores[]` y un intento de guardarlo como
+  Responsable es rechazado (`302` con errores, no persiste en BD).
+- Rol con flag `true` + un Subrol con flag `true` y otro con flag `false`
+  → solo el empleado del subrol con flag `true` aparece y pasa la
+  validación; el del subrol con flag `false` es rechazado aunque su Rol
+  esté activo (el caso concreto que motivó todo esto: "Supervisor" sí,
+  "Administrativo"/"SISO" no, los 3 dentro del mismo Rol
+  "Administrativo").
+- En navegador real: al editar un subrol cuyo Rol tiene el flag apagado,
+  el checkbox "Responsable de actividad" aparece con el atributo
+  `disabled` real (confirmado leyendo el DOM, no solo por inspección
+  visual) y se ve la nota ámbar explicando por qué; la celda de "Acciones"
+  tiene `position: sticky` confirmado por `getComputedStyle`, y su
+  posición queda dentro del viewport horizontal sin necesitar scroll
+  manual.
+
+Datos, Rol, subrol, empleados y usuario de prueba eliminados al terminar
+en cada verificación. No se tocó el Rol "Administrativo" real (ya
+activado por el usuario en producción) ni el subrol "Supervisor" real —
+falta que el usuario también active "Responsable de actividad" en
+"Supervisor" específicamente para que sus empleados vuelvan a aparecer
+como Responsable (con el Rol solo activado y ningún subrol marcado, hoy
+nadie es elegible — comportamiento esperado bajo la corrección de esta
+sección).
+
+### 14.11 Tabla De Roles Y Permisos: Encabezado Envolvente En Vez De Desbordar (2026-09-18)
+
+**2026-09-18**: con 12 columnas (Acciones, Subrol, Estado, Empleados, 6
+permisos, Disponible en Programación, Responsable de actividad) la tabla
+de "Roles y permisos" se desbordaba en pantallas de laptop normales
+(ej. 1366px), sin ninguna pista visible de que hacía falta hacer scroll
+horizontal — `table-scroll-container` oculta la barra de scroll a
+propósito para las tablas de datos de Programación/Diario de
+Campo/Bitácora, que sí necesitan scroll real por la cantidad de filas y
+columnas de datos. El usuario pidió que el encabezado use 2-3 filas en
+vez de desbordar, cuando el monitor lo amerite.
+
+**Decisión de alcance**: el arreglo queda **acotado a esta pantalla**, sin
+tocar el CSS compartido de `layouts/personal.blade.php` — Programación,
+Diario de Campo y Bitácora son tablas de datos reales (filas que crecen
+con el uso) que sí necesitan el patrón de scroll horizontal con barra
+oculta; la tabla de Roles y permisos es una tabla de configuración con
+pocas filas y muchas columnas booleanas cortas, un caso distinto que
+amerita comportamiento distinto.
+
+**Cambios** (todos en `resources/views/personal/roles/index.blade.php`,
+en un `<style>` y un `<colgroup>` propios de esta vista, sin tocar nada
+compartido):
+- `.roles-permission-table { table-layout: fixed; width: 100%; min-width: 0; }`
+  — reemplaza el `width: max-content` heredado de `.preventive-table`
+  (que expande la tabla más allá del contenedor cuando hace falta), por
+  un ancho que respeta el contenedor y fuerza a las columnas a repartirse
+  el espacio disponible.
+- `<colgroup>` con anchos fijos para las columnas angostas de contenido
+  corto (Acciones 80px, Subrol 100px, Estado 100px, Empleados 90px) y sin
+  ancho explícito para las 8 columnas restantes (6 permisos + Disponible
+  + Responsable), que se reparten el espacio sobrante en partes iguales
+  — más angostas en pantallas pequeñas (favoreciendo el envolvido en 2-4
+  líneas), más anchas en pantallas grandes (favoreciendo un encabezado de
+  1-2 líneas).
+- `.roles-permission-table th { overflow-wrap: anywhere; }` — necesario
+  porque encabezados de una sola palabra ("Acciones", "Empleados",
+  "Responsable", "Programación") no tienen espacio donde envolver con
+  solo `white-space: normal` (heredado): sin esto se seguían desbordando
+  aunque las frases de varias palabras sí envolvían bien. Con esto, como
+  último recurso, la palabra se puede partir en vez de desbordar.
+- Se quitaron los `style="min-width:7rem/8rem"` inline que ya no aplican
+  bajo `table-layout: fixed` (el ancho real lo decide el `<colgroup>`, no
+  el contenido); se redujo el padding horizontal de las celdas angostas
+  (`px-4`/`px-3` → `px-2`) para dejarles más espacio de contenido real
+  dentro de su columna fija.
+
+**Validado localmente (2026-09-18) por navegador real (Selenium/Chrome) en
+tres tamaños de ventana**:
+- 1366×768 (laptop típico "algo pequeño"): `scrollWidth === clientWidth`
+  (0px de desborde, confirmado con medición exacta, no solo visual);
+  encabezado en 2-4 líneas según la columna — captura de pantalla revisada,
+  "ACCIONES"/"EMPLEADOS" ya caben en una sola línea tras ampliar sus
+  columnas fijas, el resto envuelve limpio en los espacios naturales
+  ("EDITAR SIN LÍMITE DE" / "HOY/AYER"), con algún corte de palabra
+  aceptable en las columnas más angostas ("PROGRAM" / "ACIÓN").
+- 1920×1080 (escritorio normal): mismo 0px de desborde; la mayoría de
+  encabezados caben en 1-2 líneas limpias, sin cortes de palabra — se ve
+  como una tabla normal.
+- 1152×700 (caso extremo, más pequeño de lo que pidió el usuario): sigue
+  sin desbordar (0px), aunque el encabezado necesita 6-7 líneas en las
+  columnas más angostas — degradación aceptable para un tamaño de
+  ventana inusualmente chico, prioriza nunca cortar contenido por sobre
+  la estética en ese extremo.
+
+Ningún dato de producción fue tocado durante esta verificación (solo
+lectura, sesión de superadmin desechable eliminada al terminar).
+
+### 14.12 Bug: `posicionarPopover()` Ubicaba Mal Los Combobox Con Poco Contenido (2026-09-18)
+
+**2026-09-18**: el usuario reportó (con capturas reales) que el combobox
+de "Personas de la actividad" en Programación aparecía flotando lejos del
+campo que lo abre, cerca del tope del modal — pero solo cuando la lista
+filtrada tenía pocos resultados; con la lista completa (muchos
+resultados) se ubicaba bien. Mismo síntoma esperable en los demás
+combobox de Programación (Equipo, Proceso, Responsable) y en cualquier
+otro consumidor de la función compartida `posicionarPopover()`
+(`layouts/personal.blade.php`): tooltips de celda de Bitácora, filtro de
+columna de Empleados.
+
+**Causa raíz**: `posicionarPopover(el, ancho, altoEstimado)` decide si el
+popover cabe debajo del campo; si no, lo "voltea" hacia arriba
+calculando `top = rect.top - altoEstimado - 6` — es decir, asume que el
+popover mide **exactamente** `altoEstimado` (un techo máximo pasado por
+cada llamador: 280 para Personas, 220 para Responsable, 208 para
+Equipo/Proceso, 300 para el filtro de columna de Empleados, 100 para el
+tooltip de Bitácora), no su alto real. Cuando el contenido real es mucho
+más corto que ese techo (ej. una lista filtrada a 1 resultado), el
+popover terminaba con un hueco enorme entre su borde inferior real y el
+campo que lo abrió, flotando visualmente lejos de donde el usuario
+esperaba verlo. Con la lista completa (contenido cercano al techo
+`altoEstimado`), el hueco era chico y pasaba desapercibido — de ahí que
+el usuario notara el bug solo "cuando es limitado por cantidades".
+
+**Corrección**: en vez de calcular `top` asumiendo una altura fija, al
+voltear hacia arriba se ancla por **`bottom`**
+(`bottom = window.innerHeight - rect.top + 6`) y se deja `top` sin
+definir — así el navegador coloca el borde inferior REAL del popover
+(cualquiera sea su altura real, determinada por su contenido y su propio
+`max-h-*` de Tailwind) exactamente donde corresponde, sin importar cuánto
+mida. Corregido en `layouts/personal.blade.php` (versión real) y también
+en `preview-personal/_layout.blade.php` (copia idéntica que usa el
+mockup, corregida por consistencia aunque esa pantalla no es funcional).
+
+**Validado localmente (2026-09-18) por navegador real (Selenium/Chrome)**,
+reproduciendo el escenario exacto de las capturas del usuario (modal
+"Nueva actividad", combobox "Personas de la actividad"):
+- Lista completa (sin filtrar): popover de 256px de alto (tope
+  `max-h-64`), separado del campo por 6px — igual que antes del fix
+  (nunca estuvo roto en este caso).
+- Lista filtrada a "bo" (1 resultado + "Sin resultados."): popover de
+  97px de alto, separado del campo por **6px** — antes del fix el hueco
+  habría sido de ~183px (280 − 97), exactamente el bug reportado.
+  Captura de pantalla confirma visualmente que el popover ahora aparece
+  pegado al campo de búsqueda, no cerca del tope del modal.
+
+No se verificaron explícitamente los otros consumidores de la función
+(tooltip de Bitácora, filtro de Empleados) porque el fix es genérico a
+nivel de la función compartida y el mecanismo del bug es idéntico en
+todos — quedan cubiertos por el mismo cambio, pero sin una verificación
+puntual por HTTP/navegador en esta sesión.
+
+### 14.13 Bug: Ícono "X" Invisible Al Agregar Una Persona A La Actividad (2026-09-18)
+
+**2026-09-18**: el usuario reportó (con captura real) que los chips de
+"Personas de la actividad" no mostraban el ícono "X" para quitarlos,
+mientras que el chip de "Responsable (supervisor)" sí lo mostraba
+correctamente.
+
+**Causa raíz**: cada chip de persona (`<template x-for="id in personas">`)
+trae su propio botón "quitar" con `<i data-lucide="x">`, que Lucide
+convierte a un `<svg>` real solo cuando se llama `lucide.createIcons()`
+después de que el elemento existe en el DOM. `abrirModal()` y
+`editarActividad()` sí llaman
+`this.$nextTick(() => window.lucide?.createIcons())` — por eso los chips
+de personas que ya vienen precargados al **editar** una actividad
+existente se ven bien. Pero `togglePersona(emp)` (la función que agrega
+una persona nueva al buscarla y hacer clic) modifica el arreglo
+`personas` sin llamar a ese refresh — cada chip agregado así durante la
+sesión (creando una actividad nueva o agregando gente a una que se está
+editando) queda con el `<i data-lucide="x">` sin convertir, es decir,
+vacío/invisible, para siempre. El chip de Responsable nunca tuvo este
+problema porque es un único elemento **estático** (no un `x-for`) que ya
+existe oculto en el DOM desde que se abre el modal — su ícono se convierte
+una sola vez en el `nextTick` inicial y de ahí en adelante solo se le
+cambia la visibilidad, sin necesitar un nuevo `createIcons()`.
+
+**Corrección**: se agregó
+`this.$nextTick(() => window.lucide?.createIcons());` al final de
+`togglePersona(emp)`, mismo patrón que ya usan `abrirModal()`/
+`editarActividad()`. `quitarPersona()` no necesitaba el mismo fix (quitar
+un chip no crea íconos nuevos).
+
+**Validado localmente (2026-09-18) por navegador real (Selenium/Chrome)**:
+en una actividad nueva, buscar y hacer clic en una persona (ej. "bonilla")
+para agregarla — el botón "quitar" de su chip recién creado ya trae un
+`<svg>` real renderizado (confirmado inspeccionando el DOM, no solo
+visualmente), sin ningún `<i data-lucide>` sin convertir. Captura de
+pantalla confirma el chip "bonilla ×" visible junto al buscador.
+
+### 14.14 Crear/Editar/Eliminar Actividad Pasa A AJAX, Sin Recargar Página (2026-09-19)
+
+**2026-09-19**: el usuario reportó que crear una actividad en Programación
+recargaba la página completa y mostraba el resultado en un banner verde
+arriba (`session('success')` del layout), en vez del toast de la esquina
+inferior derecha que ya usan Empleados y Roles y permisos
+(`showCrudToast()`, compartido en `layouts/personal.blade.php`). Pidió
+llevar Programación al mismo patrón: AJAX real, sin recargar, mismo toast.
+
+**Causa raíz**: a diferencia de Empleados/Roles (ya AJAX desde el
+prototipo), el modal de Programación seguía siendo un `<form>` nativo
+(`POST`/`PUT`/`DELETE` con recarga completa) — heredado de cuando esta
+pantalla pasó a base de datos real (sección 14.1) y nunca se convirtió.
+
+**Cambio**:
+
+- `ActivityController::store/update/destroy` ahora devuelven JSON
+  (`success`, `message`, y `activity` serializado — o `id` en destroy)
+  cuando el request pide `application/json` (`isAjaxRequest()`, mismo
+  criterio que `EmployeeController`); si no, conservan el `redirect()` con
+  flash como fallback. Nuevo método privado `serialize()` (misma forma que
+  usa `index()` para hidratar el estado inicial y que devuelve
+  store/update, incluyendo `modificable` por fila vía `canModify()` — ya
+  no se pasa `$modificables` aparte a la vista).
+- `programacion/index.blade.php`: la tabla dejó de ser un `@foreach` de
+  Blade — ahora es un array Alpine reactivo (`actividades`, hidratado con
+  `actividadesJs` del controller) recorrido con `x-for` anidado por grupo
+  (`gruposOrdenados()`, mismo criterio de orden que antes tenía la query:
+  `group_number` ascendente con nulos al final, luego `id`). El modal dejó
+  de ser un `<form>` nativo (se quitaron `@csrf`, el `_method` oculto y los
+  demás inputs ocultos que solo existían para el submit nativo) — ahora
+  `@submit.prevent="guardarActividad()"` arma el payload JSON directamente
+  desde el estado Alpine y lo manda por `fetch()`. Eliminar también pasa
+  por `fetch()` (`eliminarActividad()`) en vez de un `<form>` con
+  `@method('DELETE')`. Se quitó el flujo de reapertura del modal vía
+  `session()`/`old()` en validación fallida (`$errors->any()`) — ya no
+  aplica con AJAX, los errores 422 se muestran con el mismo `showCrudToast()`
+  (patrón idéntico a `guardarEmpleado()`).
+- Efecto secundario cuidado a propósito: antes, cada guardado recargaba la
+  página completa, lo que de paso refrescaba las sugerencias de
+  Equipo/Proceso y el mapa Grupo→Responsable (`gruposResponsables`,
+  autocompletar). Sin ese reload, `guardarActividad()` actualiza esas
+  listas en memoria (`agregarSugerencia()`) tras cada guardado exitoso,
+  para no perder ese comportamiento.
+
+**No cambia**: autorización (`ver_programacion`/`editar_programacion_sin_limite`),
+ventana de edición, validación de primaria única por persona/día, ni el
+bloqueo de actividades cerradas en Diario de Campo — toda esa lógica sigue
+intacta en el backend (`ActivityController::validated()`/`canModify()`),
+la conversión a AJAX solo cambia cómo el frontend consume la respuesta.
+
+**Cobertura**: [tests/Feature/Personal/ActivityControllerAjaxTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/ActivityControllerAjaxTest.php)
+(crear/editar/eliminar por AJAX, 422 de validación, 403 sin permiso,
+render de `index` con y sin actividades).
+
+**Bug encontrado en la validación manual del usuario, corregido el mismo
+día**: al crear una actividad nueva sin tocar el `<select>` de Empresa (que
+ya mostraba "ARGOS" — la primera empresa del listado, ninguna marcada
+`is_default`), el guardado fallaba con "El campo company id es
+obligatorio." **Causa raíz**: `emptyFormActividad()` arrancaba
+`company_id` en `defaultCompanyId` (`null` si ninguna empresa tiene
+`is_default=true`), pero el `<select>` nativo igual muestra la primera
+opción del listado por comportamiento propio del navegador, sin que eso
+dispare un evento `change` que sincronice el modelo de Alpine. Con el
+`<form>` nativo esto no se notaba porque el navegador enviaba lo que se
+veía en pantalla (no el estado de Alpine); en AJAX se envía
+`formActividad.company_id` tal cual, exponiendo el desfase. **Corrección**:
+`defaultCompanyId` ahora cae a la primera empresa del listado
+(`$empresas->first()?->id`) cuando no hay ninguna marcada por defecto —
+mismo id que el `<select>` ya mostraba. Cobertura agregada:
+`test_new_activity_form_defaults_to_first_company_when_none_is_marked_default`
+en el mismo archivo de test.
+
+**Pendiente de validar**: a diferencia del fix de la sección 14.13, el
+resto del flujo (editar, eliminar) todavía no se probó con un navegador
+real en esta sesión — solo con la suite de PHPUnit (HTTP + renderizado
+Blade) y las correcciones puntuales de esta sección, confirmadas por el
+usuario en su propio navegador.
+
+**Estilo de "Personas de la actividad" / "Responsable (supervisor)"
+(2026-09-19, iterado varias veces el mismo día)**: el usuario pidió
+resaltar visualmente a quién pertenece un choque de "primaria única por
+persona/día" (sección 6.1), y de paso ajustar el estilo de los chips
+(antes gris pequeño, `bg-slate-100 text-slate-700 text-xs`). Se probaron
+dos variantes de fondo de color (naranja pálido `bg-orange-100`, luego
+unificado también al chip de Responsable) pero el usuario reportó que el
+fondo no dejaba leer bien el nombre. **Estado final**: sin fondo — solo
+texto (`text-sm text-slate-700`, más grande que el original) y su botón
+"×" (`text-slate-400 hover:text-red-500`, mismo patrón que el resto de
+botones "quitar" de esta página). El contenedor de la lista de personas
+usa `gap-x-5 gap-y-2` (antes `gap-2`) para separar cada persona sin
+depender de un fondo que las delimite.
+
+- Nuevo estado `personasConflicto` (array de ids), poblado en
+  `guardarActividad()` cuando el 422 trae el error de `personas` con el
+  texto "otra actividad primaria" — `extraerPersonasConflicto()` parsea
+  los nicknames del mensaje del backend (`ActivityController::validated()`,
+  regla `personas` en el `after()`) y los matchea contra `nombrePersona(id)`
+  (que en este módulo devuelve el nickname). El backend no expone ids en
+  el error, solo texto — no se justificaba tocar el contrato de
+  validación de Laravel (`{"errors": {...}}`) solo para esto. Sin fondo de
+  chip, el conflicto se marca con el **color del texto**
+  (`text-red-700` en vez de `text-slate-700`), no con `bg`/`ring`. Se
+  limpia al abrir/editar el modal y al guardar con éxito.
+- Como el parseo depende del texto exacto del mensaje del backend, se
+  agregó `test_primary_activity_conflict_error_message_includes_employee_nickname`
+  para fijarlo — si ese texto cambia, el test avisa que hay que actualizar
+  `extraerPersonasConflicto()` también.
+
+### 14.15 Bug: Actividades Del Mismo Grupo Se Partían En Dos Secciones Tras Crear Por AJAX (2026-09-19)
+
+**Reportado por el usuario**: al crear una segunda actividad con
+`group_number=1` (mismo grupo que una actividad ya existente ese día), la
+vista mostraba dos secciones "GRUPO 1" separadas en vez de una sola con
+ambas filas — se corregía solo al refrescar la página.
+
+**Causa raíz**: el `<input type="number">` de "Grupo" usaba
+`x-model="formActividad.group_number"` sin el modificador `.number` de
+Alpine, así que el valor viajaba como **string** ("1") en el JSON del
+`fetch()`. `Activity` no tiene `group_number` en `$casts`, así que
+`ActivityController::store()` (que no hace `refresh()` desde BD antes de
+`serialize()`) devolvía ese mismo string en la respuesta AJAX. Mientras
+tanto, las actividades cargadas al inicio de la página vienen de una query
+a BD ya hidratadas como número. `gruposOrdenados()` (el JS de
+`programacion/index.blade.php`) agrupa con un `Map` usando `group_number`
+como key — un `Map` trata `"1"` (string) y `1` (number) como claves
+**distintas** aunque representen el mismo grupo, de ahí las dos secciones.
+
+**Corrección** (tres capas, cinturón y tirantes):
+
+- `ActivityController::serialize()`: castea `group_number` a `(int)`
+  explícitamente antes de devolverlo — la respuesta AJAX ya no depende del
+  tipo que haya llegado en el request.
+- `gruposOrdenados()`: normaliza la key con `Number(...)` antes de agrupar
+  (defensivo — protege contra cualquier futura respuesta con el tipo
+  inconsistente, no solo la de hoy).
+- El `<input>` de Grupo pasó a `x-model.number` — el payload que sale del
+  frontend ya es un número desde el origen, no solo se corrige en la
+  respuesta.
+
+**Cobertura**: `test_activity_response_serializes_group_number_as_integer_even_if_sent_as_string`
+en `tests/Feature/Personal/ActivityControllerAjaxTest.php` (simula
+exactamente el request que mandaba el frontend con el bug).
+
+### 14.16 Selector De Personas Muestra Horas Reales De Bitácora ("acumuladas + hoy") (2026-09-19)
+
+**Pedido del usuario**: al elegir un empleado en "Personas de la
+actividad" no se veían las horas acumuladas (Bitácora), y pidió que se
+muestren las acumuladas **más** las de la actividad que se está creando
+("acumuladas + hoy") para poder comparar candidatos y decidir a quién
+programar.
+
+**Causa de que no se viera nada**: `ActivityController::index()` seguía
+leyendo `resource_path('views/preview-personal/_horas-mes-data.php')` —
+el Excel de ejemplo del mockup original, buscado por **nickname**. Para
+cualquier empleado real creado después de ese mockup (incluidos todos los
+"camellador N"/"Siso N" de prueba) no hay entrada ahí, así que siempre
+salía `null` y no se mostraba nada. Mientras tanto, Bitácora real
+(sección 14.3) ya existe desde hace días y calcula horas reales
+(`BitacoraController`) — `ActivityController` nunca se actualizó para
+usarla.
+
+**Cambio**:
+
+- Nuevo servicio [app/Services/Bitacora/BitacoraHoursCalculator.php](/home/jupazago/Documentos/mantecv1/mantec/app/Services/Bitacora/BitacoraHoursCalculator.php):
+  extrae el criterio de "hora final" de un día (corrección administrativa
+  de `BitacoraEntry.corrected_value` si existe, si no lo programado —
+  suma de `estimated_hours` vía `activity_employee`/`activities`) que
+  antes vivía solo, duplicado en potencia, dentro de
+  `BitacoraController::index()`. **`BitacoraController` no se tocó** — se
+  dejó tal cual, funcionando, para no arriesgar una pantalla real ya en
+  uso; el servicio es el lugar correcto para refactorizarlo hacia allá en
+  una tarea aparte, deliberada.
+- `ActivityController::index()` ahora calcula `horasAcumuladas` por
+  empleado con `BitacoraHoursCalculator::totalPorEmpleado()`, sumando
+  **solo los días del mes anteriores** a la fecha que se está
+  viendo/programando (`$dateCarbon->day - 1`) — el día que se está
+  programando queda fuera a propósito, para no contarlo dos veces (se
+  muestra aparte, ver abajo). Se busca por `employee_id`, no por
+  nickname.
+- `programacion/index.blade.php`: `horasMesTexto()` se renombró a
+  `horasResumenTexto()` y ahora es reactivo — combina
+  `emp.horasAcumuladas` (fijo, viene del backend) con
+  `formActividad.estimated_hours` (lo que el supervisor esté escribiendo
+  en "Horas estimadas" en ese momento) en vivo, sin recargar nada. Texto
+  resultante: `· 18h` (solo acumuladas), `· +10h hoy` (solo lo de hoy, sin
+  acumuladas previas), `· 18h +10h hoy` (ambas), o nada si no hay ningún
+  dato. Se muestra tanto en el buscador (antes de seleccionar, para
+  comparar candidatos) como en los chips ya seleccionados.
+- El Excel de ejemplo (`_horas-mes-data.php`) sigue existiendo — todavía
+  lo usan los mockups de `preview-personal/` (`programacion.blade.php`,
+  `bitacora.blade.php`), que son solo referencia visual sin enlace desde
+  el sidebar real. No se tocó ni se borró.
+
+**Cobertura**: `test_index_exposes_accumulated_bitacora_hours_before_the_viewed_date_only`
+(verifica que solo cuentan los días anteriores, que una corrección
+administrativa sobreescribe lo programado, y que ni el día programado ni
+días futuros cuentan) y
+`test_bitacora_hours_calculator_prefers_correction_and_excludes_non_numeric_from_sum`
+(fija el contrato del servicio: corrección numérica manda, corrección no
+numérica como "L" de licencia no suma horas pero tampoco cuenta como "0",
+queda `null` si es el único dato calificado del rango) — ambos en
+`tests/Feature/Personal/ActivityControllerAjaxTest.php`.
+
+**Pendiente**: no se probó con navegador real en esta sesión — solo con
+PHPUnit (HTTP + cálculo del servicio). Falta confirmar visualmente que el
+texto "· 18h +10h hoy" se vea bien en el buscador y en los chips, y que
+al escribir/borrar "Horas estimadas" se actualice en vivo sin recargar.
+
+### 14.17 Horas Estimadas Nunca Negativas + Tarjeta De Hover Con Nombre Completo Y Horas (2026-09-19)
+
+**Bug reportado**: el campo "Horas estimadas" del modal aceptaba valores
+negativos (ej. `-0,5`) — el `<input type="number">` no tenía `min="0"`.
+**Corrección**: se agregó `min="0"` (mismo patrón que ya tenía "Grupo" con
+`min="1"`); el backend ya rechazaba negativos server-side
+(`estimated_hours' => ['nullable', 'numeric', 'min:0']`, sin cambios ahí).
+
+**Tarjeta de hover pedida por el usuario**: al pasar el mouse sobre un
+nombre en las columnas "Personas"/"Resp." de la tabla de Programación,
+debe mostrar el nombre completo y las horas acumuladas del mes (si
+aplica) — para saber quién es exactamente y cuánta carga ya tiene, sin
+tener que abrir el modal de edición.
+
+- `ActivityController::serialize()`: cada persona ahora trae también
+  `nombre` (nombre completo, no solo `nickname`), y la actividad trae
+  `responsible_nombre` junto a `responsible_nickname`.
+- `ActivityController::index()`: nueva prop `horasAcumuladasPorId` — el
+  array crudo que devuelve `BitacoraHoursCalculator::totalPorEmpleado()`
+  (mismo cálculo que ya alimenta el selector del modal, sección 14.16),
+  sin filtrar por elegibilidad/activo: alguien que ya aparece en una
+  actividad de ese día debe poder mostrar sus horas en el hover aunque ya
+  no sea seleccionable para actividades nuevas.
+- `programacion/index.blade.php`: las celdas "Personas"/"Resp." dejaron de
+  ser un solo `x-text` con nombres unidos por coma — ahora cada persona es
+  su propio `<span>` con un popover teleportado a `<body>`
+  (`posicionarPopover()`, mismo mecanismo que los combobox del modal,
+  pero disparado por `@mouseenter`/`@mouseleave` en vez de
+  `@focus`/`@click`) mostrando nombre completo + `horasAcumuladasCardTexto(id)`.
+
+**Cobertura**: `test_store_response_includes_full_names_for_personas_and_responsible`
+en `tests/Feature/Personal/ActivityControllerAjaxTest.php`.
+
+**Pendiente**: sin validar en navegador real — falta confirmar que el
+hover se posiciona bien dentro de la tabla con scroll horizontal (mismo
+riesgo de recorte que ya se corrigió para los combobox el 2026-09-18,
+sección 14.12) y que `min="0"` efectivamente bloquea el spinner del
+campo de horas.
+
+### 14.18 "Ver Como Supervisor" — Primer Paso De La Lógica Del API (Fase 3) (2026-09-19)
+
+**Pedido del usuario**: en Empleados, un botón para "acceder como
+supervisor" a un empleado elegido, que abre una pantalla nueva
+(simplificada, pensada como celular) en otra pestaña — con el fin
+explícito de **empezar a construir la lógica del API** que consumirá la
+futura app Android (sección 7 del documento, repo aparte, todavía no
+existe).
+
+**Decisión de sesión/pestañas** (confirmada con el usuario antes de
+implementar): las pestañas de un mismo navegador comparten sesión —
+autenticar de verdad como el empleado elegido reemplazaría la sesión de
+superadmin en **todas** las pestañas abiertas, no solo la nueva. Se
+descartó esa opción. En su lugar: la sesión de superadmin nunca cambia
+(`Auth::guard('personal')` no se toca); la pantalla nueva simplemente
+opera sobre los datos del empleado elegido (pasado por la URL,
+verificado en cada request) — "ver como", no "loguearse como". Lo que se
+guarda queda atribuido a ese empleado
+(`hours_registered_by_employee_id`), no al superadmin real que lo
+escribió.
+
+**Alcance de datos para esta primera versión** (confirmado con el
+usuario, exactamente lo ya documentado en la sección 7, sin inventar
+campos nuevos ni agregar evidencias/fotos todavía):
+
+- Comentarios de la actividad ejecutada.
+- ¿Todos los empleados trabajaron las horas acordadas en la
+  Programación? (Sí/No).
+- Si No: detalle por persona — checkbox "trabajó" (si no, queda en 0
+  horas); si sí trabajó, hora de inicio y hora final (no un número
+  directo) — el sistema calcula la duración, incluyendo turnos que
+  cruzan medianoche (turno nocturno: si la hora final es menor o igual a
+  la de inicio, se asume que cruzó a las 00:00 y se suma un día).
+
+**Modelo de datos** — se reutilizaron `activities.comments` y
+`activities.reported_hours`, que ya existían desde la migración de
+Diario de Campo con el comentario explícito "reported_hours queda lista
+para cuando exista la API de la app" (nunca se habían usado hasta hoy).
+Solo se agregó lo que faltaba:
+
+- Migración `2026_09_19_160000_...`: `activities.all_worked_scheduled_hours`
+  (boolean nullable), `hours_registered_by_employee_id` (FK employees
+  nullable) y `hours_registered_at` (timestamp nullable) — trazabilidad
+  de quién registró y cuándo.
+- Migración `2026_09_19_160001_...`: tabla nueva `activity_employee_hours`
+  (`activity_id`, `employee_id`, `worked`, `start_time`, `end_time`,
+  `worked_hours`, único por actividad+empleado) — el detalle por persona,
+  solo tiene filas cuando `all_worked_scheduled_hours = false`. Nuevo
+  modelo [app/Models/ActivityEmployeeHour.php](/home/jupazago/Documentos/mantecv1/mantec/app/Models/ActivityEmployeeHour.php).
+- `Activity::finalHours()` no cambió su regla (corregida > reportada >
+  programada) — ahora `reported_hours` sí tiene una fuente real que la
+  alimenta. **No se tocó Bitácora** (`BitacoraController`/
+  `BitacoraHoursCalculator`, sección 14.16): su cálculo sigue sin mirar
+  `reported_hours`, solo corrección administrativa/programado. Conectar
+  `reported_hours` a Bitácora es una decisión aparte, no pedida hoy.
+
+**Backend**: nuevo [app/Http/Controllers/Personal/SupervisorViewController.php](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Personal/SupervisorViewController.php)
+(`index`/`store`), rutas `personal.ver-como.index`/`personal.ver-como.store`
+dentro del mismo grupo `personal.auth` que el resto del módulo.
+Autorización real en cada request (no solo ocultar el botón, AGENTS.md
+sección 6): `abort_unless(PersonalGuard::isSuperadmin(), 403)` — ni
+siquiera un Employee con **todos** los permisos del módulo Personal
+marcados puede entrar, porque esos permisos no implican ser superadmin.
+`store()` además verifica que la actividad sea realmente del empleado
+elegido (404 si no) y que no esté ya cerrada en Diario de Campo (403 si
+sí — mismo criterio que `canModify()`).
+
+**Frontend**: [resources/views/personal/ver-como/index.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/personal/ver-como/index.blade.php) —
+a propósito **no extiende `layouts.personal`** (sin sidebar/topbar del
+panel admin): documento HTML propio, columna angosta centrada, pensada
+para verse como pantalla de celular. Lista de actividades del empleado
+elegido para el día (donde es `responsible_employee_id`, sección 7:
+"asignadas a su nombre") como tarjetas; tocar una expande el formulario;
+guarda por AJAX (fetch + JSON) contra `SupervisorViewController::store()`.
+Botón "Ver como" agregado en `empleados/index.blade.php`
+(`target="_blank"`), visible solo si `PersonalGuard::isSuperadmin()` —
+gate visual además del real en el backend.
+
+**Cobertura**: [tests/Feature/Personal/SupervisorViewControllerTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/SupervisorViewControllerTest.php)
+(autorización incluso contra un Employee con todos los permisos, alcance
+por `responsible_employee_id`, camino "todos trabajaron" vs. detalle por
+persona con turno nocturno cruzando medianoche, validación de
+inicio/final obligatorios si trabajó, actividad ajena rechazada,
+actividad cerrada rechazada, limpieza de filas de detalle al volver a
+"todos trabajaron").
+
+**Pendiente**:
+
+- No probado con navegador real en esta sesión.
+- "Otros campos más que luego se detallarán" (sección 7) — el propio
+  documento ya marca que esta especificación está incompleta a
+  propósito; faltan evidencias/fotos y cualquier campo adicional que se
+  confirme después.
+- No se construyó el endpoint Sanctum real bajo `/api/*` que
+  eventualmente consumirá la app Android — esta iteración es la pantalla
+  web + la lógica de negocio (modelo de datos, cálculo de horas,
+  validaciones) que esa API futura reutilizará; falta decidir cómo se
+  autenticará un `Employee` contra Sanctum (hoy solo `User` tiene
+  `/api/login`) cuando se construya esa parte.
+- No se conectó `reported_hours` a Bitácora ni a los indicadores — sigue
+  siendo un dato nuevo, no consumido todavía en otras pantallas.
+
+**Corrección 2026-09-19 (mismo día)**: el usuario reportó el botón roto en
+consola (`Alpine Expression Error: verComoUrlTemplate is not defined`) y
+pidió que solo se muestre para roles elegibles como Responsable, no para
+todos.
+
+- **Causa del bug**: `verComoUrlTemplate` se agregó al `x-data="personalEmpleadosPage({...})"`
+  pero nunca se agregó a la firma de la función `personalEmpleadosPage()`
+  ni al objeto que devuelve — un `:href` en el template evalúa contra el
+  objeto de datos de Alpine (`with($data)`), no contra el closure de la
+  función externa, así que un identificador que solo vive como parámetro
+  no declarado en el retorno nunca se resuelve. Corregido en ambos
+  puntos.
+- **Filtro por rol elegible**: se centralizó el criterio (antes solo
+  vivía como método privado en `ActivityController`) en
+  `PersonalRole::eligibleAsResponsableIds()` — mismo criterio de
+  responsable_actividad por Rol+Subrol que ya usaba el selector
+  "Responsable (supervisor)" de Programación.
+  `EmployeeController`/`empleados/index.blade.php` calculan
+  `es_responsable` por empleado con ese mismo método, y el botón usa
+  `x-show="emp.es_responsable"` (además del `@if` de superadmin, que
+  sigue igual). El backend (`SupervisorViewController`) no se restringió
+  — no es un límite de seguridad, es solo relevancia de UI: un empleado
+  no elegible simplemente nunca tendría actividades como responsable, la
+  pantalla se vería vacía sin necesidad de bloquear la URL directa.
+
+**Cobertura**: `tests/Feature/Personal/EmployeeControllerVerComoButtonTest.php`
+— renderiza `/personal/empleados` de verdad (hubiera detectado el bug
+original, que un test de solo status-code no atrapaba) y confirma
+`es_responsable` en `true`/`false` según el rol.
+
+**Simplificación 2026-09-19 (mismo día)**: tras ver el flujo funcionando
+("cuando selecciona una actividad va a diligenciar lo que debe
+diligenciar... lo tenemos perfecto"), el usuario pidió NO implementar
+todavía la captura de hora inicio/hora final por persona — dejarlo solo
+con la cantidad de horas, siempre positiva, precargada automáticamente
+con la hora programada de la actividad y editable desde ahí.
+
+- `SupervisorViewController`: se quitó `calcularHoras()` (duración desde
+  hora inicio/final) y la validación de esos dos campos. Ahora
+  `personas.*.worked_hours` es directamente `['required', 'numeric', 'min:0']`
+  — mismo criterio de "nunca negativas" que "Horas estimadas" en
+  Programación. `worked` (boolean) se sigue guardando, pero ahora se
+  deriva automáticamente (`worked_hours > 0`), ya no es un checkbox
+  aparte.
+- `ActivityEmployeeHour`: las columnas `start_time`/`end_time` **no se
+  eliminaron** del esquema (siguen nullable, sin uso) — quedan listas
+  para cuando se retome esa captura más adelante, evitando el
+  vaivén de una migración que las borre y otra que las vuelva a crear
+  poco después.
+- `ver-como/index.blade.php`: el detalle por persona pasó de
+  checkbox "trabajó" + hora inicio/hora final condicional, a un único
+  `<input type="number" min="0" step="0.5">` por persona, precargado en
+  `personaForm()` con `estimated_hours` de la actividad
+  (`p?.worked_hours ?? a.estimated_hours ?? 0`).
+
+**Cobertura actualizada**: `test_store_with_per_person_hours_sums_reported_hours`
+(reemplaza el test que simulaba el turno nocturno con hora inicio/final) y
+`test_store_rejects_negative_worked_hours` (nuevo, mismo criterio de
+horas nunca negativas), ambos en `SupervisorViewControllerTest.php`.
+
+### 14.19 Bitácora Conectada Al Registro Real Del Supervisor ("Reportada") (2026-09-19)
+
+**Pedido del usuario**: al ver el hover de una celda de Bitácora ya
+después de registrar horas por "Ver como supervisor", "Reportada" seguía
+en "—" y el número mostrado en la celda era el programado, no el
+reportado. Pidió la regla correcta: reportada manda sobre programada, y
+corregida manda sobre reportada.
+
+**Causa — dos bugs, no uno**:
+
+1. `BitacoraController::index()` traía su propia copia duplicada del
+   cálculo de "programada" (no usaba `BitacoraHoursCalculator`, sección
+   14.16/14.18) y `'reportada' => null` estaba **hardcodeado**, con un
+   comentario de cuando "reportada" todavía no tenía ninguna fuente real
+   ("sin la app Android, reportada siempre está vacía") — cierto en su
+   momento, ya no desde que existe el registro real del supervisor
+   (sección 7/14.18).
+2. Incluso arreglando el backend, el **número que se ve en la celda**
+   (y el resaltado ámbar de "sin datos"/"0 horas") lo calcula un
+   **getter de Alpine en el propio HTML**
+   (`get final() { return this.corregida ... ? this.corregida : this.programada; }`,
+   en `personal/bitacora/index.blade.php`) que tampoco miraba
+   `reportada` — un segundo lugar con la misma regla incompleta,
+   independiente del backend.
+
+**Corrección**:
+
+- `BitacoraHoursCalculator`: nuevo método `horasReportadasPorDia()` —
+  por empleado/día, solo cuenta actividades ya registradas
+  (`activities.hours_registered_at` no nulo): usa
+  `activity_employee_hours.worked_hours` cuando existe (el supervisor
+  marcó que no todos trabajaron las horas programadas), o
+  `estimated_hours` cuando confirmó que sí (sin fila de detalle — mismo
+  valor que programada, pero ya confirmado en campo). `valorFinal()`
+  ahora recibe también `$reportada` y aplica corregida > reportada >
+  programada. `totalPorEmpleado()` (usado por el selector de Programación,
+  sección 14.16) hereda la misma prioridad automáticamente.
+- `BitacoraController::index()`: ya no duplica la query de "programada"
+  — usa el servicio (inyectado). `'reportada'` ya no es `null`
+  hardcodeado, viene de `horasReportadasPorDia()`.
+- `personal/bitacora/index.blade.php`: el getter `final()` del lado
+  cliente se corrigió a la misma prioridad de 3 niveles.
+
+**Cobertura**: nuevo [tests/Feature/Personal/BitacoraControllerTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/BitacoraControllerTest.php)
+(Bitácora no tenía ningún test hasta hoy) — actividad sin registrar sigue
+mostrando solo programada, actividad registrada con detalle por persona
+sirve reportada distinta de programada, actividad confirmada "todos
+trabajaron" reporta `estimated_hours`, y una corrección administrativa
+convive con reportada en los datos servidos.
+
+**Pendiente — límite real de esta sesión**: el getter `final()` es JS que
+corre en el navegador; una prueba de contenido HTML estático no puede
+ejecutarlo. Sin herramienta de navegador disponible en este entorno, la
+combinación de los 3 valores en pantalla (qué número final se ve y si se
+resalta en ámbar) **no quedó verificada automáticamente** — solo se
+verificó que el backend sirve los 3 valores (`programada`/`reportada`/
+`corregida`) correctamente. Falta confirmación visual del usuario.
+
+### 14.20 "Ver Como Supervisor": Turno Nocturno Que Cruza Medianoche + Evidencias (Foto/Video) A R2 (2026-09-19)
+
+**Pedido del usuario**: dos ajustes sobre "Ver como supervisor" (sección
+14.18). Primero, pulir la vista para cuando el responsable "hace login y
+ve sus actividades del día" — incluyendo el caso de turnos que cruzan
+medianoche (turno Nocturno programado "ayer" pero que el responsable
+sigue diligenciando "hoy"). Segundo, agregar lo que 14.18 dejó marcado
+explícitamente como pendiente: "faltan evidencias/fotos" — reutilizando
+el patrón de subida a Cloudflare R2 ya usado en Reportes, pero con una
+ruta (prefijo) propia para no mezclarse con la de reportes ni con nada
+más del bucket (pedido explícito del usuario, confirmado con captura del
+bucket real: `clientes/`, `2026/`, `inmobiliaria-saas/`).
+
+**Turno nocturno (confirmado con el usuario)**: además de las
+actividades de hoy, `SupervisorViewController::index()` ahora incluye
+las de **ayer** con `shift = 'Nocturno'` — se muestran siempre (con su
+badge Registrado/Pendiente normal), no se ocultan al registrarse. Cada
+tarjeta agrega una etiqueta "Turno de ayer" cuando `a.date` no coincide
+con la fecha consultada, para que no se confunda con las de hoy. El
+estado vacío (antes un simple texto plano) se rediseñó con ícono y
+mismo estilo de tarjeta que el resto de la pantalla.
+
+**Evidencias — decisión de ruta en R2 (pedido explícito: "que no se
+mezcle con nada más")**: `Activity` no tiene cliente/elemento como sí
+tiene `ReportDetail` (que usa
+[ReportFilePathBuilder](/home/jupazago/Documentos/mantecv1/mantec/app/Support/ReportFilePathBuilder.php),
+prefijo `clientes/...`), así que no se reutilizó ese builder. Nuevo
+[ActivityEvidencePathBuilder](/home/jupazago/Documentos/mantecv1/mantec/app/Support/ActivityEvidencePathBuilder.php)
+con un prefijo de primer nivel propio y nuevo en el bucket:
+
+```
+personal-actividades/{empresa-slug-id}/{año}/actividad-{activity_id}/{fecha}_{uuid}.{ext}
+```
+
+**Modelo de datos**: migración
+`2026_09_19_170000_create_activity_evidences_table.php`, tabla
+`activity_evidences` (`activity_id`, `uploaded_by_employee_id`, `disk`,
+`path`, `original_name`, `stored_name`, `mime_type`, `extension`,
+`file_type` image|video, `size_bytes`, `sort_order`) — misma forma que
+`report_detail_files`, sin `evidence_kind` ni soft-delete (no aplican
+aquí, se mantuvo mínimo). Nota de implementación: Eloquent no pluraliza
+"evidence" solo (es incontable en inglés, infiere la tabla
+`activity_evidence`), así que el modelo
+[ActivityEvidence](/home/jupazago/Documentos/mantecv1/mantec/app/Models/ActivityEvidence.php)
+fija `$table` explícito. Nueva relación `Activity::evidences(): HasMany`.
+
+**Backend**: nuevo
+[ActivityEvidenceController](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Personal/ActivityEvidenceController.php)
+(`store`/`open`/`destroy`), mismas 3 rutas dentro de
+`personal.ver-como.*`. Autorización idéntica a
+`SupervisorViewController::store()`: solo superadmin, la actividad debe
+ser realmente del empleado elegido (404 si no), bloqueado si ya está
+cerrada (403) — excepto `open()`, que sí permite ver evidencia de una
+actividad ya cerrada (consistente con que el resto de los datos de una
+actividad cerrada sigue siendo visible, solo no editable). Validación:
+`mimetypes:image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm`,
+`max:51200` (50MB) por archivo, máximo 6 por request — mismo criterio ya
+usado para adjuntos de Inspector/BandEvent (más estricto que el patrón
+laxo de `AdminReportEvidenceController`, apropiado para subida desde
+celular). Sube con `Storage::disk('r2')->writeStream()` + verificación
+`exists()`, igual que el patrón de Reportes.
+
+**Frontend**: `ver-como/index.blade.php` agrega, dentro de cada tarjeta
+expandida, una sección "Evidencias" con grid de miniaturas (abren la URL
+firmada de R2 en pestaña nueva), botón de borrado por archivo, e input
+de carga múltiple (`subirEvidencias`/`borrarEvidencia` en el componente
+Alpine) — sube por `fetch`+`FormData` de forma independiente del guardado
+de comentarios/horas.
+
+**Cobertura**: `SupervisorViewControllerTest` ganó 3 pruebas (nocturna de
+ayer aparece, diurna de ayer no aparece, nocturna de ayer ya registrada
+sigue apareciendo). Nuevo
+[ActivityEvidenceControllerTest](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/ActivityEvidenceControllerTest.php)
+con `Storage::fake('r2')`: subida exitosa, rechazo de no-superadmin,
+actividad ajena, actividad cerrada, mimetype inválido, archivo > 50MB,
+borrado (BD + disco), borrado bloqueado en actividad cerrada, y
+apertura redirige.
+
+**Actualización tras revisión con el usuario (2026-09-19, misma sesión)**:
+se probó con navegador real (Chrome vía Playwright) contra R2 real. Se
+detectó y corrigió un bug: la miniatura de imagen nunca se veía (quedaba
+solo el ícono genérico) porque `@error="$el.remove()"` (listener de
+Alpine en el `<img>`) colisionaba con la directiva propia de Blade
+`@error(...)` — Blade lo interpretó como su propia directiva y rompía el
+compilado de la vista (500 en `/personal/ver-como/{id}`). Se corrigió
+escapando a `@@error="..."`. Verificado de nuevo end-to-end: la
+miniatura ahora sí carga el contenido real de la imagen (confirmado con
+`naturalWidth`/`naturalHeight` del `<img>` renderizado, no solo el
+ícono de respaldo).
+
+**Pendiente**:
+
+- El encabezado "Actividades de hoy" de la pantalla no se renombró pese
+  a que ahora puede incluir una actividad de ayer (turno nocturno) — se
+  consideró suficiente la etiqueta "Turno de ayer" por tarjeta.
+- Se revisó `ANALISIS_SISTEMA_LARAVEL.md`: no menciona ninguna tabla del
+  módulo Personal (`activities`, `activity_employee_hours`,
+  `personal_roles`, etc., todas ya existentes) — el módulo completo
+  quedó fuera de ese documento desde antes de esta sesión. Agregar solo
+  `activity_evidences` ahí sería inconsistente sin el resto; se dejó sin
+  tocar, pendiente de una actualización más amplia de ese documento que
+  cubra todo el módulo Personal.
+
+### 14.21 Diario De Campo: Filas Por Grupo De Horas + Sin Concepto De Estado (2026-09-19)
+
+**Pedido del usuario**, revisando la tabla real de Diario de Campo con
+datos de producción: la columna "Horas" mostraba un total agregado por
+actividad (ej. 27.5 con 3 personas mezcladas), cuando en realidad cada
+persona pudo haber trabajado una cantidad distinta. Regla pedida: **una
+fila por cada valor de horas DISTINTO** entre las personas de la
+actividad — si las 4 personas de una actividad trabajaron 12h, es 1
+fila; si 2 trabajaron 8h y 2 trabajaron 10h, son 2 filas (cada una con
+su subconjunto de personas y esa hora), no una fila por persona ni un
+total agregado.
+
+Además, pedido explícito y enfático: **"en diario de campo no existe eso
+de estado, eso no va ni nunca va"** — se eliminó por completo la columna
+"Estado" (badge "Pendiente"/"Cerrado"). Aclarado en una ronda de
+preguntas: el botón que abre el modal de edición (Proceso, Horas
+corregida, ZCOM, Línea, OT SAP, Acta entrega, WE) **se mantiene**, pero
+se renombra de "Cerrar"/"Editar cierre" a **"Abrir modal"** — cita
+textual del usuario: *"realmente eso no cierra nada pero si deja
+editar"*. Por consistencia con esa misma razón se renombró también el
+botón de envío del formulario, de "Guardar cierre" a "Guardar". La
+columna de acción (antes "Estado") ahora no tiene encabezado de texto, y
+se oculta por completo (header + celdas) para empleados sin el permiso
+`cerrar_diario_campo` — antes la columna siempre se veía, solo el botón
+interno se ocultaba.
+
+**Importante — alcance de este cambio**: es puramente de presentación en
+Diario de Campo. `closed_at`/`isClosed()` y todo lo que depende de ese
+campo en el resto del sistema (bloqueo de edición en Programación vía
+`ActivityController::canModify()`, bloqueo de registro en "Ver como
+supervisor" vía `SupervisorViewController::store()`, sección 14.18/14.20)
+**no se tocaron** — el usuario pidió específicamente que ya no se
+llame/vea como "cerrar" en esta pantalla, no que se elimine el mecanismo
+de cierre administrativo en sí.
+
+**Backend — nuevo método [Activity::diaryHourGroups()](/home/jupazago/Documentos/mantecv1/mantec/app/Models/Activity.php)**:
+
+- Si `corrected_hours` está definido (corrección administrativa, un solo
+  valor para toda la actividad, nunca por persona): 1 grupo con todas las
+  personas y ese valor — misma prioridad que `finalHours()`.
+- Si `all_worked_scheduled_hours === false` y hay filas en
+  `activity_employee_hours`: agrupa las personas por su `worked_hours`
+  (vía `Activity::employeeHours`). Nota de implementación: se usa el
+  valor **string** del cast `decimal:2` como llave de `groupBy()`, no el
+  float — Eloquent Collection usa arrays PHP por debajo, que truncan
+  claves float a int (8.5 y 8.0 colisionarían en la clave `8`).
+  Una persona sin fila registrada todavía (agregada a la actividad
+  después de que el supervisor ya guardó el detalle) cae en su propio
+  grupo con horas `null`, en vez de desaparecer o romper.
+- En cualquier otro caso (`all_worked_scheduled_hours` true o sin
+  registrar todavía): 1 grupo con todas las personas y
+  `reported_hours ?? estimated_hours`.
+
+`FieldDiaryController::index()` agrega `employeeHours` al eager-load.
+
+**Frontend**: `personal/diario-campo/index.blade.php` — el `@foreach`
+por actividad ahora anida un `@foreach` por cada grupo de
+`diaryHourGroups()`, generando una `<tr>` por grupo (Empresa/Equipo/
+Proceso/Actividad/Jornada/Comentarios/códigos se repiten igual en cada
+fila de la misma actividad; Personas/N°/Horas cambian por grupo). El
+modal de edición se renderiza **una sola vez por actividad** (no una vez
+por fila generada) — se movió el estado `modalAbierto` de `x-data` local
+por `<tr>` a un estado compartido `modalActivityId` en el componente
+Alpine de página (`diarioCampoPage()`), y el botón "Abrir modal" solo se
+imprime en la primera fila de cada actividad (`$i === 0`).
+
+**Cobertura**: nuevo
+[tests/Feature/Personal/ActivityDiaryHourGroupsTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/ActivityDiaryHourGroupsTest.php)
+(6 pruebas: sin registro, todos trabajaron igual, horas distintas se
+separan, mismo valor no se separa, corrección colapsa a 1 fila, persona
+sin registro cae en grupo aparte) y nuevo
+[tests/Feature/Personal/FieldDiaryControllerTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Personal/FieldDiaryControllerTest.php)
+(6 pruebas: sin texto "Estado"/"Pendiente"/"Cerrado", botón dice "Abrir
+modal" y no "Cerrar"/"Editar cierre"/"Guardar cierre", columna de acción
+oculta sin permiso `cerrar_diario_campo`, 1 fila vs. 2 filas según el
+caso, botón "Abrir modal" aparece una sola vez por actividad aunque
+genere varias filas).
+
+**Verificado en navegador real** contra datos reales de producción
+(sincronizados de Railway): la actividad real "Actividad 1" de ARGOS
+(la misma que el usuario mostró en su captura, con 3 personas y hasta
+entonces un total agregado de horas) ahora se parte correctamente en 2
+filas — confirma que el caso no era hipotético, ya existía en datos
+reales. Sin errores de consola. Datos de prueba (empleados/actividades
+QA) creados y eliminados después de verificar.
+
+**Pendiente**:
+
+- No se evaluó si Bitácora (`BitacoraHoursCalculator`, secciones 14.16/
+  14.19) debería reflejar este mismo desglose por grupo — hoy sigue
+  usando `reported_hours`/`corrected_hours` a nivel de actividad
+  completa, sin cambios en esta sesión porque no fue parte del pedido.
+
+### 14.22 Diario De Campo: Edición En Línea (Sin Modal) + Columna "Actividad Ejecutada" (2026-09-19)
+
+**Pedido del usuario**, mismo día, revisando la sección 14.21 recién
+implementada: (1) ver por separado la actividad de Programación
+(`description`) y la que el supervisor ejecutó realmente
+(`executed_description`) — antes esta última vivía oculta detrás de un
+"ver detalle ejecutado" dentro de la misma celda de "Actividad"; y (2)
+quitar el botón "Abrir modal" — que "las filas sean editables como
+cuando vemos los reportes preventivos de los activos. así es más
+fácil", citando el patrón de edición en línea celda-por-celda que ya
+existe en
+[AdminPreventiveReportController::inlineUpdate()](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Admin/AdminPreventiveReportController.php)
++
+[resources/views/admin/reports/preventive/show.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/admin/reports/preventive/show.blade.php)
+(clic en la celda → input/textarea + ✕/✓ inline, sin recargar la fila
+completa).
+
+**Decisión confirmada con el usuario antes de implementar**: el modal
+anterior, al guardarse, siempre marcaba la actividad como cerrada
+(`closed_by_employee_id`/`closed_at`). Con edición celda-por-celda (
+varios guardados pequeños e independientes en vez de un solo submit),
+mantener eso habría cerrado la actividad con la primera edición de
+cualquier campo — se preguntó explícitamente y se confirmó: **la
+edición en línea ya NO marca la actividad como cerrada**. Alcance:
+puramente de esta pantalla — `closed_at`/`isClosed()` y todo lo que
+depende de eso en otras pantallas (`ActivityController::canModify()`,
+`SupervisorViewController::store()`, `ActivityEvidenceController`) no
+se tocaron, siguen funcionando igual, solo que ya nada los alimenta
+desde Diario de Campo. Si en el futuro se necesita un cierre
+administrativo real, sería una acción aparte.
+
+**Backend**: `FieldDiaryController::close()` se reemplazó por
+`inlineUpdate(Request, Activity)` (mismo patrón que
+`AdminPreventiveReportController::inlineUpdate`): `PATCH
+/personal/diario-campo/{activity}/inline-update`, body `{field, value}`,
+whitelist de 9 campos (`process`, `executed_description`,
+`corrected_hours`, `comments`, `zcom`, `line_code`, `ot_sap`,
+`acta_entrega`, `we_code`), autorización igual que antes
+(`PersonalGuard::can('cerrar_diario_campo')` — el nombre del permiso
+quedó de cuando esto cerraba la actividad, no se renombró). Validación
+especial para `corrected_hours` (numérico, no negativo); el resto por
+longitud máxima. Valor vacío limpia el campo (`'' -> null`).
+
+**"Horas" ahora es la celda editable** que escribe `corrected_hours`
+(no se agregó una columna nueva "Horas corregida" separada — se
+reutilizó la columna "Horas" ya existente, pre-cargada con el valor
+efectivo mostrado, sea el programado, el reportado o ya una corrección
+previa). Consecuencia a tener en cuenta: como `corrected_hours` es un
+valor único por actividad (nunca por persona), editar la celda "Horas"
+de **cualquier** fila de una actividad con varias filas (varios grupos
+de horas, sección 14.21) corrige la actividad completa — al recargar,
+esas filas se colapsan en una sola. Es el comportamiento esperado según
+`Activity::diaryHourGroups()`, pero puede sorprender la primera vez.
+
+**Por qué recarga la página en cada guardado** (a diferencia del patrón
+de reportes preventivos, que actualiza solo la celda): varios campos
+(Proceso, Comentarios, ZCOM, etc.) se repiten idénticos en todas las
+filas generadas de una misma actividad cuando tiene más de un grupo de
+horas (sección 14.21) — y "Horas" en particular puede cambiar cuántas
+filas genera esa actividad, como se explicó arriba. Mantener eso
+sincronizado en el DOM sin recargar sería frágil; un `window.location.reload()`
+tras cada guardado exitoso es simple y siempre correcto. Los campos
+sin permiso `cerrar_diario_campo` (`$puedeEditar = false`) se muestran
+como texto plano, sin el wrapper `.inline-editable` — antes la columna
+completa de "Estado" se veía igual para todos y solo el botón interno
+se ocultaba.
+
+**Frontend**: `personal/diario-campo/index.blade.php` — se agregó un
+`<style>` con las mismas clases `.inline-edit-*`/`.inline-toast` de
+`show.blade.php` (duplicadas, no extraídas a un partial compartido:
+tocar esa vista para extraerlas habría sido un refactor no relacionado
+sobre una pantalla que funciona, fuera del pedido de esta sesión) y un
+script `diarioMountInlineEditor`/`diarioSaveInlineCell`/etc., variante
+propia que soporta además `<textarea>` (`data-multiline="1"`) para
+`executed_description`/`comments`, que en el patrón original solo tenía
+`<input>` de una línea. Se eliminó por completo el modal, el estado
+Alpine `modalActivityId`, y la columna de acción — ya no queda ningún
+botón visible en la tabla, toda la edición es por celda.
+
+**Cobertura**: `FieldDiaryControllerTest` se reescribió — nuevas
+pruebas de `inlineUpdate` (guarda campo, no toca `closed_at`, rechaza
+horas no numéricas/negativas, rechaza campo desconocido, rechaza sin
+permiso, valor vacío limpia el campo) y de la vista (sin "Abrir modal"
+ni "Guardar cierre", Actividad programada y ejecutada como campos
+separados, celdas editables solo con permiso).
+
+**Verificado en navegador real** con datos reales (sincronizados de
+Railway): clic en celda "Proceso" → aparece input + ✕/✓ (visualmente
+igual al patrón de reportes preventivos que pidió el usuario) → guardar
+→ `PATCH inline-update` responde 200 → la página recarga → el nuevo
+valor persiste como texto plano. Confirmado también contra la base de
+datos real que `closed_at`/`closed_by_employee_id` siguen en `null`
+después del guardado. Sin errores de consola.
+
+**Verificación adicional (mismo día, tras revisión)**: se probó en
+navegador real el caso de editar "Horas" sobre una actividad ya
+partida en varias filas — actividad con 2 personas (8h y 10h, 2 filas),
+se editó la celda "Horas" de la primera fila a "20", tras el reload la
+actividad pasó a mostrarse en **1 sola fila** con ambas personas juntas
+y "20" horas. Comportamiento esperado confirmado end-to-end, no solo a
+nivel de `ActivityDiaryHourGroupsTest`.
+
+**Bug encontrado por el usuario tras revisar en pantalla real, corregido
+mismo día**: "la tabla se desborda, no se ve la actividad ejecutada".
+Medido en navegador (ancho de tabla real vs. contenedor): con un
+comentario largo en cualquier fila, la tabla llegaba a **5360px** de
+ancho (contenedor real: 1086px) — una sola celda de "Actividad
+ejecutada" o "Comentarios" con texto largo medía **~1800-2100px**.
+Causa: `.inline-edit-trigger` es `display: inline-block` sin
+`max-width` — sin eso, un inline-block crece para caber todo el texto
+en una sola línea en vez de partir línea, y como todas las filas de una
+columna de tabla comparten el mismo ancho, una sola celda larga
+arrastra la columna (y la tabla) entera. Mismo problema late en
+`resources/views/admin/reports/preventive/show.blade.php` (mismo CSS,
+sin `max-width` tampoco) pero no se tocó esa vista — fuera de alcance de
+esta sesión. Corrección: `max-width: 20rem` + `overflow-wrap:
+break-word` en `.inline-edit-trigger` de `diario-campo/index.blade.php`.
+Verificado de nuevo con texto largo real: tabla bajó a 2099px, celdas
+largas ahora parten línea dentro de ~344px en vez de explotar.
+
+### 14.23 Scrollbar Lateral Siempre Visible + "Actividad Ejecutada" = Comentario Del Supervisor (2026-09-19)
+
+**Pedido del usuario**, mismo día: (1) "necesitamos una barra para el
+scroll lateral, y siempre debe verse. hablo de un scroll interno en la
+tabla" — el contenedor de la tabla (`.table-scroll-container`, definido
+en
+[layouts/personal.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/layouts/personal.blade.php))
+oculta el scrollbar a propósito (`scrollbar-width: none` +
+`::-webkit-scrollbar { height: 0 }`), apoyándose solo en el texto
+"Desliza horizontalmente" como pista. (2) "el comentario del supervisor
+es realmente la actividad ejecutada. así es" — corrección conceptual:
+la columna "Actividad ejecutada (supervisor)" (sección 14.22) se había
+mapeado a `executed_description` (campo administrativo, ajeno al
+supervisor); el campo correcto es `comments` (lo que el supervisor
+escribe en "Ver como supervisor", sección 14.18/14.20, con el propio
+placeholder "Novedades de la actividad ejecutada..."). Se preguntó
+explícitamente si fusionar con la columna "Comentarios" existente o
+dejar ambas mostrando el mismo dato — el usuario eligió **dejar ambas**
+(duplicado intencional).
+
+**Scrollbar — reutilizado, no reinventado**: existe ya un patrón
+`.scroll-container-visible` en
+[preview-personal/_layout.blade.php](/home/jupazago/Documentos/mantecv1/mantec/resources/views/preview-personal/_layout.blade.php)
+con un comentario explícito: *"Para tablas grandes (Bitácora, Diario de
+Campo): el patrón de scroll oculto de arriba no alcanza — aquí el
+contenedor SI debe quedar acotado a la pantalla, con scrollbar lateral
+(vertical) e inferior (horizontal) visibles"* — nombra Diario de Campo
+por nombre, pero nunca se había aplicado a la pantalla real, solo al
+mockup. Se copió tal cual (mismo nombre de clase, mismo CSS: `overflow:
+auto`, `max-height: 65vh`, scrollbar delgado estilizado vía
+`scrollbar-color`/`::-webkit-scrollbar-thumb`) al `<style>` local de
+`diario-campo/index.blade.php`, sin tocar `layouts/personal.blade.php`
+(otras pantallas que usan `.table-scroll-container` —p.ej. Programación—
+no se tocaron, fuera de alcance). El exportador de imagen
+(`imageExporterMixin`, mismo layout) ya soportaba ambas clases
+(`.table-scroll-container, .scroll-container-visible`) de antes, así
+que "Copiar como imagen" siguió funcionando sin cambios adicionales. Se
+quitó el texto "Desliza horizontalmente para ver todas las columnas"
+(ya no hace falta, el scrollbar es visible por sí mismo).
+
+**"Actividad ejecutada" → `comments`**: en `diario-campo/index.blade.php`,
+la celda cambió `data-field`/valor de `executed_description` a
+`comments` (misma fuente que la columna "Comentarios", a propósito).
+`FieldDiaryController::EDITABLE_TEXT_FIELDS` perdió la entrada
+`executed_description` — ya no tiene ninguna celda que la use en esta
+pantalla (el campo sigue existiendo en la base de datos, sin uso desde
+aquí).
+
+**Cobertura**: `FieldDiaryControllerTest` —
+`test_shows_programada_and_ejecutada_as_separate_fields` ajustado para
+verificar que se ve `comments` y NO se ve `executed_description`; nueva
+`test_inline_update_rejects_executed_description` (regresión: ya no es
+un campo editable válido).
+
+**Verificado en navegador real**: "Actividad ejecutada (supervisor)"
+muestra el mismo texto que "Comentarios" en filas reales (ej. "Ninguna
+novedad, todo se hizo muy bien"); un `executed_description` de prueba
+sembrado a propósito confirmado que NO aparece en pantalla. CSS del
+contenedor confirmado por `getComputedStyle` (`overflow: auto`,
+`scrollbar-width: thin`, `max-height: 585px` en viewport de 900px) y
+`scrollWidth > clientWidth` (necesita scroll). La captura de pantalla
+del contenedor recortado no capturó el scrollbar personalizado en sí
+(limitación conocida de captura headless con scrollbars custom, no del
+CSS) — las propiedades computadas sí confirman que el comportamiento es
+correcto; el patrón fuente (`preview-personal`) ya estaba probado
+visualmente antes de esta sesión.
+
+**Pendiente**:
+
+- No se verificó visualmente con captura de pantalla el scrollbar
+  personalizado en sí (ver limitación de la herramienta arriba) — solo
+  las propiedades CSS computadas. Vale la pena una confirmación visual
+  rápida del usuario en su propio navegador.
+
+**Ajuste menor (mismo día)**: pedido del usuario, "los encabezados
+pueden ser sin paréntesis" — "Actividad (programación)" → "Actividad
+programada", "Actividad ejecutada (supervisor)" → "Actividad
+ejecutada". Solo texto de encabezado, sin cambio de comportamiento ni
+de campos.
+
+**Pendiente**: ninguno adicional a los ya listados en la sección 14.21.
+
+### 14.24 API Real Para La App Android Del Supervisor (Sanctum + Employee) (2026-09-20)
+
+**Pedido del usuario**: construir la API real que consumirá la app Android
+(repo aparte `Mantec_ins`) para que un supervisor haga desde su celular lo
+mismo que hasta hoy solo se probaba vía "Ver como" (secciones 14.18/14.20/
+14.21/14.22): registrar comentarios + horas por actividad/persona, y subir
+evidencia (foto/video) a R2. Se investigó primero el repo Android (ya tiene
+un rol "Inspector" funcionando contra este mismo backend, con su propio
+patrón Sanctum/Retrofit/multipart) para diseñar la API nueva de forma
+consistente con lo que ya existe, en vez de inventar un patrón distinto.
+
+**Decisión de autenticación (confirmada con el usuario antes de
+implementar)**: el supervisor se autentica como **`Employee`**, no como
+`User` — login nuevo y separado del login del Inspector, aunque ambos
+terminan siendo tokens Sanctum válidos contra el mismo `auth:sanctum`.
+Confirmado por investigación que esto no requiere configuración adicional:
+Sanctum en este proyecto es polimórfico puro (`tokenable_type`/
+`tokenable_id` estándar, sin guard/provider custom, `auth:sanctum` en modo
+bearer sin `statefulApi()`) — agregar `HasApiTokens` a un segundo modelo
+"simplemente funciona".
+
+**Riesgo detectado y mitigado**: como el mismo middleware `auth:sanctum`
+acepta indistintamente un token de `User` o de `Employee` (según el
+`tokenable_type` de esa fila), sin un chequeo explícito un token de
+Inspector podría llamar por error las rutas nuevas del Supervisor (o
+viceversa). Nuevo middleware
+[EnsureTokenableIsEmployee](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Middleware/EnsureTokenableIsEmployee.php)
+(`abort_unless($request->user() instanceof Employee, 403)`), alias
+`personal.api.employee` (`bootstrap/app.php`), aplicado a todo el grupo
+`api/personal/*` salvo login.
+
+**Backend — nuevo namespace `App\Http\Controllers\Api\Personal\`**:
+
+- [Employee.php](/home/jupazago/Documentos/mantecv1/mantec/app/Models/Employee.php):
+  agrega `Laravel\Sanctum\HasApiTokens`.
+- **`AuthApiController`** — calcado de
+  [Api\AuthApiController](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Api/AuthApiController.php)
+  (login del Inspector) pero contra `Employee`: `Employee::where('username',
+  ...)->where('has_login', true)->where('activo', true)->first()` +
+  `Hash::check()` + `createToken('supervisor-app')`. `POST
+  api/personal/login` lleva `throttle:5,1` (no existía rate limiting en
+  ningún login de este proyecto hasta hoy — ni `api/login` ni `/personal/
+  login` web lo tenían; se agregó solo al endpoint nuevo, sin tocar los
+  existentes).
+- **`ActivityController`** — mismo query y misma lógica de guardado que
+  [SupervisorViewController](/home/jupazago/Documentos/mantecv1/mantec/app/Http/Controllers/Personal/SupervisorViewController.php)
+  (turno nocturno de ayer incluido, detalle de horas por persona vía
+  `ActivityEmployeeHour`), pero `$employee = $request->user()` en vez de
+  `Employee` por parámetro de URL + `PersonalGuard::isSuperadmin()` — el
+  empleado siempre es el dueño del token, nunca algo que confiar de la
+  URL/body.
+- **`ActivityEvidenceController`** — mismo patrón de subida a R2
+  (`ActivityEvidencePathBuilder`, `Storage::disk('r2')->writeStream()`,
+  límites `mimetypes:.../max:51200 KB/max:6 archivos`) que la versión web
+  ya probada esta sesión contra R2 real. Diferencia clave: `show()`
+  devuelve **JSON** `{success, url, expires_at, file_type, original_name}`
+  en vez de `redirect()->away($temporaryUrl)` — un cliente API pide la URL
+  firmada y la usa directo en su visor de imagen/video (Coil/ExoPlayer del
+  lado Android), no sigue redirects HTTP de servidor.
+
+**Rutas nuevas** (`routes/api.php`):
+```
+POST   api/personal/login                                    (throttle:5,1, sin token)
+POST   api/personal/logout                                   (auth:sanctum + personal.api.employee)
+GET    api/personal/actividades
+POST   api/personal/actividades/{activity}
+POST   api/personal/actividades/{activity}/evidencias
+GET    api/personal/actividades/{activity}/evidencias/{evidence}
+DELETE api/personal/actividades/{activity}/evidencias/{evidence}
+```
+
+**Cobertura**: 20 pruebas nuevas en `tests/Feature/Api/Personal/`
+(`AuthApiControllerTest`, `ActivityControllerTest`,
+`ActivityEvidenceControllerTest`) — login correcto/incorrecto/
+`has_login=false`/inactivo, logout revoca el token, turno nocturno
+incluido, scope por empleado autenticado (404 si la actividad es de otro),
+actividad cerrada rechazada (403), horas negativas rechazadas (422),
+**token de `User` (Inspector) rechazado en rutas de Employee** (403, el
+caso que motivó `EnsureTokenableIsEmployee`), evidencia sube/lista (JSON
+con URL firmada)/borra igual que la versión web.
+
+**Verificado en local con `curl` contra R2 real** (no solo tests): login →
+token → listar actividades → guardar horas/comentarios → subir evidencia
+(confirmada en el bucket real bajo `personal-actividades/corona-2/2026/
+actividad-30/...`) → ver URL firmada real de R2 → borrar evidencia →
+logout → confirmar que el token ya no sirve (401). Los `X-RateLimit-*`
+headers del throttle nuevo también se confirmaron en las respuestas
+reales. Datos de prueba (empleado/actividad QA) creados y eliminados
+después de verificar.
+
+**Pendiente**:
+
+- Suite completa corrida sin regresiones (105/106, mismo `ExampleTest`
+  preexistente y no relacionado desde antes de esta sesión).
+- No se probó todavía desde la app Android real (eso es la Parte D de
+  esta misma sesión, documentada en el repo `Mantec_ins` por separado,
+  `API_SUPERVISOR.md`) — la verificación de arriba es servidor-a-servidor
+  vía `curl`, no un dispositivo/emulador real.
+- `ActivityController::serialize()` quedó duplicado entre el controlador
+  web (`SupervisorViewController`) y el nuevo de API — son casi idénticos
+  pero no se extrajo a un método compartido (ej. en el propio modelo
+  `Activity` o un trait), para no tocar el controlador web ya probado
+  esta sesión sin necesidad. Si diverge la lógica de negocio en el
+  futuro, hay que recordar actualizar ambos.
+
+### 14.25 Fix: "Hoy" En Programación Y Diario De Campo Debía Calcularse En Hora De Colombia, No Del Navegador (2026-09-21)
+
+**Motivo**: tras corregir el mismo tipo de bug del lado Android (el toggle Hoy/Ayer usaba la zona horaria del dispositivo en vez de anclar a `America/Bogota`), el usuario pidió explícitamente confirmar que "todo en la web" (Programación, Diario de Campo, reportes) usa siempre hora de Colombia. Una auditoría dirigida (agente Explore, sin tocar código) encontró que el backend Laravel ya estaba bien anclado (`config/app.php` fija `'timezone' => 'America/Bogota'`, aplicado globalmente por el framework vía `date_default_timezone_set()` en cada request/comando/job; no hay ningún `Carbon::now('UTC')` ni zona horaria distinta hardcodeada en `app/`; ninguna migración usa `timestampTz`; no hay SQL crudo con `NOW()`/`CURRENT_TIMESTAMP`). El riesgo real estaba del lado **frontend**: varias vistas Blade usan `new Date().toISOString().slice(0, 10)` en Alpine.js embebido para calcular "hoy" en el navegador — `toISOString()` siempre convierte a UTC sin importar la zona horaria del navegador, así que entre las **19:00 y medianoche hora Colombia** (todos los días, para todo usuario, sin excepción, a diferencia del bug de Android que solo afectaba dispositivos mal configurados), esa cuenta ya cae en el día siguiente en UTC.
+
+**Dónde afectaba**:
+
+- `resources/views/personal/programacion/index.blade.php` y `resources/views/personal/diario-campo/index.blade.php` — el anillo que resalta "hoy" en el mini-calendario del selector de fecha señalaba el día equivocado durante esa ventana horaria.
+- `resources/views/admin/reports/preventive/show.blade.php` (3 lugares) — usado como valor por defecto cuando la "fecha de ejecución" de un reporte viene vacía; este sí podía **escribir un dato real incorrecto** si el usuario no lo corregía manualmente antes de guardar (mayor severidad que los dos anteriores, que solo afectaban un resaltado visual).
+- `resources/views/layouts/personal.blade.php` y `resources/views/preview-personal/_layout.blade.php` — mismo patrón, pero solo como sufijo del nombre de archivo al exportar una tarjeta como imagen PNG (cosmético, no afecta datos).
+
+**Fix**:
+
+- Programación y Diario de Campo: se agregó `hoyReal: @js(today()->toDateString())` al objeto de configuración que Blade inyecta en `x-data`, calculado en el servidor (hora de Colombia real), y el Alpine `hoyStr` ahora usa ese valor en vez de `new Date()` del navegador — mismo patrón que ya usaba `fecha` para el día que se está viendo.
+- Reportes preventivos: los 3 fallbacks pasaron de `new Date().toISOString().slice(0, 10)` a `@json(today()->toDateString())`, calculado en el servidor al momento de renderizar la página (mismo patrón que el `@json($canInlineEditExecutionDate)` que ya existía en el mismo bloque de script).
+- Exportar como imagen (los dos layouts): como es un mixin de JS genérico reutilizado en varias páginas y solo afecta el nombre del archivo exportado (no un dato del reporte), se optó por construir la fecha con los campos locales del navegador (`getFullYear()/getMonth()/getDate()`) en vez de `toISOString()`, que sí corrige el bug de conversión a UTC sin necesitar inyectar nada desde el servidor.
+
+**Cobertura**: 2 pruebas nuevas — `ActivityControllerAjaxTest::test_programacion_index_injects_hoyReal_in_colombia_timezone` y `FieldDiaryControllerTest::test_diario_campo_index_injects_hoyReal_in_colombia_timezone` — ambas cargan la página real autenticada y verifican que el HTML renderizado contiene `hoyReal: '<today()->toDateString() real>'` y ya no contiene `new Date().toISOString()`. No se agregó test para los 3 fallbacks de `show.blade.php` (no había fixture de prueba existente para esa página, fuera del alcance de esta sesión de Personal/Programación) ni para los dos mixins de exportar imagen — se validaron por lectura de diff y porque `php artisan view:cache` compiló sin error las 5 vistas tocadas.
+
+**Verificado en esta sesión**:
+
+- `php artisan view:clear && php artisan view:cache` — compiló **todas** las vistas Blade del proyecto sin error, incluyendo las 5 tocadas.
+- Suite completa: `php artisan test` — **107/108 pasando** (mismo `ExampleTest` preexistente y no relacionado desde antes de esta sesión; las 2 pruebas nuevas de esta sección pasan).
+- No se verificó visualmente en un navegador real (no hay herramienta de automatización de navegador disponible en este entorno para el lado Laravel) — la verificación se hizo a nivel de renderizado servidor (HTML real generado, con el valor correcto embebido), no de comportamiento JS en un DOM vivo.
+
+**Pendiente**:
+
+- Verificación visual manual en navegador (confirmar que el anillo de "hoy" en el calendario de Programación/Diario de Campo efectivamente se ve en el día correcto, sobre todo probando cerca de las 19:00–00:00 hora Colombia).
+- Los 3 fallbacks de `show.blade.php` y los 2 mixins de exportar imagen quedan sin test automatizado (ver "Cobertura" arriba) — riesgo bajo porque son rutas de fallback/cosmética, no el dato principal mostrado.
+- `config/database.php` no fija `'timezone' => 'America/Bogota'` para la conexión `pgsql` — hoy no hay ningún código que dependa de eso (todo pasa por Carbon, no por SQL crudo), pero es una configuración frágil: si en el futuro alguien agrega `DB::raw('NOW()')` o una columna `timestampTz`, se rompería silenciosamente. No se tocó en esta sesión por no ser un riesgo activo hoy — queda como mejora preventiva recomendada, no aplicada.

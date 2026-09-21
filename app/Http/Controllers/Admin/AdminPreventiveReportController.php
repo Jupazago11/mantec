@@ -1610,7 +1610,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             'component',
             'diagnostic',
             'condition',
-            'files',
+            'files.uploader',
             'executionStatus',
             'user',
         ])

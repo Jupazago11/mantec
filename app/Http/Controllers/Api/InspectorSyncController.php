@@ -9,7 +9,9 @@ use App\Models\Condition;
 use App\Models\Diagnostic;
 use App\Models\Element;
 use App\Models\ReportDetail;
+use App\Services\Access\ElementAccessService;
 use App\Services\Execution\ExecutionStatusResolver;
+use App\Services\Reports\ReportDetailMerger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +21,8 @@ class InspectorSyncController extends Controller
 {
     public function __construct(
         private readonly ExecutionStatusResolver $executionStatusResolver,
+        private readonly ElementAccessService $elementAccessService,
+        private readonly ReportDetailMerger $reportDetailMerger,
     ) {
     }
 
@@ -46,6 +50,12 @@ class InspectorSyncController extends Controller
         $component = Component::findOrFail($validated['component_id']);
         $diagnostic = Diagnostic::findOrFail($validated['diagnostic_id']);
         $condition = Condition::findOrFail($validated['condition_id']);
+
+        abort_unless(
+            $this->elementAccessService->canAccess($user, $element),
+            403,
+            'No tienes acceso a este activo.'
+        );
 
         if ((int) $area->client_id !== (int) $validated['client_id']) {
             return response()->json([
@@ -89,49 +99,49 @@ class InspectorSyncController extends Controller
             ], 422);
         }
 
-        $existing = ReportDetail::query()
-            ->where('user_id', $user->id)
-            ->where('element_id', $validated['element_id'])
-            ->where('component_id', $validated['component_id'])
-            ->where('diagnostic_id', $validated['diagnostic_id'])
-            ->where('week', $validated['week'])
-            ->where('year', $validated['year'])
-            ->where('status', true)
-            ->first();
+        [$reportDetail, $wasMerged] = DB::transaction(function () use ($validated, $user, $condition) {
+            $existing = $this->reportDetailMerger->findMergeCandidate(
+                (int) $validated['element_id'],
+                (int) $validated['component_id'],
+                (int) $validated['diagnostic_id']
+            );
 
-        if ($existing) {
             $executionStatusId = $this->executionStatusResolver->resolveStatusIdForCondition($condition);
             $incomingRecommendation = trim((string) ($validated['recommendation'] ?? ''));
-            $currentRecommendation = trim((string) ($existing->recommendation ?? ''));
 
-            $finalRecommendation = $currentRecommendation;
+            if ($existing) {
+                $isSameInspector = (int) $existing->user_id === (int) $user->id;
 
-            if ($incomingRecommendation !== '' && !str_contains($currentRecommendation, $incomingRecommendation)) {
-                $finalRecommendation = $currentRecommendation === ''
-                    ? $incomingRecommendation
-                    : $currentRecommendation . PHP_EOL . PHP_EOL . $incomingRecommendation;
+                if ($isSameInspector) {
+                    $currentRecommendation = trim((string) ($existing->recommendation ?? ''));
+                    $finalRecommendation = $currentRecommendation;
+
+                    if ($incomingRecommendation !== '' && !str_contains($currentRecommendation, $incomingRecommendation)) {
+                        $finalRecommendation = $currentRecommendation === ''
+                            ? $incomingRecommendation
+                            : $currentRecommendation . PHP_EOL . PHP_EOL . $incomingRecommendation;
+                    }
+                } else {
+                    $finalRecommendation = $this->reportDetailMerger->appendFinding(
+                        $existing->recommendation,
+                        $user->name,
+                        now(),
+                        $incomingRecommendation
+                    );
+                }
+
+                $existing->update([
+                    'condition_id' => $validated['condition_id'],
+                    'recommendation' => $finalRecommendation !== '' ? $finalRecommendation : null,
+                    'is_belt_change' => $validated['is_belt_change'] ?? null,
+                    'execution_status_id' => $executionStatusId,
+                    'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
+                ]);
+
+                return [$existing, true];
             }
 
-            $existing->update([
-                'condition_id' => $validated['condition_id'],
-                'recommendation' => $finalRecommendation !== '' ? $finalRecommendation : null,
-                'is_belt_change' => $validated['is_belt_change'] ?? null,
-                'execution_status_id' => $executionStatusId,
-                'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'El reporte ya existía y fue actualizado correctamente.',
-                'server_report_detail_id' => $existing->id,
-                'duplicated' => true,
-            ]);
-        }
-
-        $executionStatusId = $this->executionStatusResolver->resolveStatusIdForCondition($condition);
-
-        $reportDetail = DB::transaction(function () use ($validated, $user, $executionStatusId, $condition) {
-            return ReportDetail::create([
+            $reportDetail = ReportDetail::create([
                 'report_id' => null,
                 'user_id' => $user->id,
                 'element_id' => $validated['element_id'],
@@ -148,7 +158,18 @@ class InspectorSyncController extends Controller
                 'execution_status_id' => $executionStatusId,
                 'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
             ]);
+
+            return [$reportDetail, false];
         });
+
+        if ($wasMerged) {
+            return response()->json([
+                'success' => true,
+                'message' => 'El reporte existente fue complementado correctamente.',
+                'server_report_detail_id' => $reportDetail->id,
+                'duplicated' => true,
+            ]);
+        }
 
         return response()->json([
             'success' => true,

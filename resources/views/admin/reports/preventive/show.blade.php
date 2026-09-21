@@ -2333,7 +2333,9 @@
             }
 
             const reportId = container.dataset.reportId;
-            const originalValue = container.dataset.value || new Date().toISOString().slice(0, 10);
+            // Fallback en hora de Colombia (config/app.php), no new Date()
+            // del navegador (toISOString() siempre da UTC).
+            const originalValue = container.dataset.value || @json(today()->toDateString());
 
             container.dataset.editing = '1';
 
@@ -2449,7 +2451,7 @@
 
             const dateValue = executionDate && executionDate.trim() !== ''
                 ? executionDate
-                : new Date().toISOString().slice(0, 10);
+                : @json(today()->toDateString());
 
             const canEdit = @json($canInlineEditExecutionDate);
 
@@ -2516,7 +2518,7 @@ async function openEditReportModal(reportId) {
         if (editRecommendation2) editRecommendation2.value = data.report.recommendation_2 || '';
 
         if (editNewDate) {
-            editNewDate.value = data.report.report_date || new Date().toISOString().slice(0, 10);
+            editNewDate.value = data.report.report_date || @json(today()->toDateString());
         }
 
         setEditReportLoading(false);

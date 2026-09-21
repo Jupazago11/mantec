@@ -1,7 +1,7 @@
 {{-- Modal CRUD Empresas — comparte el x-data del padre
      (personal/empleados/index.blade.php: propiedades empresas/modalEmpresas
      y metodos agregarEmpresa/marcarDefecto/archivarEmpresa/guardarNombreEmpresa). --}}
-<div x-show="modalEmpresas" x-cloak class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" style="top:0;left:0;height:100vh;width:100vw;">
+<div x-show="modalEmpresas" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" style="top:0;left:0;height:100vh;width:100vw;">
     <div @click.outside="modalEmpresas = false" x-show="modalEmpresas" x-transition class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div class="mb-1 flex items-center justify-between">
             <h2 class="text-lg font-bold text-slate-900">Empresas</h2>
@@ -49,11 +49,14 @@
             </template>
         </div>
 
-        <div class="mt-4 flex gap-2 border-t border-slate-200 pt-4">
-            <input type="text" x-model="nuevaEmpresaNombre" @keydown.enter="agregarEmpresa()" placeholder="Nombre de la nueva empresa (ej. CEMEX)" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <button type="button" @click="agregarEmpresa()" class="inline-flex items-center gap-2 rounded-xl bg-[#d55b20] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b8481a]">
-                <i data-lucide="plus" class="h-4 w-4"></i> Nueva empresa
-            </button>
+        <div class="mt-4 border-t border-slate-200 pt-4">
+            <label class="mb-1 block text-xs font-medium text-slate-600">Nueva empresa <span class="text-red-500">*</span></label>
+            <div class="flex gap-2">
+                <input type="text" x-model="nuevaEmpresaNombre" @keydown.enter="agregarEmpresa()" placeholder="Ej. CEMEX" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <button type="button" @click="agregarEmpresa()" class="inline-flex items-center gap-2 rounded-xl bg-[#d55b20] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b8481a]">
+                    <i data-lucide="plus" class="h-4 w-4"></i> Nueva empresa
+                </button>
+            </div>
         </div>
 
         <div class="mt-5 flex justify-end">

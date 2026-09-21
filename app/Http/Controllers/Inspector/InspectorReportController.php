@@ -14,6 +14,7 @@ use App\Models\Group;
 use App\Models\ReportDetail;
 use App\Models\ReportDetailFile;
 use App\Services\Execution\ExecutionStatusResolver;
+use App\Services\Reports\ReportDetailMerger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class InspectorReportController extends Controller
 {
     public function __construct(
         private readonly ExecutionStatusResolver $executionStatusResolver,
+        private readonly ReportDetailMerger $reportDetailMerger,
     ) {
     }
 
@@ -718,96 +720,108 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
         $currentWeek = (int) $now->isoWeek();
         $currentYear = (int) $now->isoWeekYear();
 
-        $existingReport = ReportDetail::where('element_id', $element->id)
-            ->where('component_id', $component->id)
-            ->where('diagnostic_id', $validated['diagnostic_id'])
-            ->where('created_at', '>=', now()->subHours(24))
-            ->where('status', true)
-            ->latest('created_at')
-            ->first();
+        [$reportDetail, $wasMerged] = DB::transaction(function () use (
+            $element,
+            $component,
+            $diagnostic,
+            $validated,
+            $user,
+            $isBeltEstado,
+            $isBeltChangeValue,
+            $isDetenidoCondition,
+            $lastNonDetenidoReport,
+            $isOkCondition,
+            $executionStatusId,
+            $currentWeek,
+            $currentYear
+        ) {
+            $existingReport = $this->reportDetailMerger->findMergeCandidate(
+                $element->id,
+                $component->id,
+                $diagnostic->id
+            );
 
-        if ($existingReport) {
-            $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
+            if ($existingReport) {
+                $newRecommendation = trim((string) ($validated['recommendation'] ?? ''));
+                $previousMatchingReport = $this->findPreviousMatchingReport(
+                    $element->id,
+                    $component->id,
+                    $diagnostic->id,
+                    $existingReport->id
+                );
+
+                $updateData = [
+                    'condition_id' => $validated['condition_id'],
+                ];
+
+                if ($isBeltEstado) {
+                    $updateData['is_belt_change'] = $isBeltChangeValue;
+                }
+
+                if ($isDetenidoCondition && $lastNonDetenidoReport) {
+                    $updateData['recommendation'] = $lastNonDetenidoReport->recommendation;
+                } elseif ($newRecommendation !== '') {
+                    if ((int) $user->id !== (int) $existingReport->user_id) {
+                        $updateData['recommendation'] = $this->reportDetailMerger->appendFinding(
+                            $existingReport->recommendation,
+                            $user->name,
+                            now(),
+                            $newRecommendation
+                        );
+                    } else {
+                        $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
+
+                        $updateData['recommendation'] = $currentRecommendation !== ''
+                            ? $currentRecommendation . PHP_EOL . PHP_EOL . $newRecommendation
+                            : $newRecommendation;
+                    }
+                }
+
+                if ($isOkCondition) {
+                    $updateData['orden'] = null;
+                    $updateData['aviso'] = null;
+                    $updateData['execution_status_id'] = $executionStatusId;
+                    $updateData['execution_date'] = null;
+                } else {
+                    $updateData['orden'] = $previousMatchingReport?->orden;
+                    $updateData['aviso'] = $previousMatchingReport?->aviso;
+                    $updateData['execution_status_id'] = $executionStatusId;
+                    $updateData['execution_date'] = $existingReport->execution_date ?: now()->toDateString();
+                }
+
+                $existingReport->update($updateData);
+
+                return [$existingReport, true];
+            }
+
             $previousMatchingReport = $this->findPreviousMatchingReport(
                 $element->id,
                 $component->id,
-                $diagnostic->id,
-                $existingReport->id
+                $diagnostic->id
             );
 
-            $updateData = [
+            $reportDetail = ReportDetail::create([
+                'report_id' => null,
+                'user_id' => $user->id,
+                'element_id' => $element->id,
+                'component_id' => $component->id,
+                'diagnostic_id' => $validated['diagnostic_id'],
+                'year' => $currentYear,
+                'week' => $currentWeek,
                 'condition_id' => $validated['condition_id'],
-            ];
+                'observation' => null,
+                'recommendation' => $isDetenidoCondition && $lastNonDetenidoReport
+                    ? $lastNonDetenidoReport->recommendation
+                    : ($validated['recommendation'] ?? null),
+                'orden' => $isOkCondition ? null : $previousMatchingReport?->orden,
+                'aviso' => $isOkCondition ? null : $previousMatchingReport?->aviso,
+                'is_belt_change' => $isBeltChangeValue,
+                'execution_status_id' => $executionStatusId,
+                'execution_date' => $isOkCondition ? null : now()->toDateString(),
+            ]);
 
-            if ($isBeltEstado) {
-                $updateData['is_belt_change'] = $isBeltChangeValue;
-            }
-
-            if ($isDetenidoCondition && $lastNonDetenidoReport) {
-                $updateData['recommendation'] = $lastNonDetenidoReport->recommendation;
-            } elseif ($newRecommendation !== '') {
-                $currentRecommendation = trim((string) ($existingReport->recommendation ?? ''));
-
-                $entry = ($user->id !== $existingReport->user_id)
-                    ? $user->name . ': ' . $newRecommendation
-                    : $newRecommendation;
-
-                $updateData['recommendation'] = $currentRecommendation !== ''
-                    ? $currentRecommendation . PHP_EOL . PHP_EOL . $entry
-                    : $entry;
-            }
-
-            if ($isOkCondition) {
-                $updateData['orden'] = null;
-                $updateData['aviso'] = null;
-                $updateData['execution_status_id'] = $executionStatusId;
-                $updateData['execution_date'] = null;
-            } else {
-                $updateData['orden'] = $previousMatchingReport?->orden;
-                $updateData['aviso'] = $previousMatchingReport?->aviso;
-                $updateData['execution_status_id'] = $executionStatusId;
-                $updateData['execution_date'] = $existingReport->execution_date ?: now()->toDateString();
-            }
-
-            $existingReport->update($updateData);
-
-            if ($request->hasFile('attachments')) {
-                $existingReport->loadMissing('element');
-                $this->storeAttachments($existingReport, $request->file('attachments'), $user->id);
-            }
-
-            $this->storeLastSelectionInSession($client->id, $group->id, $area->id, $element->id);
-
-            return redirect()
-                ->route('inspector.reports.index')
-                ->with('success', 'El reporte existente fue complementado correctamente.');
-        }
-
-        $previousMatchingReport = $this->findPreviousMatchingReport(
-            $element->id,
-            $component->id,
-            $diagnostic->id
-        );
-
-        $reportDetail = ReportDetail::create([
-            'report_id' => null,
-            'user_id' => $user->id,
-            'element_id' => $element->id,
-            'component_id' => $component->id,
-            'diagnostic_id' => $validated['diagnostic_id'],
-            'year' => $currentYear,
-            'week' => $currentWeek,
-            'condition_id' => $validated['condition_id'],
-            'observation' => null,
-            'recommendation' => $isDetenidoCondition && $lastNonDetenidoReport
-                ? $lastNonDetenidoReport->recommendation
-                : ($validated['recommendation'] ?? null),
-            'orden' => $isOkCondition ? null : $previousMatchingReport?->orden,
-            'aviso' => $isOkCondition ? null : $previousMatchingReport?->aviso,
-            'is_belt_change' => $isBeltChangeValue,
-            'execution_status_id' => $executionStatusId,
-            'execution_date' => $isOkCondition ? null : now()->toDateString(),
-        ]);
+            return [$reportDetail, false];
+        });
 
         if ($request->hasFile('attachments')) {
             $reportDetail->loadMissing('element');
@@ -818,7 +832,9 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
 
         return redirect()
             ->route('inspector.reports.index')
-            ->with('success', 'Reporte registrado correctamente.');
+            ->with('success', $wasMerged
+                ? 'El reporte existente fue complementado correctamente.'
+                : 'Reporte registrado correctamente.');
     }
 
     private function storeAttachments(ReportDetail $reportDetail, array $files, int $uploadedBy): void

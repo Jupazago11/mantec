@@ -92,6 +92,25 @@
         </div>
     </div>
 
+    {{-- Toast compartido de CRUD (crear/editar/archivar/etc.) — mismo
+         componente que ya usan managed-users, measurements y los demas
+         CRUDs del panel admin. Global a todo /personal/*, ver
+         showCrudToast() mas abajo. --}}
+    <div
+        id="crudToast"
+        class="fixed bottom-6 right-6 z-[100000] hidden max-w-md rounded-2xl border px-4 py-3 text-sm shadow-2xl transition"
+        role="status"
+        aria-live="polite"
+    >
+        <div class="flex items-start gap-3">
+            <div id="crudToastIcon" class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"></div>
+            <div class="min-w-0">
+                <div id="crudToastTitle" class="font-semibold"></div>
+                <div id="crudToastMessage" class="mt-0.5 whitespace-pre-line text-xs leading-relaxed"></div>
+            </div>
+        </div>
+    </div>
+
     {{-- html2canvas-pro (no html2canvas a secas): Tailwind 4 emite colores
          oklch() y el html2canvas original no lo parsea. Ver comentario
          completo en preview-personal/_layout.blade.php (de donde se porto
@@ -156,7 +175,15 @@
                                 console.error('exportarComoImagen: canvas.toBlob devolvió null.');
                                 return;
                             }
-                            await this.copiarOdescargar(blob, `${filenamePrefix}-${fileLabel ?? new Date().toISOString().slice(0, 10)}.png`);
+                            // Fecha local del navegador (no toISOString(),
+                            // que siempre convierte a UTC y puede saltar
+                            // de dia respecto a la hora de Colombia).
+                            const hoyLocal = (() => {
+                                const d = new Date();
+                                const pad2 = (n) => String(n).padStart(2, '0');
+                                return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                            })();
+                            await this.copiarOdescargar(blob, `${filenamePrefix}-${fileLabel ?? hoyLocal}.png`);
                             this.exportando = false;
                         }, 'image/png');
                     } catch (err) {
@@ -190,6 +217,59 @@
             };
         }
 
+        {{-- Toast de CRUD compartido — mismo componente/comportamiento que
+             resources/views/admin/managed-users/index.blade.php
+             (showCrudToast), portado aqui para que todo /personal/* use la
+             misma notificacion que el resto del panel admin. --}}
+        let crudToastTimeout = null;
+
+        function showCrudToast(message, type = 'success', title = null) {
+            const toast = document.getElementById('crudToast');
+            const icon = document.getElementById('crudToastIcon');
+            const titleEl = document.getElementById('crudToastTitle');
+            const messageEl = document.getElementById('crudToastMessage');
+
+            if (!toast || !icon || !titleEl || !messageEl) {
+                alert(Array.isArray(message) ? message.join('\n') : String(message || ''));
+                return;
+            }
+
+            const normalizedMessage = Array.isArray(message)
+                ? message.filter(Boolean).join('\n')
+                : String(message || '');
+
+            const isError = type === 'error';
+            const isWarning = type === 'warning';
+
+            toast.className = 'fixed bottom-6 right-6 z-[100000] max-w-md rounded-2xl border px-4 py-3 text-sm shadow-2xl transition';
+            icon.className = 'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold';
+
+            if (isError) {
+                toast.classList.add('border-red-200', 'bg-red-50', 'text-red-800');
+                icon.classList.add('bg-red-600', 'text-white');
+                icon.textContent = '!';
+                titleEl.textContent = title || 'No fue posible completar la acción';
+            } else if (isWarning) {
+                toast.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-800');
+                icon.classList.add('bg-amber-500', 'text-white');
+                icon.textContent = '!';
+                titleEl.textContent = title || 'Revisa la información';
+            } else {
+                toast.classList.add('border-green-200', 'bg-green-50', 'text-green-800');
+                icon.classList.add('bg-green-600', 'text-white');
+                icon.textContent = '✓';
+                titleEl.textContent = title || 'Acción completada';
+            }
+
+            messageEl.textContent = normalizedMessage;
+            toast.classList.remove('hidden');
+
+            clearTimeout(crudToastTimeout);
+            crudToastTimeout = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, isError ? 6500 : 3200);
+        }
+
         {{-- Portado del mockup (preview-personal/_layout.blade.php) — usado
              por los tooltips de celda de Bitácora. --}}
         function posicionarPopover(el, ancho, altoEstimado = 110) {
@@ -197,11 +277,24 @@
             let left = rect.right - ancho;
             if (left < 8) left = 8;
             if (left + ancho > window.innerWidth - 8) left = window.innerWidth - ancho - 8;
-            let top = rect.bottom + 6;
-            if (top + altoEstimado > window.innerHeight - 8) {
-                top = rect.top - altoEstimado - 6;
+
+            if (rect.bottom + 6 + altoEstimado <= window.innerHeight - 8) {
+                const top = rect.bottom + 6;
+                return `position:fixed; top:${top}px; left:${left}px; width:${ancho}px; z-index:9999;`;
             }
-            return `position:fixed; top:${top}px; left:${left}px; width:${ancho}px; z-index:9999;`;
+
+            // No cabe abajo con el alto estimado: anclar por "bottom" en vez de
+            // calcular "top = rect.top - altoEstimado" (bug corregido
+            // 2026-09-18). altoEstimado es un techo maximo (ej. 280 para
+            // Personas), no el alto real del contenido — con una lista
+            // filtrada a pocos resultados el popover real mide mucho menos,
+            // y anclarlo por "top" asumiendo el maximo dejaba un hueco enorme
+            // (el popover aparecia flotando lejos del campo que lo abrio,
+            // cerca del tope del modal). Con "bottom" el borde inferior real
+            // del popover queda pegado justo arriba del campo sin importar
+            // cuanto mida su contenido.
+            const bottom = window.innerHeight - rect.top + 6;
+            return `position:fixed; bottom:${bottom}px; left:${left}px; width:${ancho}px; z-index:9999;`;
         }
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\BitacoraEntry;
 use App\Models\BitacoraQuota;
 use App\Models\Employee;
+use App\Services\Bitacora\BitacoraHoursCalculator;
 use App\Support\PersonalGuard;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class BitacoraController extends Controller
@@ -19,7 +19,7 @@ class BitacoraController extends Controller
     // mes todavia no tiene una cuota guardada en bitacora_quotas.
     private const CUOTA_DEFAULT = 182.0;
 
-    public function index(Request $request): View
+    public function index(Request $request, BitacoraHoursCalculator $horasCalculator): View
     {
         // Seccion 8: "Web, Administrativos Y Superadmin" — gobernado por
         // el permiso "ver_bitacora" (Roles y permisos), no por el nombre
@@ -43,22 +43,17 @@ class BitacoraController extends Controller
             ];
         }
 
-        // "Programada" (seccion 8: "la hora que el supervisor puso al
-        // crear la actividad en la Programacion") se calcula en vivo, no
-        // se guarda — suma de estimated_hours por empleado/dia.
-        $programadaRows = DB::table('activity_employee')
-            ->join('activities', 'activities.id', '=', 'activity_employee.activity_id')
-            ->whereYear('activities.date', $year)
-            ->whereMonth('activities.date', $month)
-            ->selectRaw('activity_employee.employee_id as employee_id, activities.date as date, SUM(activities.estimated_hours) as total')
-            ->groupBy('activity_employee.employee_id', 'activities.date')
-            ->get();
-
-        $programada = [];
-        foreach ($programadaRows as $row) {
-            $dia = Carbon::parse($row->date)->day;
-            $programada[$row->employee_id][$dia] = (float) $row->total;
-        }
+        // Seccion 14.19: "programada"/"reportada" y la prioridad
+        // corregida > reportada > programada ya viven en
+        // BitacoraHoursCalculator (compartido con ActivityController,
+        // seccion 14.16) — antes esta pantalla tenia su propio calculo
+        // duplicado de "programada" y "reportada" quedaba hardcodeada en
+        // null (comentario historico: "sin la app Android, reportada
+        // siempre esta vacia" — ya no aplica, la app todavia no existe
+        // pero el registro real del supervisor via "Ver como supervisor",
+        // seccion 14.18, ya alimenta reportada).
+        $programada = $horasCalculator->horasProgramadasPorDia($year, $month);
+        $reportada = $horasCalculator->horasReportadasPorDia($year, $month);
 
         $entries = BitacoraEntry::whereYear('date', $year)->whereMonth('date', $month)->get();
         $entriesPorEmpleadoDia = [];
@@ -66,9 +61,11 @@ class BitacoraController extends Controller
             $entriesPorEmpleadoDia[$entry->employee_id][$entry->date->day] = $entry;
         }
 
-        $idsConProgramada = array_keys($programada);
-        $idsConEntries = $entries->pluck('employee_id')->unique()->all();
-        $idsCalificados = array_unique(array_merge($idsConProgramada, $idsConEntries));
+        $idsCalificados = array_unique(array_merge(
+            array_keys($programada),
+            array_keys($reportada),
+            $entries->pluck('employee_id')->unique()->all()
+        ));
 
         $empleados = Employee::where('in_bitacora', true)
             ->whereIn('id', $idsCalificados)
@@ -82,18 +79,16 @@ class BitacoraController extends Controller
             $tieneNumerico = false;
             for ($n = 1; $n <= $diasEnMes; $n++) {
                 $prog = $programada[$empleado->id][$n] ?? null;
+                $reportadaValor = $reportada[$empleado->id][$n] ?? null;
                 $entry = $entriesPorEmpleadoDia[$empleado->id][$n] ?? null;
                 $corregida = $entry?->corrected_value;
                 $comentario = $entry?->comment;
 
-                // Decision confirmada con el usuario (plan Fase 2c): sin la
-                // app Android, "reportada" siempre esta vacia — la celda
-                // usa corregida si existe, si no la programada calculada.
-                $final = ($corregida !== null && $corregida !== '') ? $corregida : $prog;
+                $final = $horasCalculator->valorFinal($prog, $reportadaValor, $entry);
 
                 $celdas[$empleado->id][$n] = [
                     'programada' => $prog,
-                    'reportada' => null,
+                    'reportada' => $reportadaValor,
                     'corregida' => $corregida,
                     'comentario' => $comentario,
                     'final' => $final,
