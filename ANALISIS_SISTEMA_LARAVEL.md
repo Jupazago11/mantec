@@ -793,6 +793,17 @@ Estado consolidado al 2026-09-17:
   autorizacion en el endpoint de sync movil: ver
   [8.1.1](#811-fusion-de-reportes-duplicados-el-mismo-dia-2026-09-17).
 
+Estado consolidado al 2026-09-21:
+
+- `AppServiceProvider::boot()` forzaba `https` siempre (`URL::forceScheme('https')`
+  sin condicion), lo que rompia local (`php artisan serve` solo habla HTTP)
+  cada vez que producción (Railway, HTTPS real) lo necesitaba forzado — el
+  flujo habitual era editar esa linea a mano segun donde se estuviera
+  trabajando. Ahora es condicional a `APP_ENV`: `if (! $this->app->environment('local')) { URL::forceScheme('https'); }`.
+  Verificado en esta sesion simulando ambos entornos: `url('/')` da
+  `http://127.0.0.1:8000` en local real y `https://...` simulando
+  `production` — ya no hace falta tocar el archivo a mano en ningun caso.
+
 ## 17. Riesgos Y Deuda Tecnica Visible
 
 - Las rutas publicas /test-r2 y /php-upload-check deberian evaluarse para deshabilitarse fuera de diagnostico controlado.

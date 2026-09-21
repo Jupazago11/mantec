@@ -55,6 +55,13 @@
             font-size: 12.5px;
             line-height: 1.2;
         }
+        {{-- La imagen exportada es para compartir/imprimir, no para
+             interactuar — la columna de Acciones (lapiz/basura) no pinta
+             nada ahi. .sticky-col es siempre esa columna (Acciones) en
+             estas tablas, nunca otra cosa. --}}
+        .exporting-compact .sticky-col {
+            display: none;
+        }
     </style>
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
@@ -81,11 +88,6 @@
                 @include('components.personal.topbar')
 
                 <main class="min-w-0 flex-1 overflow-y-auto p-4 md:p-8">
-                    @if (session('success'))
-                        <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
-                            {{ session('success') }}
-                        </div>
-                    @endif
                     @yield('content')
                 </main>
             </div>
@@ -135,8 +137,48 @@
                         return;
                     }
                     this.exportando = true;
+                    const wrapper = el.querySelector('.compact-table-wrapper');
                     const scrollBox = el.querySelector('.table-scroll-container, .scroll-container-visible');
-                    const fullWidth = scrollBox ? scrollBox.scrollWidth : el.scrollWidth;
+                    const table = el.querySelector('table');
+                    // El modo compacto (exporting-compact: padding/fuente mas
+                    // chicos, columna Acciones oculta) hay que aplicarlo a la
+                    // pagina REAL antes de medir el ancho, no solo al clon en
+                    // onclone() — si no, fullWidth queda calculado con el
+                    // padding/columna grandes de antes, y el canvas termina
+                    // mas ancho que el contenido compacto real, dejando una
+                    // franja en blanco a la derecha de la imagen exportada.
+                    el.classList.add('exporting-compact');
+                    const prevOverflow = scrollBox?.style.overflow ?? '';
+                    const prevMaxHeight = scrollBox?.style.maxHeight ?? '';
+                    scrollBox?.style.setProperty('overflow', 'visible');
+                    scrollBox?.style.setProperty('max-height', 'none');
+                    // Ancho real de la TABLA (no del contenedor): #areaExportable,
+                    // .compact-table-wrapper y .table-scroll-container son <div>
+                    // de bloque con width:auto — por defecto se estiran al ancho
+                    // de <main>, y probar a encogerlos con `width: fit-content`
+                    // no funciono (html2canvas no soporta bien ese keyword de
+                    // sizing intrinseco: la imagen exportada seguia con una
+                    // franja en blanco a la derecha, confirmado con captura real
+                    // 2026-09-21). Fix definitivo: medir el ancho de la tabla en
+                    // pixeles concretos y fijar ESA misma cifra, tambien en
+                    // pixeles, en los tres contenedores — sin depender de que el
+                    // motor de layout resuelva ningun shrink-to-fit por su cuenta.
+                    //
+                    // Ojo con .preventive-table { min-width:100% }: si se mide
+                    // el ancho de la tabla ANTES de encoger los contenedores,
+                    // ese min-width todavia esta resolviendo contra el ancho
+                    // completo de pagina de scrollBox, asi que table.scrollWidth
+                    // saldria igual de inflado (el mismo bug, solo que medido
+                    // en otro elemento). Se anula el min-width de la tabla justo
+                    // antes de medir para que scrollWidth refleje el ancho real
+                    // del contenido, no el heredado del contenedor.
+                    const prevTableMinWidth = table?.style.minWidth ?? '';
+                    table?.style.setProperty('min-width', '0px');
+                    const fullWidth = table ? table.scrollWidth : (scrollBox ? scrollBox.scrollWidth : el.scrollWidth);
+                    table?.style.setProperty('min-width', prevTableMinWidth || '');
+                    const nodosAAjustar = [el, wrapper, scrollBox].filter(Boolean);
+                    const prevWidths = nodosAAjustar.map((n) => n.style.width);
+                    nodosAAjustar.forEach((n) => n.style.setProperty('width', fullWidth + 'px'));
                     try {
                         const canvas = await window.html2canvas(el, {
                             backgroundColor: '#ffffff',
@@ -145,10 +187,12 @@
                             width: fullWidth,
                             onclone: (clonedDoc) => {
                                 const area = clonedDoc.getElementById('areaExportable');
+                                const cloneWrapper = area?.querySelector('.compact-table-wrapper');
                                 const box = area?.querySelector('.table-scroll-container, .scroll-container-visible');
                                 box?.style.setProperty('overflow', 'visible');
                                 box?.style.setProperty('max-height', 'none');
                                 area?.classList.add('exporting-compact');
+                                [area, cloneWrapper, box].forEach((n) => n?.style.setProperty('width', fullWidth + 'px'));
 
                                 try {
                                     const cssText = Array.from(document.styleSheets)
@@ -190,6 +234,11 @@
                         this.exportando = false;
                         this.mostrarMensaje('No se pudo generar la imagen: ' + (err?.message || err));
                         console.error('exportarComoImagen: html2canvas lanzó un error:', err);
+                    } finally {
+                        el.classList.remove('exporting-compact');
+                        nodosAAjustar.forEach((n, i) => { n.style.width = prevWidths[i]; });
+                        scrollBox?.style.setProperty('overflow', prevOverflow);
+                        scrollBox?.style.setProperty('max-height', prevMaxHeight);
                     }
                 },
                 async copiarOdescargar(blob, filename) {
@@ -269,6 +318,14 @@
                 toast.classList.add('hidden');
             }, isError ? 6500 : 3200);
         }
+
+        {{-- Mensajes de exito por redirect (ej. BitacoraController::cuota())
+             usaban un cartel fijo arriba del contenido que quedaba plantado
+             hasta la siguiente navegacion — se reemplaza por el mismo toast
+             flotante de arriba para que todo /personal/* notifique igual. --}}
+        @if (session('success'))
+            showCrudToast(@js(session('success')));
+        @endif
 
         {{-- Portado del mockup (preview-personal/_layout.blade.php) — usado
              por los tooltips de celda de Bitácora. --}}

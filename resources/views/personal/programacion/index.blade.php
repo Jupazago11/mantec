@@ -109,10 +109,10 @@
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Equipo</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Proceso</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:13rem">Actividad</th>
-                        <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Cantidad de personas">Cant.</th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Personas</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Horas</th>
                         <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Jornada">Jorn.</th>
-                        <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Personas</th>
+                        <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Nombre de las personas</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resp.</th>
                     </tr>
                 </thead>
@@ -189,7 +189,12 @@
                                             <span
                                                 @mouseenter="open = true; estilo = posicionarPopover($el, 220, 64)"
                                                 class="cursor-default border-b border-dotted border-slate-300"
-                                                x-text="p.nickname + (idx < a.personas.length - 1 ? ', ' : '')"
+                                                {{-- espacio duro (U+00A0), no uno normal: html2canvas
+                                                     (usado en "Copiar como imagen") recorta un espacio
+                                                     normal al final del texto de un <span>, dejando el
+                                                     separador pegado en la imagen exportada aunque en la
+                                                     pagina viva se vea bien. --}}
+                                                x-text="p.nickname + (idx < a.personas.length - 1 ? ', ' : '')"
                                             ></span>
                                             <template x-teleport="body">
                                                 <div x-show="open" x-cloak x-transition :style="estilo" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-xl">
@@ -965,9 +970,18 @@
                 const idx = this.personas.indexOf(id);
                 if (idx >= 0) this.personas.splice(idx, 1);
             },
+            // Pedido 2026-09-21: dentro de cada categoria (el agrupamiento
+            // por rol/categoria ya estaba y se mantiene igual, es el
+            // criterio principal) se ordena por horas acumuladas del mes,
+            // de mayor a menor — mismo dato que ya se mostraba a la derecha
+            // de cada fila (horasResumenTexto()), ahora tambien define el
+            // orden. Sin horas acumuladas (null) se trata como 0 y queda al
+            // final de su categoria.
             personasFiltradas(categoria) {
                 const q = this.busquedaPersona.trim().toLowerCase();
-                return this.empleados.filter((e) => e.categoria === categoria && (!q || e.nombre.toLowerCase().includes(q)));
+                return this.empleados
+                    .filter((e) => e.categoria === categoria && (!q || e.nombre.toLowerCase().includes(q)))
+                    .sort((a, b) => (b.horasAcumuladas ?? 0) - (a.horasAcumuladas ?? 0));
             },
             nombrePersona(id) {
                 return this.empleados.find((e) => e.id === id)?.nombre ?? '';

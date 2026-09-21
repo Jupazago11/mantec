@@ -318,10 +318,12 @@ class ActivityControllerAjaxTest extends TestCase
     }
 
     // Pedido 2026-09-21: despues de "Actividad" va una columna con la
-    // CANTIDAD de personas (no la lista), luego Horas, luego Jornada — la
-    // lista de nombres (Personas) se corrio para despues de Jornada. Se
-    // verifica el orden real de los encabezados en el HTML, no solo que
-    // "Cant." exista en algun lado de la pagina.
+    // CANTIDAD de personas ("Personas"), luego Horas, luego Jornada — la
+    // lista de nombres ("Nombre de las personas") se corrio para despues
+    // de Jornada. Los dos encabezados comparten la palabra "Personas"
+    // (pedido 2026-09-21), asi que la columna de cantidad se ancla con el
+    // texto exacto ">Personas<" (nada mas alrededor) y la de nombres con
+    // su texto completo, para no confundir una con la otra.
     public function test_programacion_index_shows_cantidad_column_between_actividad_and_horas(): void
     {
         $admin = $this->superadmin();
@@ -331,23 +333,23 @@ class ActivityControllerAjaxTest extends TestCase
 
         $html = $response->getContent();
         $posActividad = strpos($html, '>Actividad<');
-        $posCant = strpos($html, '>Cant.<');
+        $posCantidad = strpos($html, '>Personas<');
         $posHoras = strpos($html, '>Horas<');
         $posJornada = strpos($html, 'title="Jornada"');
-        $posPersonas = strpos($html, '>Personas<');
+        $posNombres = strpos($html, '>Nombre de las personas<');
 
         $this->assertNotFalse($posActividad);
-        $this->assertNotFalse($posCant);
+        $this->assertNotFalse($posCantidad);
         $this->assertNotFalse($posHoras);
         $this->assertNotFalse($posJornada);
-        $this->assertNotFalse($posPersonas);
-        $this->assertTrue($posActividad < $posCant, 'Cant. debe ir despues de Actividad');
-        $this->assertTrue($posCant < $posHoras, 'Horas debe ir despues de Cant.');
+        $this->assertNotFalse($posNombres);
+        $this->assertTrue($posActividad < $posCantidad, 'Personas (cantidad) debe ir despues de Actividad');
+        $this->assertTrue($posCantidad < $posHoras, 'Horas debe ir despues de Personas (cantidad)');
         $this->assertTrue($posHoras < $posJornada, 'Jornada debe ir despues de Horas');
-        $this->assertTrue($posJornada < $posPersonas, 'Personas debe ir despues de Jornada');
+        $this->assertTrue($posJornada < $posNombres, 'Nombre de las personas debe ir despues de Jornada');
     }
 
-    // El numero que se ve en la columna "Cant." lo calcula Alpine en el
+    // El numero que se ve en la columna "Personas" (cantidad) lo calcula Alpine en el
     // navegador (a.personas.length, ver x-text del <td>) a partir de este
     // mismo arreglo — no hay forma de ejecutar ese JS desde un test
     // PHPUnit, asi que lo que se puede verificar del lado servidor es que
