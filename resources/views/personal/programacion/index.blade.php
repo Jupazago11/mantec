@@ -458,7 +458,7 @@
                         <div x-show="formActividad.responsible_employee_id" class="mb-2">
                             <span class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                                 <span class="border-b-2 border-[#d55b20] pb-0.5" x-text="nombreSupervisor(formActividad.responsible_employee_id)"></span>
-                                <button type="button" @click="formActividad.responsible_employee_id = ''" class="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-red-500">
+                                <button type="button" @click="formActividad.responsible_employee_id = ''; responsableAutocompletado = false" class="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-red-500">
                                     <i data-lucide="x" class="h-3.5 w-3.5"></i>
                                 </button>
                             </span>
@@ -492,7 +492,7 @@
                                     <template x-for="sup in supervisoresFiltrados()" :key="sup.id">
                                         <button
                                             type="button"
-                                            @click="formActividad.responsible_employee_id = sup.id; busquedaResponsable = ''; open = false"
+                                            @click="formActividad.responsible_employee_id = sup.id; responsableAutocompletado = false; busquedaResponsable = ''; open = false"
                                             class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
                                         >
                                             <span class="flex items-center gap-2">
@@ -652,18 +652,36 @@
             procesos,
             gruposResponsables,
             // Autocompletar Responsable por Grupo (pedido 2026-09-18): solo
-            // rellena si el campo Responsable todavia esta vacio (nunca
-            // pisa una eleccion manual, sea la sugerida u otra distinta).
-            // gruposResponsables ya viene acotado al dia que se esta viendo
-            // (armado en el backend sobre las actividades de esa fecha),
-            // asi que nunca sugiere el responsable de otro dia.
+            // rellena si el campo Responsable todavia esta vacio, o si el
+            // valor actual lo puso esta misma funcion la vez anterior
+            // (responsableAutocompletado) — nunca pisa una eleccion manual
+            // del usuario. gruposResponsables ya viene acotado al dia que
+            // se esta viendo (armado en el backend sobre las actividades de
+            // esa fecha), asi que nunca sugiere el responsable de otro dia.
+            //
+            // Fix 2026-09-22 (bug real reportado por el usuario): la guarda
+            // original (`if (responsible_employee_id) return`) impedia
+            // volver a evaluar el autocompletado despues del primer relleno
+            // automatico — al cambiar de Grupo 1 (con responsable sugerido)
+            // a Grupo 2 (sin ninguna actividad ese dia), el campo se quedaba
+            // pegado con el responsable del grupo anterior en vez de
+            // vaciarse. Ahora, mientras el valor actual siga siendo uno que
+            // nosotros mismos autocompletamos, se reevalua en cada cambio de
+            // grupo: se actualiza al sugerido del grupo nuevo, o se vacia si
+            // ese grupo no tiene ninguno (o si el campo Grupo quedo vacio).
+            responsableAutocompletado: false,
             autocompletarResponsablePorGrupo() {
-                if (this.formActividad.responsible_employee_id) return;
+                if (this.formActividad.responsible_employee_id && !this.responsableAutocompletado) return;
+
                 const grupo = this.formActividad.group_number;
-                if (!grupo) return;
-                const sugerido = this.gruposResponsables[grupo];
+                const sugerido = grupo ? (this.gruposResponsables[grupo] ?? null) : null;
+
                 if (sugerido) {
                     this.formActividad.responsible_employee_id = sugerido;
+                    this.responsableAutocompletado = true;
+                } else {
+                    this.formActividad.responsible_employee_id = '';
+                    this.responsableAutocompletado = false;
                 }
             },
             equiposFiltrados() {
@@ -798,6 +816,7 @@
                     this.formMethod = 'POST';
                     this.formActividad = emptyFormActividad();
                     this.personas = [];
+                    this.responsableAutocompletado = false;
                 }
                 this.formErrors = [];
                 this.personasConflicto = [];
@@ -818,6 +837,11 @@
                         description: a.description, estimated_hours: a.estimated_hours ?? '', activity_type: a.activity_type,
                     };
                     this.personas = a.personas.map((p) => p.id);
+                    // El responsable de una actividad ya guardada es un valor
+                    // deliberado (elegido a mano o ya persistido), nunca un
+                    // autocompletado fresco — no se debe tocar solo porque el
+                    // usuario edite el campo Grupo mientras esta en este modal.
+                    this.responsableAutocompletado = false;
                 }
                 this.formErrors = [];
                 this.personasConflicto = [];
@@ -992,9 +1016,15 @@
             // dia de hoy). "+ hoy" es reactivo: lee formActividad.estimated_hours
             // en vivo, asi que al escribir horas en el formulario, el
             // buscador y los chips ya seleccionados se actualizan solos sin
-            // recargar nada. Sirve para comparar candidatos antes de
-            // asignarlos (cuantas horas ya lleva + cuantas le sumaria esta
-            // actividad).
+            // recargar nada.
+            //
+            // Fix 2026-09-22 (bug real reportado por el usuario): "+Xh hoy"
+            // se mostraba para TODAS las personas de la lista, incluso las
+            // que todavia no estaban marcadas — daba la impresion de que ya
+            // se les habian sumado las horas de esta actividad sin haberlas
+            // asignado. Ahora "+Xh hoy" solo aparece si la persona ya esta
+            // seleccionada (this.personas.includes(id)) — para las demas
+            // solo se muestra su acumulado real, sin la suma hipotetica.
             horasResumenTexto(id) {
                 const emp = this.empleados.find((e) => e.id === id);
                 if (!emp) return '';
@@ -1004,10 +1034,12 @@
                     partes.push(`${emp.horasAcumuladas}h`);
                 }
 
-                const hoy = this.formActividad.estimated_hours;
-                const hoyNum = hoy === '' || hoy === null || hoy === undefined ? null : Number(hoy);
-                if (hoyNum !== null && !Number.isNaN(hoyNum) && hoyNum > 0) {
-                    partes.push(`+${hoyNum}h hoy`);
+                if (this.personas.includes(id)) {
+                    const hoy = this.formActividad.estimated_hours;
+                    const hoyNum = hoy === '' || hoy === null || hoy === undefined ? null : Number(hoy);
+                    if (hoyNum !== null && !Number.isNaN(hoyNum) && hoyNum > 0) {
+                        partes.push(`+${hoyNum}h hoy`);
+                    }
                 }
 
                 return partes.length ? `· ${partes.join(' ')}` : '';
