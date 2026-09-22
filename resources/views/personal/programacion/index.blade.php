@@ -1026,15 +1026,20 @@
             // "acumuladas + hoy" (pedido 2026-09-19, seccion 14.16): horasAcumuladas
             // viene del backend (BitacoraHoursCalculator, suma de dias
             // anteriores a la fecha vista/programada — nunca incluye el
-            // dia de hoy). "+ hoy" combina dos fuentes: lo que la persona ya
-            // tiene hoy en OTRAS actividades ya guardadas (horasYaHoy(), fix
-            // 2026-09-22 — antes esto no se sumaba, asi que alguien con
-            // actividades ya creadas hoy parecia no tener nada agendado ese
-            // dia) mas lo que el formulario actual esta escribiendo en
-            // Horas estimadas (reactivo, se actualiza solo al escribir). Se
-            // muestra para CUALQUIER persona de la lista, este ya
-            // seleccionada o no todavia — sirve para comparar candidatos
-            // antes de asignarlos.
+            // dia de hoy). "+ hoy" combina dos fuentes, con una distincion
+            // importante entre ellas (bug real reportado 2026-09-22: "solo
+            // le puse 1h a Luis... y le suma a todos"):
+            //   1. horasYaHoy(id) — actividades REALES ya guardadas hoy.
+            //      Es un hecho, no una hipotesis, asi que se muestra para
+            //      CUALQUIER persona de la lista, seleccionada o no
+            //      todavia (sirve para comparar candidatos antes de
+            //      asignarlos: cuanto ya tiene cada uno hoy).
+            //   2. Lo que el formulario de ESTA actividad nueva (todavia
+            //      sin guardar) tiene escrito en Horas estimadas — eso
+            //      SOLO es real para quien ya esta marcado/seleccionado
+            //      para esta actividad. Sumarlo tambien a los candidatos
+            //      no seleccionados daba la impresion de que ya iban a
+            //      recibir esas horas sin haber sido asignados.
             horasResumenTexto(id) {
                 const emp = this.empleados.find((e) => e.id === id);
                 if (!emp) return '';
@@ -1044,10 +1049,12 @@
                     partes.push(`${emp.horasAcumuladas}h`);
                 }
 
-                const hoy = this.formActividad.estimated_hours;
-                const hoyNum = hoy === '' || hoy === null || hoy === undefined ? 0 : Number(hoy);
-                const nuevaHoy = Number.isNaN(hoyNum) ? 0 : hoyNum;
-                const totalHoy = this.horasYaHoy(id) + nuevaHoy;
+                let totalHoy = this.horasYaHoy(id);
+                if (this.personas.includes(id)) {
+                    const hoy = this.formActividad.estimated_hours;
+                    const hoyNum = hoy === '' || hoy === null || hoy === undefined ? 0 : Number(hoy);
+                    totalHoy += Number.isNaN(hoyNum) ? 0 : hoyNum;
+                }
 
                 if (totalHoy > 0) {
                     partes.push(`+${totalHoy}h hoy`);
