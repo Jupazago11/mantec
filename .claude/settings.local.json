@@ -36,7 +36,9 @@
       "Read(//c/Users/USUARIO/AndroidStudioProjects/Mantec_ins/**)",
       "Bash(grep -n \"\" /dev/null)",
       "Read(//dev/**)",
-      "Bash(MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu -- bash -c \"grep -n 'ksp {' -A5 '/mnt/c/Users/USUARIO/AndroidStudioProjects/Mantec_ins/app/build.gradle.kts'; echo '---'; grep -n 'room.schemaLocation' -r '/mnt/c/Users/USUARIO/AndroidStudioProjects/Mantec_ins/app' 2>&1\")"
+      "Bash(MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu -- bash -c \"grep -n 'ksp {' -A5 '/mnt/c/Users/USUARIO/AndroidStudioProjects/Mantec_ins/app/build.gradle.kts'; echo '---'; grep -n 'room.schemaLocation' -r '/mnt/c/Users/USUARIO/AndroidStudioProjects/Mantec_ins/app' 2>&1\")",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__batch"
     ],
     "additionalDirectories": [
       "\\home\\jupazago\\Documentos\\mantecv1\\mantec\\resources\\views\\admin\\managed-element-types",
