@@ -1010,19 +1010,31 @@
             nombrePersona(id) {
                 return this.empleados.find((e) => e.id === id)?.nombre ?? '';
             },
+            // Horas que esta persona YA tiene hoy, sumando SOLO actividades
+            // reales ya guardadas para el dia que se esta viendo (this.
+            // actividades, cargado de actividadesIniciales / recargado tras
+            // cada guardado) — excluye la actividad que se esta editando en
+            // este momento (this.activityId), para no sumarla dos veces
+            // contra lo que el usuario esta escribiendo en el formulario.
+            // Suma sin importar si cada actividad es Primaria o Secundaria:
+            // todas cuentan horas reales trabajadas ese dia.
+            horasYaHoy(id) {
+                return this.actividades
+                    .filter((a) => a.id !== this.activityId && a.personas.some((p) => p.id === id))
+                    .reduce((sum, a) => sum + (Number(a.estimated_hours) || 0), 0);
+            },
             // "acumuladas + hoy" (pedido 2026-09-19, seccion 14.16): horasAcumuladas
             // viene del backend (BitacoraHoursCalculator, suma de dias
             // anteriores a la fecha vista/programada — nunca incluye el
-            // dia de hoy). "+ hoy" es reactivo: lee formActividad.estimated_hours
-            // en vivo, asi que al escribir horas en el formulario, el
-            // buscador y los chips ya seleccionados se actualizan solos sin
-            // recargar nada. Sirve para comparar candidatos antes de
-            // asignarlos (cuantas horas ya lleva + cuantas le sumaria esta
-            // actividad) — por eso se muestra para CUALQUIER persona de la
-            // lista, este ya seleccionada o no todavia (2026-09-22:
-            // revertido un cambio que lo restringia solo a seleccionadas —
-            // el usuario confirmo que el comportamiento original, visible
-            // para todo candidato, es el que se necesita).
+            // dia de hoy). "+ hoy" combina dos fuentes: lo que la persona ya
+            // tiene hoy en OTRAS actividades ya guardadas (horasYaHoy(), fix
+            // 2026-09-22 — antes esto no se sumaba, asi que alguien con
+            // actividades ya creadas hoy parecia no tener nada agendado ese
+            // dia) mas lo que el formulario actual esta escribiendo en
+            // Horas estimadas (reactivo, se actualiza solo al escribir). Se
+            // muestra para CUALQUIER persona de la lista, este ya
+            // seleccionada o no todavia — sirve para comparar candidatos
+            // antes de asignarlos.
             horasResumenTexto(id) {
                 const emp = this.empleados.find((e) => e.id === id);
                 if (!emp) return '';
@@ -1033,9 +1045,12 @@
                 }
 
                 const hoy = this.formActividad.estimated_hours;
-                const hoyNum = hoy === '' || hoy === null || hoy === undefined ? null : Number(hoy);
-                if (hoyNum !== null && !Number.isNaN(hoyNum) && hoyNum > 0) {
-                    partes.push(`+${hoyNum}h hoy`);
+                const hoyNum = hoy === '' || hoy === null || hoy === undefined ? 0 : Number(hoy);
+                const nuevaHoy = Number.isNaN(hoyNum) ? 0 : hoyNum;
+                const totalHoy = this.horasYaHoy(id) + nuevaHoy;
+
+                if (totalHoy > 0) {
+                    partes.push(`+${totalHoy}h hoy`);
                 }
 
                 return partes.length ? `· ${partes.join(' ')}` : '';
