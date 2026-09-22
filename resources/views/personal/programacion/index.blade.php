@@ -1016,15 +1016,13 @@
             // dia de hoy). "+ hoy" es reactivo: lee formActividad.estimated_hours
             // en vivo, asi que al escribir horas en el formulario, el
             // buscador y los chips ya seleccionados se actualizan solos sin
-            // recargar nada.
-            //
-            // Fix 2026-09-22 (bug real reportado por el usuario): "+Xh hoy"
-            // se mostraba para TODAS las personas de la lista, incluso las
-            // que todavia no estaban marcadas — daba la impresion de que ya
-            // se les habian sumado las horas de esta actividad sin haberlas
-            // asignado. Ahora "+Xh hoy" solo aparece si la persona ya esta
-            // seleccionada (this.personas.includes(id)) — para las demas
-            // solo se muestra su acumulado real, sin la suma hipotetica.
+            // recargar nada. Sirve para comparar candidatos antes de
+            // asignarlos (cuantas horas ya lleva + cuantas le sumaria esta
+            // actividad) — por eso se muestra para CUALQUIER persona de la
+            // lista, este ya seleccionada o no todavia (2026-09-22:
+            // revertido un cambio que lo restringia solo a seleccionadas —
+            // el usuario confirmo que el comportamiento original, visible
+            // para todo candidato, es el que se necesita).
             horasResumenTexto(id) {
                 const emp = this.empleados.find((e) => e.id === id);
                 if (!emp) return '';
@@ -1034,12 +1032,10 @@
                     partes.push(`${emp.horasAcumuladas}h`);
                 }
 
-                if (this.personas.includes(id)) {
-                    const hoy = this.formActividad.estimated_hours;
-                    const hoyNum = hoy === '' || hoy === null || hoy === undefined ? null : Number(hoy);
-                    if (hoyNum !== null && !Number.isNaN(hoyNum) && hoyNum > 0) {
-                        partes.push(`+${hoyNum}h hoy`);
-                    }
+                const hoy = this.formActividad.estimated_hours;
+                const hoyNum = hoy === '' || hoy === null || hoy === undefined ? null : Number(hoy);
+                if (hoyNum !== null && !Number.isNaN(hoyNum) && hoyNum > 0) {
+                    partes.push(`+${hoyNum}h hoy`);
                 }
 
                 return partes.length ? `· ${partes.join(' ')}` : '';
