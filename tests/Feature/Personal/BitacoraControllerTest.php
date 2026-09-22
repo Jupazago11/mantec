@@ -3,6 +3,7 @@
 namespace Tests\Feature\Personal;
 
 use App\Models\Activity;
+use App\Models\ActivityEmployeeComment;
 use App\Models\ActivityEmployeeHour;
 use App\Models\BitacoraEntry;
 use App\Models\Company;
@@ -165,6 +166,87 @@ class BitacoraControllerTest extends TestCase
         $response->assertSee('programada: 10,', false);
         $response->assertSee('reportada: 6,', false);
         $response->assertSee("corregida: '9',", false);
+    }
+
+    // Pedido 2026-09-22: el comentario de administrativo deja de
+    // sobrescribirse y pasa a ser historial (igual que el del responsable
+    // desde la app) — dos guardados con texto distinto deben acumularse,
+    // no reemplazarse.
+    public function test_admin_comments_accumulate_as_history_instead_of_overwriting(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('historial-admin-test');
+
+        $this->actingAs($admin)->post(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-03-09', 'comment' => 'Primer comentario admin',
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->post(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-03-09', 'comment' => 'Segundo comentario admin',
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('activity_employee_comments', 2);
+        $this->assertDatabaseHas('activity_employee_comments', [
+            'employee_id' => $persona->id, 'date' => '2026-03-09', 'activity_id' => null,
+            'author_name' => 'Admin Test (superadmin)', 'comment' => 'Primer comentario admin',
+        ]);
+        $this->assertDatabaseHas('activity_employee_comments', [
+            'employee_id' => $persona->id, 'date' => '2026-03-09', 'activity_id' => null,
+            'author_name' => 'Admin Test (superadmin)', 'comment' => 'Segundo comentario admin',
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 3]));
+        $response->assertOk();
+        $response->assertSee('Primer comentario admin', false);
+        $response->assertSee('Segundo comentario admin', false);
+    }
+
+    // Enviar el formulario sin texto no debe crear una fila vacia en el
+    // historial.
+    public function test_saving_entry_without_comment_does_not_create_empty_history_row(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('sin-comentario-test');
+
+        $this->actingAs($admin)->post(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-03-10', 'corrected_value' => '9',
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('activity_employee_comments', 0);
+    }
+
+    // El comentario del responsable (activity_id no nulo, escrito desde la
+    // app Android) debe aparecer en Bitacora mezclado con el del admin,
+    // marcado como tal.
+    public function test_responsible_comment_from_the_app_shows_up_in_bitacora_history(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('comentario-responsable-test');
+        $responsable = $this->empleado('responsable-comentario-test');
+
+        $activity = Activity::create([
+            'date' => '2026-03-11', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+            'responsible_employee_id' => $responsable->id,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        ActivityEmployeeComment::create([
+            'employee_id' => $persona->id, 'date' => '2026-03-11', 'activity_id' => $activity->id,
+            'author_employee_id' => $responsable->id, 'author_name' => $responsable->nombre,
+            'comment' => 'Se fue temprano',
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 3]));
+
+        $response->assertOk();
+        $response->assertSee('Se fue temprano', false);
+        // @js() escapa comillas como " (JSON_HEX_QUOT) — el HTML
+        // crudo trae la clave asi, no con comillas literales (chr(92) =
+        // backslash literal, para evitar que el propio editor interprete
+        // " como una comilla real al escribir este archivo).
+        $response->assertSee('es_responsable'.chr(92).'u0022:true', false);
     }
 
     public function test_unauthorized_employee_cannot_view_bitacora(): void

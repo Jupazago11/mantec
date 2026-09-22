@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Personal;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityEmployeeComment;
 use App\Models\BitacoraEntry;
 use App\Models\BitacoraQuota;
 use App\Models\Employee;
@@ -61,10 +62,31 @@ class BitacoraController extends Controller
             $entriesPorEmpleadoDia[$entry->employee_id][$entry->date->day] = $entry;
         }
 
+        // Historial de comentarios (pedido 2026-09-22): activity_id no nulo
+        // = comentario del responsable (app Android, uno por
+        // actividad+trabajador); activity_id nulo = comentario de
+        // administrativo a nivel de dia (lo que antes era
+        // bitacora_entries.comment, ahora tambien historial — ver
+        // saveEntry()). orderBy('created_at') para que se muestren en el
+        // orden en que se escribieron.
+        $comentarios = ActivityEmployeeComment::whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->orderBy('created_at')
+            ->get();
+        $comentariosPorEmpleadoDia = [];
+        foreach ($comentarios as $comentario) {
+            $comentariosPorEmpleadoDia[$comentario->employee_id][$comentario->date->day][] = [
+                'autor' => $comentario->author_name,
+                'texto' => $comentario->comment,
+                'es_responsable' => $comentario->activity_id !== null,
+            ];
+        }
+
         $idsCalificados = array_unique(array_merge(
             array_keys($programada),
             array_keys($reportada),
-            $entries->pluck('employee_id')->unique()->all()
+            $entries->pluck('employee_id')->unique()->all(),
+            $comentarios->pluck('employee_id')->unique()->all()
         ));
 
         $empleados = Employee::where('in_bitacora', true)
@@ -82,7 +104,6 @@ class BitacoraController extends Controller
                 $reportadaValor = $reportada[$empleado->id][$n] ?? null;
                 $entry = $entriesPorEmpleadoDia[$empleado->id][$n] ?? null;
                 $corregida = $entry?->corrected_value;
-                $comentario = $entry?->comment;
 
                 $final = $horasCalculator->valorFinal($prog, $reportadaValor, $entry);
 
@@ -90,7 +111,7 @@ class BitacoraController extends Controller
                     'programada' => $prog,
                     'reportada' => $reportadaValor,
                     'corregida' => $corregida,
-                    'comentario' => $comentario,
+                    'comentarios' => $comentariosPorEmpleadoDia[$empleado->id][$n] ?? [],
                     'final' => $final,
                 ];
 
@@ -132,10 +153,25 @@ class BitacoraController extends Controller
             ['employee_id' => $validated['employee_id'], 'date' => $validated['date']],
             [
                 'corrected_value' => $validated['corrected_value'] ?? null,
-                'comment' => $validated['comment'] ?? null,
                 'corrected_by_employee_id' => PersonalGuard::employee()?->id,
             ]
         );
+
+        // A diferencia de corrected_value (un solo valor vigente), el
+        // comentario de administrativo ahora es historial (pedido
+        // 2026-09-22, igual que el del responsable en la app) — siempre
+        // create(), nunca upsert, para no perder los comentarios previos.
+        $comentario = trim((string) ($validated['comment'] ?? ''));
+        if ($comentario !== '') {
+            ActivityEmployeeComment::create([
+                'employee_id' => $validated['employee_id'],
+                'date' => $validated['date'],
+                'activity_id' => null,
+                'author_employee_id' => PersonalGuard::employee()?->id,
+                'author_name' => PersonalGuard::displayName(),
+                'comment' => $comentario,
+            ]);
+        }
 
         $fecha = Carbon::parse($validated['date']);
 

@@ -112,6 +112,17 @@ class Activity extends Model
         return $this->hasMany(ActivityEvidence::class);
     }
 
+    // Comentarios del responsable sobre un trabajador puntual de esta
+    // actividad (pedido 2026-09-22) — como solo el responsable asignado
+    // puede escribir aqui (Api\Personal\ActivityController::store), a lo
+    // sumo hay una fila por employee_id (upsert, no se acumulan). Los
+    // comentarios de administrativo (nivel dia, no de una actividad
+    // puntual) NO viven aqui — ver ActivityEmployeeComment.
+    public function employeeComments(): HasMany
+    {
+        return $this->hasMany(ActivityEmployeeComment::class);
+    }
+
     public function isClosed(): bool
     {
         return $this->closed_at !== null;

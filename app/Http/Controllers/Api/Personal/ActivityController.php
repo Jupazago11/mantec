@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Personal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
+use App\Models\ActivityEmployeeComment;
 use App\Models\ActivityEmployeeHour;
 use App\Models\Employee;
 use Carbon\Carbon;
@@ -34,7 +35,7 @@ class ActivityController extends Controller
         // Nocturno (cruzan medianoche), siempre visibles.
         $ayer = Carbon::parse($date)->subDay()->toDateString();
 
-        $actividades = Activity::with(['company', 'personas', 'employeeHours', 'evidences'])
+        $actividades = Activity::with(['company', 'personas', 'employeeHours', 'evidences', 'employeeComments'])
             ->where('responsible_employee_id', $employee->id)
             ->where(function ($query) use ($date, $ayer) {
                 $query->where('date', $date)
@@ -70,6 +71,12 @@ class ActivityController extends Controller
         if ($validated['all_worked_scheduled_hours']) {
             $activity->employeeHours()->delete();
             $reportedHours = $activity->estimated_hours;
+            // Los comentarios por persona (pedido 2026-09-22) NO se borran
+            // aqui a proposito: son texto escrito a mano, mas "caro" de
+            // perder que un stepper de horas que vuelve a 0 — si el
+            // supervisor cambia a "Si" por error y vuelve a "No", no
+            // pierde lo que ya habia comentado. Se borran solo de forma
+            // explicita, desde el modal.
         } else {
             $reportedHours = 0.0;
             foreach ($validated['personas'] as $persona) {
@@ -83,6 +90,24 @@ class ActivityController extends Controller
                         'worked_hours' => $workedHours,
                     ]
                 );
+
+                $comentario = isset($persona['comment']) ? trim((string) $persona['comment']) : '';
+
+                if ($comentario !== '') {
+                    ActivityEmployeeComment::updateOrCreate(
+                        ['activity_id' => $activity->id, 'employee_id' => $persona['employee_id']],
+                        [
+                            'date' => $activity->date,
+                            'author_employee_id' => $employee->id,
+                            'author_name' => $employee->nombre,
+                            'comment' => $comentario,
+                        ]
+                    );
+                } else {
+                    ActivityEmployeeComment::where('activity_id', $activity->id)
+                        ->where('employee_id', $persona['employee_id'])
+                        ->delete();
+                }
             }
         }
 
@@ -97,7 +122,7 @@ class ActivityController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Registro guardado correctamente.',
-            'activity' => $this->serialize($activity->fresh(['personas', 'employeeHours', 'evidences'])),
+            'activity' => $this->serialize($activity->fresh(['personas', 'employeeHours', 'evidences', 'employeeComments'])),
         ]);
     }
 
@@ -109,6 +134,7 @@ class ActivityController extends Controller
             'personas' => ['array'],
             'personas.*.employee_id' => ['required', 'integer'],
             'personas.*.worked_hours' => ['required', 'numeric', 'min:0'],
+            'personas.*.comment' => ['nullable', 'string', 'max:1000'],
         ])->after(function ($validator) use ($request) {
             if ($request->boolean('all_worked_scheduled_hours')) {
                 return;
@@ -123,6 +149,7 @@ class ActivityController extends Controller
     private function serialize(Activity $activity): array
     {
         $horasPorEmpleado = $activity->employeeHours->keyBy('employee_id');
+        $comentariosPorEmpleado = $activity->employeeComments->keyBy('employee_id');
 
         return [
             'id' => $activity->id,
@@ -139,7 +166,7 @@ class ActivityController extends Controller
             'all_worked_scheduled_hours' => $activity->all_worked_scheduled_hours,
             'reported_hours' => $activity->reported_hours !== null ? (float) $activity->reported_hours : null,
             'registrado' => $activity->hours_registered_at !== null,
-            'personas' => $activity->personas->map(function ($p) use ($horasPorEmpleado) {
+            'personas' => $activity->personas->map(function ($p) use ($horasPorEmpleado, $comentariosPorEmpleado) {
                 $h = $horasPorEmpleado->get($p->id);
 
                 return [
@@ -147,6 +174,7 @@ class ActivityController extends Controller
                     'nombre' => $p->nombre,
                     'nickname' => $p->nickname,
                     'worked_hours' => $h?->worked_hours !== null ? (float) $h->worked_hours : null,
+                    'comment' => $comentariosPorEmpleado->get($p->id)?->comment,
                 ];
             })->values(),
             'evidencias' => $activity->evidences->map(fn ($e) => [

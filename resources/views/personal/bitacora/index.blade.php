@@ -92,9 +92,13 @@
                                             programada: @js($c['programada']),
                                             reportada: @js($c['reportada']),
                                             corregida: @js($c['corregida']),
-                                            comentario: @js($c['comentario']),
+                                            comentarios: @js($c['comentarios']),
                                             nuevaCorreccion: @js($reabrirEsta ? old('corrected_value') : ($c['corregida'] ?? '')),
-                                            nuevoComentario: @js($reabrirEsta ? old('comment') : ($c['comentario'] ?? '')),
+                                            {{-- A diferencia de nuevaCorreccion, nuevoComentario ya NO se
+                                                 pre-llena con nada guardado: el comentario ahora es historial
+                                                 (varios admin + 1 responsable, pedido 2026-09-22), este campo
+                                                 siempre es 'agregar uno nuevo', no 'editar el existente'. --}}
+                                            nuevoComentario: @js($reabrirEsta ? old('comment') : ''),
                                             {{-- Prioridad corregida > reportada > programada (seccion 14.19)
                                                  — antes solo comparaba corregida/programada porque "reportada"
                                                  siempre llegaba en null desde el backend; ya no es el caso
@@ -120,7 +124,7 @@
                                         >
                                             <span x-text="final ?? '—'"></span>
                                             <i x-show="corregida !== null && corregida !== ''" data-lucide="pencil-line" class="h-3 w-3 text-[#d55b20]"></i>
-                                            <span x-show="comentario" class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                            <span x-show="comentarios.length > 0" class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                                         </button>
 
                                         <template x-teleport="body">
@@ -130,7 +134,14 @@
                                                 <div><div class="text-[10px] uppercase text-slate-400">Reportada</div><div class="font-semibold" x-text="reportada ?? '—'"></div></div>
                                                 <div><div class="text-[10px] uppercase text-slate-400">Corregida</div><div class="font-semibold" x-text="corregida ?? '—'"></div></div>
                                             </div>
-                                            <div x-show="comentario" class="mt-2 border-t border-white/10 pt-2 text-slate-200"><span class="font-semibold text-amber-400">Comentario:</span> <span x-text="comentario"></span></div>
+                                            <div x-show="comentarios.length > 0" class="mt-2 space-y-1 border-t border-white/10 pt-2 text-slate-200">
+                                                <template x-for="c in comentarios" :key="c.autor + c.texto">
+                                                    <div>
+                                                        <span class="font-semibold" :class="c.es_responsable ? 'text-sky-400' : 'text-amber-400'" x-text="c.autor + (c.es_responsable ? ' (responsable):' : ':')"></span>
+                                                        <span x-text="c.texto"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
                                         </div>
                                         </template>
 
@@ -165,7 +176,16 @@
                                                         No borra la hora programada — queda disponible en el tooltip.
                                                     </p>
 
-                                                    <label class="mb-1 mt-3 block text-xs font-medium text-slate-600">Comentario</label>
+                                                    <div x-show="comentarios.length > 0" class="mb-3 mt-3 max-h-28 space-y-1.5 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                                                        <template x-for="c in comentarios" :key="c.autor + c.texto">
+                                                            <div>
+                                                                <span class="font-semibold" :class="c.es_responsable ? 'text-sky-600' : 'text-amber-600'" x-text="c.autor + (c.es_responsable ? ' (responsable):' : ':')"></span>
+                                                                <span class="text-slate-600" x-text="c.texto"></span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+
+                                                    <label class="mb-1 mt-3 block text-xs font-medium text-slate-600">Agregar comentario</label>
                                                     <textarea name="comment" x-model="nuevoComentario" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. jornada nocturna-1 ED-11EN"></textarea>
 
                                                     <div class="mt-4 flex justify-end gap-2">

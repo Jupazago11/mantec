@@ -211,4 +211,124 @@ class ActivityControllerTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    // Pedido 2026-09-22: el responsable puede comentar sobre un trabajador
+    // puntual de esta actividad, ademas de las horas.
+    public function test_store_saves_a_comment_for_a_person(): void
+    {
+        $company = $this->company();
+        $supervisor = $this->empleado('sup-comentario-api');
+        $persona = $this->empleado('persona-comentario-api');
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(), 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'responsible_employee_id' => $supervisor->id,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        Sanctum::actingAs($supervisor, ['*']);
+        $response = $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => 'Se fue temprano']],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.personas.0.comment', 'Se fue temprano');
+        $this->assertDatabaseHas('activity_employee_comments', [
+            'activity_id' => $activity->id, 'employee_id' => $persona->id,
+            'author_employee_id' => $supervisor->id, 'author_name' => $supervisor->nombre,
+            'comment' => 'Se fue temprano',
+        ]);
+    }
+
+    // "Solo 1 del responsable" (confirmado con el usuario): un segundo
+    // guardado con texto distinto reemplaza el comentario anterior, no lo
+    // acumula — a diferencia del historial de administrativo en Bitacora.
+    public function test_store_editing_a_comment_replaces_it_instead_of_accumulating(): void
+    {
+        $company = $this->company();
+        $supervisor = $this->empleado('sup-editar-comentario-api');
+        $persona = $this->empleado('persona-editar-comentario-api');
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(), 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'responsible_employee_id' => $supervisor->id,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        Sanctum::actingAs($supervisor, ['*']);
+        $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => 'Primer comentario']],
+        ])->assertOk();
+
+        $response = $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => 'Comentario editado']],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.personas.0.comment', 'Comentario editado');
+        $this->assertDatabaseCount('activity_employee_comments', 1);
+    }
+
+    // "Puede... borrarlo desde el modal" — mandar comment vacio borra la
+    // fila (no la deja como cadena vacia).
+    public function test_store_with_empty_comment_deletes_it(): void
+    {
+        $company = $this->company();
+        $supervisor = $this->empleado('sup-borrar-comentario-api');
+        $persona = $this->empleado('persona-borrar-comentario-api');
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(), 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'responsible_employee_id' => $supervisor->id,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        Sanctum::actingAs($supervisor, ['*']);
+        $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => 'Se fue temprano']],
+        ])->assertOk();
+
+        $response = $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => '']],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.personas.0.comment', null);
+        $this->assertDatabaseCount('activity_employee_comments', 0);
+    }
+
+    // Volver a "Si, todos trabajaron" no borra un comentario ya escrito
+    // (decision explicita, ver ActivityController::store).
+    public function test_switching_to_all_worked_does_not_delete_existing_comment(): void
+    {
+        $company = $this->company();
+        $supervisor = $this->empleado('sup-preserva-comentario-api');
+        $persona = $this->empleado('persona-preserva-comentario-api');
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(), 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'responsible_employee_id' => $supervisor->id,
+            'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        Sanctum::actingAs($supervisor, ['*']);
+        $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => false,
+            'personas' => [['employee_id' => $persona->id, 'worked_hours' => 5, 'comment' => 'Se fue temprano']],
+        ])->assertOk();
+
+        $this->postJson("/api/personal/actividades/{$activity->id}", [
+            'all_worked_scheduled_hours' => true, 'personas' => [],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('activity_employee_comments', [
+            'activity_id' => $activity->id, 'employee_id' => $persona->id, 'comment' => 'Se fue temprano',
+        ]);
+    }
 }
