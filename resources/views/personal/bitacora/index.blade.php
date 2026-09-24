@@ -10,7 +10,7 @@
 @endphp
 
 @section('content')
-<div class="mx-auto max-w-[1900px] space-y-4">
+<div class="mx-auto max-w-[1900px] space-y-4" x-data="{ modalMeses: false, verAnio: {{ $year }} }">
     <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -25,7 +25,15 @@
                     <a href="{{ route('personal.bitacora.index', ['year' => $mesAnterior->year, 'month' => $mesAnterior->month]) }}" title="Mes anterior" class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
                         <i data-lucide="chevron-left" class="h-4 w-4"></i>
                     </a>
-                    <span class="min-w-[9rem] px-2 text-center text-sm font-semibold capitalize text-slate-800">{{ $fechaMes->translatedFormat('F Y') }}</span>
+                    <button
+                        type="button"
+                        @click="modalMeses = true; verAnio = {{ $year }}"
+                        title="Elegir mes"
+                        class="flex min-w-[9rem] items-center justify-center gap-1.5 rounded-lg px-2 py-0.5 text-sm font-semibold capitalize text-slate-800 hover:bg-slate-100"
+                    >
+                        <i data-lucide="calendar-days" class="h-3.5 w-3.5 text-slate-400"></i>
+                        {{ $fechaMes->translatedFormat('F Y') }}
+                    </button>
                     <a href="{{ route('personal.bitacora.index', ['year' => $mesSiguiente->year, 'month' => $mesSiguiente->month]) }}" title="Mes siguiente" class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
                         <i data-lucide="chevron-right" class="h-4 w-4"></i>
                     </a>
@@ -232,5 +240,47 @@
         <span class="inline-flex items-center gap-1"><span class="rounded bg-slate-100 px-1.5 text-slate-500">L</span> Licencia</span>
     </div>
     @endif
+
+    {{-- Selector de mes/año (pedido: la Bitácora es mensual, no diaria, asi
+         que a diferencia del calendario de dias de Programacion/Diario de
+         Campo, este modal navega por meses del año en vez de por dias del
+         mes. Mismo shell visual (modal centrado, flechas +
+         click.outside) que los otros dos, pero con una grilla de 12 meses
+         en vez de una grilla de dias de la semana. verAnio es estado local
+         del modal (no toca $year de la pagina hasta que se elige un mes,
+         que navega via <a href> normal, igual que las flechas de arriba). --}}
+    <div x-show="modalMeses" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" style="top:0;left:0;height:100vh;width:100vw;">
+        <div @click.outside="modalMeses = false" x-show="modalMeses" x-transition class="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+            <div class="mb-1 flex items-center justify-between">
+                <button type="button" @click="verAnio--" title="Año anterior" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50">
+                    <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                </button>
+                <h3 class="text-base font-bold text-slate-900" x-text="verAnio"></h3>
+                <button type="button" @click="verAnio++" title="Año siguiente" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50">
+                    <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                </button>
+            </div>
+            <p class="mb-4 text-center text-xs text-slate-500">Selecciona un mes para ver su bitácora.</p>
+
+            <div class="grid grid-cols-4 gap-1.5">
+                @foreach ([
+                    1 => ['Ene', 'Enero'], 2 => ['Feb', 'Febrero'], 3 => ['Mar', 'Marzo'], 4 => ['Abr', 'Abril'],
+                    5 => ['May', 'Mayo'], 6 => ['Jun', 'Junio'], 7 => ['Jul', 'Julio'], 8 => ['Ago', 'Agosto'],
+                    9 => ['Sep', 'Septiembre'], 10 => ['Oct', 'Octubre'], 11 => ['Nov', 'Noviembre'], 12 => ['Dic', 'Diciembre'],
+                ] as $numeroMes => [$abrevMes, $nombreMes])
+                    <a
+                        :href="'{{ route('personal.bitacora.index') }}?year=' + verAnio + '&month={{ $numeroMes }}'"
+                        title="{{ $nombreMes }}"
+                        :class="verAnio === {{ $year }} && {{ $numeroMes }} === {{ $month }}
+                            ? 'bg-slate-900 text-white'
+                            : (verAnio === {{ now()->year }} && {{ $numeroMes }} === {{ now()->month }}
+                                ? 'text-slate-700 ring-2 ring-[#d55b20]'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100')"
+                        class="flex h-12 items-center justify-center rounded-xl text-xs font-semibold uppercase transition"
+                    >{{ $abrevMes }}</a>
+                @endforeach
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
