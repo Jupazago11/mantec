@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\ActivityEmployeeComment;
 use App\Models\ActivityEmployeeHour;
 use App\Models\BitacoraEntry;
+use App\Models\BitacoraHoliday;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\PersonalCategory;
@@ -256,5 +257,126 @@ class BitacoraControllerTest extends TestCase
         $response = $this->actingAs($persona, 'personal')->get(route('personal.bitacora.index'));
 
         $response->assertStatus(403);
+    }
+
+    // Pedido 2026-09-24: el sistema no tiene calendario de festivos
+    // colombianos, asi que un administrativo puede marcar/quitar una fecha
+    // puntual a mano — primer clic crea el registro, segundo clic (misma
+    // fecha) lo quita, nunca acumula duplicados.
+    public function test_toggle_holiday_creates_then_removes_on_second_toggle(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)
+            ->post(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20'])
+            ->assertRedirect(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]));
+        $this->assertDatabaseCount('bitacora_holidays', 1);
+        $this->assertDatabaseHas('bitacora_holidays', ['date' => '2026-07-20']);
+
+        $this->actingAs($admin)->post(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20']);
+        $this->assertDatabaseCount('bitacora_holidays', 0);
+    }
+
+    // El dia marcado a mano debe servirse como festivo=true en la celda de
+    // valor (fuerza texto rojo en pantalla, ver :class en la vista) y el
+    // dia debe mostrar el marcador de festivo manual junto al numero.
+    public function test_manually_marked_holiday_is_served_as_festivo_true_for_that_day(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('festivo-manual-test');
+
+        $activity = Activity::create([
+            'date' => '2026-07-20', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+        BitacoraHoliday::create(['date' => '2026-07-20']);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]));
+
+        $response->assertOk();
+        $response->assertSee('festivo: true,', false);
+        $response->assertSee('Festivo marcado manualmente', false);
+    }
+
+    // Un domingo sigue siendo festivo aunque nunca se haya marcado a mano
+    // (comportamiento previo, no debe romperse con el cambio).
+    public function test_sunday_is_still_served_as_festivo_true_without_manual_mark(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('domingo-test');
+
+        // 2026-07-05 es domingo.
+        $activity = Activity::create([
+            'date' => '2026-07-05', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]));
+
+        $response->assertOk();
+        $response->assertSee('festivo: true,', false);
+    }
+
+    public function test_unauthorized_employee_cannot_toggle_holiday(): void
+    {
+        $persona = $this->empleado('sin-permiso-festivo-test');
+
+        $response = $this->actingAs($persona, 'personal')
+            ->post(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20']);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseCount('bitacora_holidays', 0);
+    }
+
+    // Pedido 2026-09-24: comentario puesto en Programacion (una fila por
+    // actividad, no por empleado) debe verse en el historial de Bitacora de
+    // CADA persona asignada a esa actividad ese dia, sin duplicarse en
+    // activity_employee_comments (fuente unica: activities.scheduling_comment).
+    public function test_scheduling_comment_from_programacion_shows_up_in_bitacora_history_for_every_persona(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $p1 = $this->empleado('prog-comentario-uno-test');
+        $p2 = $this->empleado('prog-comentario-dos-test');
+
+        $activity = Activity::create([
+            'date' => '2026-04-10', 'company_id' => $company->id, 'description' => 'x',
+            'scheduling_comment' => 'Llevar equipo de proteccion adicional',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$p1->id, $p2->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 4]));
+
+        $response->assertOk();
+        $response->assertSeeInOrder([
+            'Llevar equipo de proteccion adicional',
+            'Llevar equipo de proteccion adicional',
+        ], false);
+        $this->assertDatabaseCount('activity_employee_comments', 0);
+    }
+
+    // Sin scheduling_comment (caso normal, es opcional) no debe agregar
+    // nada al historial ni fallar.
+    public function test_activity_without_scheduling_comment_does_not_affect_bitacora_history(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('sin-comentario-prog-test');
+
+        $activity = Activity::create([
+            'date' => '2026-04-11', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 4]));
+
+        $response->assertOk();
+        $response->assertSee('comentarios: [],', false);
     }
 }

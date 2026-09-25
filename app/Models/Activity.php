@@ -28,6 +28,7 @@ class Activity extends Model
         'area',
         'team',
         'description',
+        'scheduling_comment',
         'activity_type',
         'estimated_hours',
         'shift',

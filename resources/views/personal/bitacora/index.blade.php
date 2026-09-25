@@ -10,6 +10,30 @@
 @endphp
 
 @section('content')
+<style>
+    {{-- Scroll vertical interno solo para Bitácora (pedido 2026-09-24):
+         .table-scroll-container comparte clase con Programación/Diario de
+         Campo/Empleados/Roles/reportes (layouts/personal.blade.php), asi
+         que el ajuste vive aqui, scoped con una clase propia, en vez de
+         tocar esa regla compartida — un mes completo son hasta 31 filas,
+         las otras tablas no tienen ese problema de altura. Con la pagina
+         completa haciendo scroll (comportamiento antes de este cambio),
+         el encabezado con los nombres y el pie con los totales se
+         perdian de vista al bajar. Ahora el contenedor tiene una altura
+         acotada con overflow-y:auto, .sticky-table-head (ya existente)
+         queda fijo arriba DENTRO de este contenedor en vez de filtrarse
+         hacia el viewport, y el tfoot se fija abajo. --}}
+    .bitacora-scroll-y {
+        overflow-y: auto;
+        max-height: 70vh;
+    }
+    .bitacora-scroll-y tfoot {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        box-shadow: inset 0 1px 0 rgb(203 213 225);
+    }
+</style>
 <div class="mx-auto max-w-[1900px] space-y-4" x-data="{ modalMeses: false, verAnio: {{ $year }} }">
     <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -70,7 +94,7 @@
         </div>
     @else
     <div class="compact-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="table-scroll-container">
+        <div class="table-scroll-container bitacora-scroll-y">
             <table class="preventive-table divide-y divide-slate-200 text-sm">
                 <thead class="sticky-table-head bg-slate-50">
                     <tr>
@@ -84,7 +108,28 @@
                     @foreach ($dias as $dia)
                         <tr class="align-top hover:bg-slate-50">
                             <td class="sticky-col whitespace-nowrap px-3 py-1.5 text-xs font-medium {{ $dia['festivo'] ? 'text-red-500' : 'text-slate-500' }}">
-                                {{ $dia['numero'] }} {{ $dia['nombre'] }}
+                                @if ($dia['esDomingo'])
+                                    {{ $dia['numero'] }} {{ $dia['nombre'] }}
+                                @else
+                                    {{-- Festivo manual (pedido 2026-09-24): el sistema no tiene
+                                         calendario de festivos colombianos, asi que se marca a mano
+                                         con un clic — mismo patron de form-post-redirect que ya usa
+                                         la cuota mensual de arriba, no un toggle AJAX/Alpine, para no
+                                         tener que convertir toda la pagina en un componente reactivo
+                                         solo por esto. --}}
+                                    <form method="POST" action="{{ route('personal.bitacora.holidays.toggle') }}" class="inline">
+                                        @csrf
+                                        <input type="hidden" name="date" value="{{ sprintf('%04d-%02d-%02d', $year, $month, $dia['numero']) }}">
+                                        <button
+                                            type="submit"
+                                            title="{{ $dia['festivoManual'] ? 'Quitar festivo' : 'Marcar como festivo' }}"
+                                            class="underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-[#d55b20]"
+                                        >{{ $dia['numero'] }} {{ $dia['nombre'] }}</button>
+                                    </form>
+                                    @if ($dia['festivoManual'])
+                                        <span title="Festivo marcado manualmente" class="ml-0.5 text-red-500">●</span>
+                                    @endif
+                                @endif
                             </td>
 
                             @foreach ($empleados as $emp)
@@ -101,6 +146,7 @@
                                             reportada: @js($c['reportada']),
                                             corregida: @js($c['corregida']),
                                             comentarios: @js($c['comentarios']),
+                                            festivo: @js($dia['festivo']),
                                             nuevaCorreccion: @js($reabrirEsta ? old('corrected_value') : ($c['corregida'] ?? '')),
                                             {{-- A diferencia de nuevaCorreccion, nuevoComentario ya NO se
                                                  pre-llena con nada guardado: el comentario ahora es historial
@@ -128,7 +174,9 @@
                                             @mouseenter="tip = true; estilo = posicionarPopover($el, 224, 100)" @mouseleave="tip = false"
                                             @click="abrirModal()"
                                             class="flex h-9 w-full items-center justify-center gap-0.5 text-xs font-medium"
-                                            :class="esTexto ? 'bg-slate-100 text-slate-500' : (alerta ? 'bg-amber-50 text-amber-700' : 'text-slate-700')"
+                                            :class="festivo
+                                                ? 'text-red-600 ' + (esTexto ? 'bg-slate-100' : (alerta ? 'bg-amber-50' : ''))
+                                                : (esTexto ? 'bg-slate-100 text-slate-500' : (alerta ? 'bg-amber-50 text-amber-700' : 'text-slate-700'))"
                                         >
                                             <span x-text="final ?? '—'"></span>
                                             <i x-show="corregida !== null && corregida !== ''" data-lucide="pencil-line" class="h-3 w-3 text-[#d55b20]"></i>
@@ -238,6 +286,7 @@
         <span class="inline-flex items-center gap-1"><i data-lucide="pencil-line" class="h-3.5 w-3.5 text-[#d55b20]"></i> Corrección administrativa</span>
         <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Tiene comentario</span>
         <span class="inline-flex items-center gap-1"><span class="rounded bg-slate-100 px-1.5 text-slate-500">L</span> Licencia</span>
+        <span class="inline-flex items-center gap-1 text-red-500"><span class="h-1.5 w-1.5 rounded-full bg-red-500"></span> Domingo / festivo — clic en el día para marcar o quitar un festivo</span>
     </div>
     @endif
 

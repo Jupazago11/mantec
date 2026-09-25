@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Personal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Activity;
 use App\Models\ActivityEmployeeComment;
 use App\Models\BitacoraEntry;
+use App\Models\BitacoraHoliday;
 use App\Models\BitacoraQuota;
 use App\Models\Employee;
 use App\Services\Bitacora\BitacoraHoursCalculator;
@@ -32,15 +34,30 @@ class BitacoraController extends Controller
         $fechaMes = Carbon::createFromDate($year, $month, 1);
         $diasEnMes = $fechaMes->daysInMonth;
 
+        // Festivos marcados a mano (pedido 2026-09-24): el sistema no tiene
+        // un calendario real de festivos colombianos — un administrativo
+        // marca/quita la fecha puntual desde el clic en el numero del dia
+        // (ver toggleHoliday()). Se combinan con domingo para "festivo"
+        // (usado para pintar en rojo), pero "esDomingo" se mantiene aparte
+        // para no ofrecer el toggle sobre un domingo (ya es festivo
+        // siempre, togglearlo no tendria efecto visible).
+        $festivosManuales = BitacoraHoliday::whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->get()
+            ->map(fn ($h) => $h->date->day)
+            ->all();
+
         $dias = [];
         for ($n = 1; $n <= $diasEnMes; $n++) {
             $fecha = $fechaMes->copy()->day($n);
+            $esDomingo = $fecha->isSunday();
+            $festivoManual = in_array($n, $festivosManuales, true);
             $dias[] = [
                 'numero' => $n,
                 'nombre' => $fecha->translatedFormat('l'),
-                // Simplificacion ya usada en el mockup: no hay calendario
-                // real de festivos colombianos modelado todavia.
-                'festivo' => $fecha->isSunday(),
+                'esDomingo' => $esDomingo,
+                'festivoManual' => $festivoManual,
+                'festivo' => $esDomingo || $festivoManual,
             ];
         }
 
@@ -82,11 +99,38 @@ class BitacoraController extends Controller
             ];
         }
 
+        // Comentario de Programacion (pedido 2026-09-24, seccion
+        // add_scheduling_comment_to_activities_table): se lee directo de
+        // activities.scheduling_comment y se fusiona (solo en memoria, no
+        // se duplica en activity_employee_comments) en el mismo historial
+        // por empleado/dia que ya usa el tooltip/modal — uno por cada
+        // persona de la actividad, no una fila por empleado (una actividad
+        // puede tener varias personas y una sola descripcion/contexto).
+        $actividadesConComentario = Activity::whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->whereNotNull('scheduling_comment')
+            ->where('scheduling_comment', '!=', '')
+            ->with('personas:id')
+            ->get();
+        $idsPersonasProgramacion = [];
+        foreach ($actividadesConComentario as $actividad) {
+            $dia = $actividad->date->day;
+            foreach ($actividad->personas as $persona) {
+                $comentariosPorEmpleadoDia[$persona->id][$dia][] = [
+                    'autor' => 'Programación',
+                    'texto' => $actividad->scheduling_comment,
+                    'es_responsable' => false,
+                ];
+                $idsPersonasProgramacion[] = $persona->id;
+            }
+        }
+
         $idsCalificados = array_unique(array_merge(
             array_keys($programada),
             array_keys($reportada),
             $entries->pluck('employee_id')->unique()->all(),
-            $comentarios->pluck('employee_id')->unique()->all()
+            $comentarios->pluck('employee_id')->unique()->all(),
+            $idsPersonasProgramacion
         ));
 
         $empleados = Employee::where('in_bitacora', true)
@@ -198,5 +242,40 @@ class BitacoraController extends Controller
         return redirect()
             ->route('personal.bitacora.index', ['year' => $validated['year'], 'month' => $validated['month']])
             ->with('success', 'Cuota mensual actualizada.');
+    }
+
+    // Marcar/quitar festivo manual sobre una fecha puntual (pedido
+    // 2026-09-24) — clic en el numero del dia en la vista. Mismo permiso
+    // que el resto de escritura de Bitacora (saveEntry/saveQuota), no hay
+    // uno separado para esto. No aplica sobre domingos (ver "esDomingo" en
+    // index() y el @if de la vista que oculta el toggle ahi) — si de
+    // cualquier forma llega una fecha que cae domingo, no pasa nada malo,
+    // solo queda un registro sin efecto visual (isSunday() ya lo pinta
+    // rojo igual).
+    public function toggleHoliday(Request $request): RedirectResponse
+    {
+        abort_unless(PersonalGuard::can('ver_bitacora'), 403);
+
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+        ]);
+
+        $fecha = Carbon::parse($validated['date']);
+
+        $existente = BitacoraHoliday::whereDate('date', $fecha->toDateString())->first();
+        if ($existente) {
+            $existente->delete();
+            $mensaje = 'Festivo quitado.';
+        } else {
+            BitacoraHoliday::create([
+                'date' => $fecha->toDateString(),
+                'created_by_employee_id' => PersonalGuard::employee()?->id,
+            ]);
+            $mensaje = 'Día marcado como festivo.';
+        }
+
+        return redirect()
+            ->route('personal.bitacora.index', ['year' => $fecha->year, 'month' => $fecha->month])
+            ->with('success', $mensaje);
     }
 }

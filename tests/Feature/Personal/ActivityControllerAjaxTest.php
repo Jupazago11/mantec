@@ -70,6 +70,84 @@ class ActivityControllerAjaxTest extends TestCase
         ]);
     }
 
+    // Pedido 2026-09-24: comentario opcional de contexto, distinto de
+    // "description" — se guarda en store/update y se sirve en el payload
+    // que alimenta la columna "Comentario" de la tabla (a.scheduling_comment
+    // en la vista).
+    public function test_scheduling_comment_is_saved_and_returned_when_creating_activity(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+
+        $response = $this->actingAs($admin)->postJson(route('personal.programacion.store'), [
+            'date' => today()->toDateString(),
+            'company_id' => $company->id,
+            'description' => 'Cambiar banda transportadora',
+            'scheduling_comment' => 'Llevar repuesto de reserva',
+            'activity_type' => 'P',
+            'shift' => 'Diurno',
+            'personas' => [],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.scheduling_comment', 'Llevar repuesto de reserva');
+        $this->assertDatabaseHas('activities', [
+            'description' => 'Cambiar banda transportadora',
+            'scheduling_comment' => 'Llevar repuesto de reserva',
+        ]);
+    }
+
+    // scheduling_comment es opcional (a diferencia de description) — no
+    // mandarlo no debe fallar la validacion.
+    public function test_scheduling_comment_is_optional_when_creating_activity(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+
+        $response = $this->actingAs($admin)->postJson(route('personal.programacion.store'), [
+            'date' => today()->toDateString(),
+            'company_id' => $company->id,
+            'description' => 'Sin comentario',
+            'activity_type' => 'P',
+            'shift' => 'Diurno',
+            'personas' => [],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.scheduling_comment', null);
+    }
+
+    // El comentario se puede editar despues de programado (pedido
+    // 2026-09-24: "obviamente se puede editar despues").
+    public function test_scheduling_comment_can_be_edited_after_creation(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+
+        $activity = Activity::create([
+            'date' => today()->toDateString(),
+            'company_id' => $company->id,
+            'description' => 'Actividad existente',
+            'scheduling_comment' => 'Comentario original',
+            'activity_type' => 'P',
+            'shift' => 'Diurno',
+        ]);
+
+        $response = $this->actingAs($admin)->putJson(route('personal.programacion.update', $activity), [
+            'date' => today()->toDateString(),
+            'company_id' => $company->id,
+            'description' => 'Actividad existente',
+            'scheduling_comment' => 'Comentario editado',
+            'activity_type' => 'P',
+            'shift' => 'Diurno',
+            'personas' => [],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('activity.scheduling_comment', 'Comentario editado');
+        $this->assertDatabaseHas('activities', ['id' => $activity->id, 'scheduling_comment' => 'Comentario editado']);
+    }
+
     // Bug 2026-09-19: el <input type="number"> de Grupo mandaba
     // group_number como string (sin x-model.number en Alpine); como el
     // modelo no castea esa columna, serialize() devolvia el mismo tipo que

@@ -114,12 +114,13 @@
                         <th class="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500" title="Jornada">Jorn.</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:9rem">Nombre de las personas</th>
                         <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resp.</th>
+                        <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500" style="min-width:10rem">Comentario</th>
                     </tr>
                 </thead>
                 <template x-for="grupo in gruposOrdenados()" :key="grupo.grupoNum ?? 'sin-grupo'">
                     <tbody class="divide-y divide-slate-100 bg-white">
                         <tr class="bg-slate-800">
-                            <td colspan="10" class="px-3 py-1.5">
+                            <td colspan="11" class="px-3 py-1.5">
                                 <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white">
                                     <i data-lucide="users" class="h-3.5 w-3.5"></i>
                                     <span x-text="grupo.grupoNum ? `Grupo ${grupo.grupoNum}` : 'Sin grupo asignado'"></span>
@@ -226,6 +227,7 @@
                                         </template>
                                     </span>
                                 </td>
+                                <td class="px-3 py-2 text-xs italic text-slate-400" style="max-width:14rem" x-text="a.scheduling_comment || '—'"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -514,6 +516,11 @@
                     <input type="text" name="description" x-model="formActividad.description" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. Realizar cambio de cauchos">
                 </div>
 
+                <div class="mt-4">
+                    <label class="mb-1 block text-xs font-medium text-slate-600">Comentario (opcional)</label>
+                    <textarea name="scheduling_comment" x-model="formActividad.scheduling_comment" rows="2" maxlength="1000" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Contexto adicional para esta actividad — también se ve en Bitácora"></textarea>
+                </div>
+
                 <div class="mt-5">
                     <p class="mb-2 flex items-center gap-1 text-xs font-medium text-slate-600">
                         Personas de la actividad — <span x-text="personas.length"></span> seleccionada(s)
@@ -634,7 +641,7 @@
 
         const emptyFormActividad = () => ({
             company_id: defaultCompanyId ?? '', group_number: '', team: '', process: '', shift: 'Diurno',
-            responsible_employee_id: '', description: '', estimated_hours: '', activity_type: 'P',
+            responsible_employee_id: '', description: '', scheduling_comment: '', estimated_hours: '', activity_type: 'P',
         });
 
         const jsonHeaders = () => ({
@@ -834,7 +841,7 @@
                     this.formActividad = {
                         company_id: a.company_id ?? '', group_number: a.group_number ?? '',
                         team: a.team ?? '', process: a.process ?? '', shift: a.shift, responsible_employee_id: a.responsible_employee_id ?? '',
-                        description: a.description, estimated_hours: a.estimated_hours ?? '', activity_type: a.activity_type,
+                        description: a.description, scheduling_comment: a.scheduling_comment ?? '', estimated_hours: a.estimated_hours ?? '', activity_type: a.activity_type,
                     };
                     this.personas = a.personas.map((p) => p.id);
                     // El responsable de una actividad ya guardada es un valor
@@ -865,6 +872,7 @@
                         shift: this.formActividad.shift,
                         responsible_employee_id: this.formActividad.responsible_employee_id || null,
                         description: this.formActividad.description,
+                        scheduling_comment: this.formActividad.scheduling_comment || null,
                         estimated_hours: this.formActividad.estimated_hours === '' ? null : this.formActividad.estimated_hours,
                         activity_type: this.formActividad.activity_type,
                         personas: this.personas,
@@ -999,13 +1007,16 @@
             // criterio principal) se ordena por horas acumuladas del mes,
             // de mayor a menor — mismo dato que ya se mostraba a la derecha
             // de cada fila (horasResumenTexto()), ahora tambien define el
-            // orden. Sin horas acumuladas (null) se trata como 0 y queda al
-            // final de su categoria.
+            // orden. Sin horas acumuladas (null) se trata como 0.
+            // Invertido (pedido 2026-09-24): antes de mayor a menor, ahora
+            // de menor a mayor — primero quien menos horas acumuladas
+            // tiene, para balancear la carga de trabajo al elegir a quien
+            // programar.
             personasFiltradas(categoria) {
                 const q = this.busquedaPersona.trim().toLowerCase();
                 return this.empleados
                     .filter((e) => e.categoria === categoria && (!q || e.nombre.toLowerCase().includes(q)))
-                    .sort((a, b) => (b.horasAcumuladas ?? 0) - (a.horasAcumuladas ?? 0));
+                    .sort((a, b) => (a.horasAcumuladas ?? 0) - (b.horasAcumuladas ?? 0));
             },
             nombrePersona(id) {
                 return this.empleados.find((e) => e.id === id)?.nombre ?? '';

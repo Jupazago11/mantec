@@ -180,6 +180,7 @@ class ActivityController extends Controller
             'team' => $validated['team'] ?? null,
             'process' => $validated['process'] ?? null,
             'description' => $validated['description'],
+            'scheduling_comment' => $validated['scheduling_comment'] ?? null,
             'activity_type' => $validated['activity_type'],
             'estimated_hours' => $validated['estimated_hours'] ?? null,
             'shift' => $validated['shift'],
@@ -214,6 +215,7 @@ class ActivityController extends Controller
             'team' => $validated['team'] ?? null,
             'process' => $validated['process'] ?? null,
             'description' => $validated['description'],
+            'scheduling_comment' => $validated['scheduling_comment'] ?? null,
             'activity_type' => $validated['activity_type'],
             'estimated_hours' => $validated['estimated_hours'] ?? null,
             'shift' => $validated['shift'],
@@ -286,6 +288,7 @@ class ActivityController extends Controller
             'team' => $activity->team,
             'process' => $activity->process,
             'description' => $activity->description,
+            'scheduling_comment' => $activity->scheduling_comment,
             'activity_type' => $activity->activity_type,
             'estimated_hours' => $activity->estimated_hours !== null ? (float) $activity->estimated_hours : null,
             'shift' => $activity->shift,
@@ -316,6 +319,10 @@ class ActivityController extends Controller
             'team' => ['nullable', 'string', 'max:150'],
             'process' => ['nullable', 'string', 'max:150'],
             'description' => ['required', 'string', 'max:255'],
+            // Contexto opcional (pedido 2026-09-24), distinto de
+            // "description" (la actividad programada en si) — ver
+            // migracion add_scheduling_comment_to_activities_table.
+            'scheduling_comment' => ['nullable', 'string', 'max:1000'],
             'activity_type' => ['required', Rule::in(['P', 'S'])],
             'estimated_hours' => ['nullable', 'numeric', 'min:0'],
             'shift' => ['required', Rule::in(['Diurno', 'Nocturno'])],

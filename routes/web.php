@@ -530,6 +530,7 @@ Route::prefix('personal')->name('personal.')->group(function () {
         Route::get('/bitacora', [\App\Http\Controllers\Personal\BitacoraController::class, 'index'])->name('bitacora.index');
         Route::post('/bitacora/entries', [\App\Http\Controllers\Personal\BitacoraController::class, 'saveEntry'])->name('bitacora.entries.store');
         Route::post('/bitacora/quota', [\App\Http\Controllers\Personal\BitacoraController::class, 'saveQuota'])->name('bitacora.quota.store');
+        Route::post('/bitacora/holidays/toggle', [\App\Http\Controllers\Personal\BitacoraController::class, 'toggleHoliday'])->name('bitacora.holidays.toggle');
 
         // Roles y permisos dinamicos — exclusivo de superadmin, no forma
         // parte de los permisos configurables (evita auto-escalacion).
