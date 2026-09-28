@@ -67,6 +67,7 @@
         empleadosIniciales: @js($empleadosJs),
         roles: @js($rolesJs),
         categorias: @js($categorias->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()),
+        puedeAdministrarAccesos: @js(\App\Support\PersonalGuard::can('administrar_roles')),
     })"
 >
     <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -168,7 +169,8 @@
                                 <button
                                     type="button"
                                     @click="toggleEmpleado(emp)"
-                                    :disabled="emp.toggling"
+                                    :disabled="emp.toggling || (!puedeAdministrarAccesos && emp.has_login)"
+                                    :title="!puedeAdministrarAccesos && emp.has_login ? 'Solo quien administra Roles y permisos puede activar/inactivar cuentas con acceso' : ''"
                                     class="rounded-full px-2 py-1 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                                     :class="emp.activo ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'"
                                     x-text="emp.activo ? 'Activo' : 'Inactivo'"
@@ -230,8 +232,6 @@
         </button>
     </div>
 
-    {{-- Toast de resultado de la exportacion --}}
-    <div x-show="mensajeExport" x-cloak x-transition class="fixed bottom-4 right-4 z-50 max-w-xs rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl" x-text="mensajeExport"></div>
 
     {{-- Modal nuevo/editar empleado — formulario real (POST/PUT), no solo
          estado local Alpine: guardarEmpleado() en el mockup no persistia
@@ -261,7 +261,8 @@
                                 <button
                                     type="button"
                                     @click="seleccionarCategoria(cat.id)"
-                                    class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+                                    :disabled="accesosBloqueados()"
+                                    class="rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                                     :class="formEmpleado.personal_category_id === cat.id ? 'bg-[#d55b20] text-white' : 'text-slate-600 hover:bg-slate-50'"
                                     x-text="cat.name"
                                 ></button>
@@ -300,7 +301,8 @@
                                         <button
                                             type="button"
                                             @click="formEmpleado.personal_role_id = rol.id"
-                                            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+                                            :disabled="accesosBloqueados()"
+                                            class="rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                                             :class="formEmpleado.personal_role_id === rol.id ? 'bg-[#d55b20] text-white' : 'text-slate-600 hover:bg-slate-50'"
                                             x-text="rol.name"
                                         ></button>
@@ -313,30 +315,35 @@
                         </template>
 
                         <p class="mt-1 text-[11px] text-slate-400">
-                            Los subroles y sus permisos se administran desde "Roles y permisos" (solo superadmin).
+                            Los subroles y sus permisos se administran desde "Roles y permisos".
                         </p>
                     </div>
                 </div>
 
                 <div class="mt-5 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <label class="flex items-start gap-2 text-sm text-slate-700">
-                        <input type="checkbox" name="has_login" value="1" x-model="formEmpleado.has_login" class="mt-0.5">
+                        <input type="checkbox" name="has_login" value="1" x-model="formEmpleado.has_login" :disabled="!puedeAdministrarAccesos" class="mt-0.5">
                         <span class="font-medium">Tiene usuario de acceso</span>
                     </label>
 
                     <div x-show="formEmpleado.has_login" x-cloak class="grid gap-3 pl-6 sm:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-xs font-medium text-slate-600">Usuario <span class="text-red-500">*</span></label>
-                            <input type="text" name="username" x-model="formEmpleado.username" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. lfernando">
+                            <input type="text" name="username" x-model="formEmpleado.username" :disabled="!puedeAdministrarAccesos" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100" placeholder="Ej. lfernando">
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-slate-600">
                                 Contraseña <span class="text-red-500" x-show="!modoEdicion">*</span>
                                 <span class="text-slate-400" x-show="modoEdicion">(vacío = mantener la actual)</span>
                             </label>
-                            <input type="password" name="password" x-model="formEmpleado.password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            <input type="password" name="password" x-model="formEmpleado.password" :disabled="!puedeAdministrarAccesos" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
                         </div>
                     </div>
+
+                    <p x-show="!puedeAdministrarAccesos" class="text-[11px] text-amber-600">
+                        El usuario de acceso, la contraseña y el rol/subrol de una cuenta con acceso solo los cambia quien
+                        administra Roles y permisos.
+                    </p>
 
                     <label class="flex items-start gap-2 text-sm text-slate-700">
                         <input type="checkbox" name="in_bitacora" value="1" x-model="formEmpleado.in_bitacora" class="mt-0.5">
@@ -362,6 +369,7 @@
         storeUrl, updateUrlTemplate, toggleStatusUrlTemplate,
         empresasStoreUrl, empresasUpdateUrlTemplate, empresasToggleArchivedUrlTemplate, empresasMarkDefaultUrlTemplate,
         verComoUrlTemplate, csrfToken, empresasIniciales, empleadosIniciales, roles, categorias,
+        puedeAdministrarAccesos,
     }) {
         // categoryId/roleId por defecto vienen del ULTIMO empleado creado
         // (no editado), no siempre de categorias[0] — al crear decenas de
@@ -392,6 +400,16 @@
                 this.mostrandoTodasParaExport = false;
             },
             verComoUrlTemplate,
+            // Permiso "administrar_roles" (2026-09-28): sin el, los campos de
+            // acceso quedan deshabilitados en el formulario y no se puede
+            // activar/inactivar cuentas con acceso. La regla real esta en
+            // EmployeeController (validarCamposDeAcceso / toggleStatus).
+            puedeAdministrarAccesos,
+            // true = editando un empleado que ya tiene usuario de acceso sin
+            // permiso para administrar accesos: Rol/Subrol quedan bloqueados.
+            accesosBloqueados() {
+                return !this.puedeAdministrarAccesos && this.modoEdicion && this.formEmpleado.tenia_login;
+            },
             modalNuevoEmpleado: false,
             modalEmpresas: false,
             mostrarInactivos: false,
@@ -516,6 +534,7 @@
                         personal_category_id: emp.personal_category_id,
                         has_login: !!emp.has_login, username: emp.username ?? '', password: '',
                         personal_role_id: emp.personal_role_id ?? '', in_bitacora: !!emp.in_bitacora,
+                        tenia_login: !!emp.has_login,
                     };
                 }
                 this.formErrors = [];

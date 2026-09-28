@@ -65,7 +65,18 @@ class EmployeeController extends Controller
         $validated = $this->validated($request, $employee);
 
         $employee->fill($this->preparePayload($validated, false, $employee));
+
+        // Quitar el acceso o cambiar la contrasena corta de inmediato los
+        // tokens de la app (la sesion web la corta EnsurePersonalAccess en
+        // la siguiente peticion) — pedido 2026-09-28.
+        $pierdeAcceso = $employee->isDirty('has_login') && ! $employee->has_login;
+        $cambiaClave = $employee->isDirty('password');
+
         $employee->save();
+
+        if ($pierdeAcceso || $cambiaClave) {
+            $employee->revocarTokens();
+        }
 
         if ($this->isAjaxRequest($request)) {
             return response()->json([
@@ -84,7 +95,24 @@ class EmployeeController extends Controller
     {
         abort_unless(PersonalGuard::can('ver_empleados'), 403);
 
+        // Activar/inactivar una CUENTA (empleado con usuario de acceso) es
+        // dar o quitar acceso: solo quien administra roles y permisos
+        // (pedido 2026-09-28). Empleados sin acceso siguen con ver_empleados.
+        if ($employee->has_login && ! PersonalGuard::can('administrar_roles')) {
+            $message = 'Solo quien administra Roles y permisos puede activar o inactivar empleados con usuario de acceso.';
+
+            if ($this->isAjaxRequest($request)) {
+                return response()->json(['success' => false, 'message' => $message], 403);
+            }
+
+            abort(403, $message);
+        }
+
         $employee->update(['activo' => ! $employee->activo]);
+
+        if (! $employee->activo) {
+            $employee->revocarTokens();
+        }
 
         $message = $employee->activo
             ? 'Empleado activado correctamente.'
@@ -140,7 +168,9 @@ class EmployeeController extends Controller
             'personal_category_id' => ['required', Rule::exists('personal_categories', 'id')->where('activo', true)],
             'has_login' => ['sometimes', 'boolean'],
             'in_bitacora' => ['sometimes', 'boolean'],
-            'personal_role_id' => ['nullable', Rule::exists('personal_roles', 'id')],
+            // Solo subroles activos (un subrol archivado no debe poder
+            // asignarse ni por peticion directa).
+            'personal_role_id' => ['nullable', Rule::exists('personal_roles', 'id')->where('activo', true)],
             'username' => ['nullable', 'string', 'max:50', $usernameRule],
             'password' => ['nullable', 'string', 'min:6'],
         ]);
@@ -162,6 +192,8 @@ class EmployeeController extends Controller
                 }
             }
 
+            $this->validarCamposDeAcceso($validator, $request, $employee);
+
             // Consistencia: un subrol pertenece a una categoria especifica
             // (personal_roles.personal_category_id) — no se puede asignar
             // el subrol "Supervisor" (de Administrativos) a un empleado de
@@ -182,6 +214,53 @@ class EmployeeController extends Controller
         });
 
         return $validator->validate();
+    }
+
+    // Cierre de la escalada de privilegios encontrada en la revision del
+    // 2026-09-28: con solo "ver_empleados" se podia asignar cualquier
+    // subrol (incluso a uno mismo) y cambiar usuario/contrasena de
+    // cualquiera. Ahora, sin "administrar_roles":
+    //  - no se puede dar/quitar el usuario de acceso ni fijar usuario/clave;
+    //  - en un empleado que YA tiene acceso no se puede cambiar Rol, Subrol,
+    //    usuario ni contrasena (eso es lo que otorga permisos reales).
+    // Si se puede crear/editar empleados SIN acceso con cualquier Rol/
+    // Subrol (sin login el subrol solo afecta Programacion) y editar
+    // nombre/nickname/Bitacora de cualquiera.
+    private function validarCamposDeAcceso($validator, Request $request, ?Employee $employee): void
+    {
+        if (PersonalGuard::can('administrar_roles')) {
+            return;
+        }
+
+        $mensaje = 'Solo quien administra Roles y permisos puede cambiar los accesos (usuario, contraseña, rol o subrol de una cuenta con acceso).';
+        $pideAcceso = $request->boolean('has_login');
+
+        if (! $employee) {
+            if ($pideAcceso) {
+                $validator->errors()->add('has_login', $mensaje);
+            }
+
+            return;
+        }
+
+        if ($pideAcceso !== (bool) $employee->has_login) {
+            $validator->errors()->add('has_login', $mensaje);
+
+            return;
+        }
+
+        if (! $employee->has_login) {
+            return;
+        }
+
+        $cambios = trim((string) $request->input('username')) !== (string) $employee->username
+            || filled($request->input('password'))
+            || (int) $request->input('personal_role_id') !== (int) $employee->personal_role_id
+            || (int) $request->input('personal_category_id') !== (int) $employee->personal_category_id;
+
+        if ($cambios) {
+            $validator->errors()->add('has_login', $mensaje);
+        }
     }
 
     private function preparePayload(array $validated, bool $creating, ?Employee $employee = null): array

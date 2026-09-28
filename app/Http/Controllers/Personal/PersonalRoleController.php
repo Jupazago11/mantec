@@ -13,16 +13,20 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * Modulo "Roles y permisos" — exclusivo de superadmin, a proposito no
- * forma parte de los 6 permisos configurables (si un subrol pudiera
- * administrar permisos, podria autoasignarse acceso que no deberia
- * tener).
+ * Modulo "Roles y permisos". Hasta 2026-09-28 era exclusivo de superadmin;
+ * ahora lo gobierna el permiso "administrar_roles" (PersonalGuard::can),
+ * que exige Rol Y Subrol marcados (mismo esquema que responsable_actividad)
+ * — decision del usuario: poder delegar la administracion de accesos a un
+ * rol de confianza. Quien lo tiene puede, por definicion, cambiar permisos
+ * (incluidos los propios): es un rol de administrador, igual que el
+ * superadmin.
  */
 class PersonalRoleController extends Controller
 {
     private const PERMISOS = [
         'ver_empleados',
         'ver_programacion',
+        'editar_programacion',
         'editar_programacion_sin_limite',
         'ver_diario_campo',
         'cerrar_diario_campo',
@@ -31,7 +35,7 @@ class PersonalRoleController extends Controller
 
     public function index(): View
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         return view('personal.roles.index', [
             // Jerarquia completa Rol -> Subrol: cada categoria trae ya
@@ -46,7 +50,7 @@ class PersonalRoleController extends Controller
 
     public function store(Request $request): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         $validated = $this->validated($request);
 
@@ -70,7 +74,7 @@ class PersonalRoleController extends Controller
 
     public function update(Request $request, PersonalRole $personalRole): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         $validated = $this->validated($request, $personalRole);
 
@@ -94,7 +98,7 @@ class PersonalRoleController extends Controller
     // tener empleados (se archivo estando en cero).
     public function toggleActive(Request $request, PersonalRole $personalRole): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         if ($personalRole->activo && $personalRole->employees()->exists()) {
             $message = 'No se puede archivar un subrol con empleados asignados. Reasígnalos primero desde Empleados.';
@@ -138,6 +142,7 @@ class PersonalRoleController extends Controller
             'employees_count' => $role->employees()->count(),
             'disponible_en_programacion' => (bool) $role->disponible_en_programacion,
             'responsable_actividad' => (bool) $role->responsable_actividad,
+            'administrar_roles' => (bool) $role->administrar_roles,
         ];
 
         foreach (self::PERMISOS as $permiso) {
@@ -168,6 +173,7 @@ class PersonalRoleController extends Controller
             // tener que activar el Rol completo (ver migracion
             // 2026_09_18_150000 y la del Rol, 2026_09_18_140000).
             'responsable_actividad' => ['sometimes', 'boolean'],
+            'administrar_roles' => ['sometimes', 'boolean'],
         ];
         foreach (self::PERMISOS as $permiso) {
             $rules[$permiso] = ['sometimes', 'boolean'];
@@ -177,6 +183,7 @@ class PersonalRoleController extends Controller
 
         $validated['disponible_en_programacion'] = $request->boolean('disponible_en_programacion');
         $validated['responsable_actividad'] = $request->boolean('responsable_actividad');
+        $validated['administrar_roles'] = $request->boolean('administrar_roles');
         foreach (self::PERMISOS as $permiso) {
             $validated[$permiso] = $request->boolean($permiso);
         }

@@ -63,4 +63,21 @@ class Employee extends Authenticatable
     {
         return $this->belongsTo(PersonalCategory::class);
     }
+
+    // Mismo criterio que el login (web y API): activo Y con usuario de
+    // acceso habilitado. Lo vuelven a revisar en CADA peticion
+    // EnsurePersonalAccess (sesion web) y EnsureTokenableIsEmployee (token
+    // de la app) — antes solo se revisaba al iniciar sesion, y un empleado
+    // inactivado conservaba el acceso (revision 2026-09-28).
+    public function puedeIniciarSesion(): bool
+    {
+        return (bool) $this->activo && (bool) $this->has_login;
+    }
+
+    // Borra todos los tokens de la app del empleado (inactivar, quitar el
+    // acceso o cambiar la contrasena).
+    public function revocarTokens(): void
+    {
+        $this->tokens()->delete();
+    }
 }

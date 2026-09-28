@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\ActivityEvidence;
 use App\Models\Employee;
+use App\Services\Personal\RegistroSupervisor;
 use App\Support\ActivityEvidencePathBuilder;
 use App\Support\PersonalGuard;
 use Illuminate\Http\JsonResponse;
@@ -141,6 +142,8 @@ class ActivityEvidenceController extends Controller
 
         if (! $allowClosed) {
             abort_if($activity->isClosed(), 403);
+            // Misma ventana hoy/ayer que la app (revision 2026-09-28).
+            abort_unless(RegistroSupervisor::dentroDeVentana($activity), 403, 'Solo puedes modificar evidencias de actividades de hoy o de ayer.');
         }
     }
 

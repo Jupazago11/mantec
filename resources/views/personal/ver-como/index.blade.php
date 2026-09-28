@@ -123,6 +123,7 @@
                                             <input
                                                 type="number"
                                                 min="0"
+                                                max="24"
                                                 step="0.5"
                                                 x-model.number="personaForm(a, p.id).worked_hours"
                                                 class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-right text-sm"

@@ -103,6 +103,20 @@ NOTAS IMPORTANTES
 4. El proyecto ya puede funcionar solo con assets compilados desde `public/build`.
 5. Si quieres volver a usar Vite en vivo, asegurate de arrancarlo con Node 22.
 
+CORRER LAS PRUEBAS (PHPUnit) SIN LA BASE "testing" LOCAL (2026-09-28)
+----------------------------------------------------------------------
+phpunit.xml usa DB_DATABASE=testing, y en un laptop donde mantec_user no
+tiene permiso CREATEDB esa base no existe. En vez de crearla con sudo, se
+puede usar un Postgres DESECHABLE en Docker (puerto 5433, datos en memoria,
+no toca la base "mantec" del puerto 5432):
+
+`docker run -d --name mantec-test-pg -e POSTGRES_USER=mantec_user -e POSTGRES_PASSWORD=123456 -e POSTGRES_DB=testing -p 127.0.0.1:5433:5432 --tmpfs /var/lib/postgresql postgres:18-alpine`
+`DB_PORT=5433 php artisan test`
+Para quitarlo: `docker rm -f mantec-test-pg`
+
+(Alternativa con sudo: `sudo -u postgres psql -c "CREATE DATABASE testing OWNER mantec_user;"` y luego `php artisan test` normal.)
+Estado conocido: todo pasa salvo Tests\Feature\ExampleTest (preexistente).
+
 PARAR TODO
 ----------
 ./vendor/bin/sail stop redis meilisearch mailpit selenium

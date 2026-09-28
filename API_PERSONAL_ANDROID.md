@@ -1,6 +1,19 @@
 # API Personal — Contrato Para App Android (Supervisores)
 
-Estado del documento: **propuesta de contrato, backend NO implementado
+> **Actualización 2026-09-28 — este documento es la propuesta ORIGINAL (histórica).**
+> La API ya está implementada (ver [NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md](NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md)
+> sección 14.24): `POST api/personal/login`, `POST api/personal/logout`, `GET api/personal/actividades`,
+> `POST api/personal/actividades/{id}` y `api/personal/actividades/{id}/evidencias[/{evidencia}]`.
+> El esquema real difiere de la propuesta de abajo (tabla `activity_employee_hours` con `worked_hours`,
+> sin hora inicio/fin). Reglas añadidas en la revisión de seguridad (sección 14.39), que la app debe manejar:
+> - **401** en cualquier ruta si el empleado fue inactivado, perdió el usuario de acceso o le cambiaron la
+>   contraseña (el token se revoca) → mandar al login.
+> - Solo **hoy o ayer**: `GET actividades?date=` con otra fecha → **422**; registrar horas o subir/borrar
+>   evidencia de una actividad anterior a ayer → **403**.
+> - `personas[].employee_id` debe estar asignado a la actividad y `worked_hours` entre 0 y 24 → si no, **422**.
+> - Una persona enviada sin el campo `comment` conserva su comentario; `comment` vacío lo borra.
+
+Estado del documento (original): **propuesta de contrato, backend NO implementado
 todavia**. Objetivo: que este archivo se pueda compartir tal cual con el
 chat/IA que construye la app Android, para que ambos lados (este repo
 Laravel y ese repo Android) implementen contra la misma definicion en vez

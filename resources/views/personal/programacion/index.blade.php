@@ -243,8 +243,6 @@
         de esa fila) · una persona solo puede estar en una actividad primaria por día, pero en varias secundarias.
     </p>
 
-    {{-- Toast de resultado de la exportacion --}}
-    <div x-show="mensajeExport" x-cloak x-transition class="fixed bottom-4 right-4 z-50 max-w-xs rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl" x-text="mensajeExport"></div>
 
     {{-- Calendario para navegar entre fechas. Los dias con datos se piden
          por AJAX a /personal/programacion/dias-con-datos (no se puede
@@ -420,7 +418,7 @@
                     </div>
                     <div>
                         <label class="mb-1 block text-xs font-medium text-slate-600">Horas estimadas</label>
-                        <input type="number" name="estimated_hours" x-model="formActividad.estimated_hours" step="0.5" min="0" class="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. 10">
+                        <input type="number" name="estimated_hours" x-model="formActividad.estimated_hours" step="0.5" min="0" max="24" class="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. 10">
                     </div>
                     <div>
                         <label class="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
@@ -932,7 +930,20 @@
             },
             async eliminarActividad(a) {
                 if (a.eliminando) return;
-                if (!confirm('¿Eliminar esta actividad? Esta acción no se puede deshacer.')) return;
+                // Advertencia extra si el responsable ya registro horas o
+                // subio evidencias: al borrar la actividad se pierden
+                // (revision 2026-09-28).
+                const perdidas = [];
+                if (a.registrada) perdidas.push('las horas y comentarios que ya registró el responsable');
+                if (a.evidencias > 0) perdidas.push(a.evidencias === 1 ? '1 evidencia (foto/video)' : `${a.evidencias} evidencias (fotos/videos)`);
+                const mensaje = '¿Eliminar esta actividad? Esta acción no se puede deshacer.'
+                    + (perdidas.length ? `\n\nTambién se eliminarán ${perdidas.join(' y ')}.` : '');
+
+                if (!(await confirmarAccion({
+                    titulo: 'Eliminar actividad',
+                    mensaje,
+                    textoConfirmar: 'Eliminar',
+                }))) return;
                 a.eliminando = true;
 
                 try {

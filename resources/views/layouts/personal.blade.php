@@ -62,7 +62,83 @@
         .exporting-compact .sticky-col {
             display: none;
         }
+
+        {{-- Sin header en escritorio (pedido 2026-09-28): solo tenia el
+             titulo (cada pantalla ya trae el suyo), nombre, "Volver al panel
+             admin" y "Salir" — esos dos ultimos pasaron al pie del sidebar.
+             Con el sidebar colapsado (ancho 0) el unico boton para reabrirlo
+             vivia en el header: ahora es esta pestana fija en el borde
+             izquierdo (solo lg+, via "hidden lg:inline-flex" + x-show). En
+             movil queda una barra minima (lg:hidden) con el boton ☰. CSS
+             propio, no clases Tailwind nuevas (el build de Vite no las
+             tendria sin recompilar). --}}
+        {{-- Sidebar sin parpadeo al recargar (pedido 2026-09-28: "al aplicar
+             un filtro el sidebar se abre y se cierra"). Antes el ancho
+             colapsado salia del :class de Alpine, que se carga con defer
+             desde CDN: el navegador pintaba primero el sidebar abierto y
+             luego Alpine lo cerraba con la transicion de 300ms. Ahora el
+             estado inicial lo fija un script sincronico en <head> (clase
+             personal-sidebar-collapsed en <html>, leida de localStorage)
+             ANTES del primer pintado, y el ancho/visibilidad sale de este
+             CSS, no de Alpine. La transicion solo existe con la clase
+             personal-sidebar-anim, que se agrega despues de cargar la
+             pagina: al recargar no hay nada que animar. --}}
+        .personal-sidebar { transform: translateX(-100%); }
+        .personal-sidebar.is-open { transform: none; }
+        .personal-sidebar-anim .personal-sidebar { transition: transform 0.3s ease, width 0.3s ease; }
+
+        @media (min-width: 1024px) {
+            .personal-sidebar { transform: none; width: 18rem; }
+            .personal-sidebar-collapsed .personal-sidebar {
+                width: 0;
+                min-width: 0;
+                overflow: hidden;
+                border-right-width: 0;
+            }
+            .personal-sidebar-collapsed .personal-sidebar-reopen { display: inline-flex; }
+        }
+
+        .personal-sidebar-reopen {
+            display: none;
+            position: fixed;
+            top: 0.75rem;
+            left: 0;
+            z-index: 40;
+            width: 1.5rem;
+            height: 2.25rem;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgb(226 232 240);
+            border-left: 0;
+            border-radius: 0 0.6rem 0.6rem 0;
+            background: white;
+            color: rgb(100 116 139);
+            box-shadow: 0 4px 12px -6px rgb(15 23 42 / 0.3);
+        }
+        .personal-sidebar-reopen:hover { color: #d55b20; background: rgb(255 247 237); }
+
+        {{-- Dialogo de confirmacion compartido (confirmarAccion(), abajo) —
+             reemplaza el confirm() nativo del navegador para que las
+             confirmaciones se vean como el resto del panel. --}}
+        .personal-confirm { position: fixed; inset: 0; z-index: 100001; display: none; align-items: center; justify-content: center; padding: 1rem; background: rgb(0 0 0 / 0.4); }
+        .personal-confirm-peligro { background: rgb(220 38 38); color: white; }
+        .personal-confirm-peligro:hover { background: rgb(185 28 28); }
     </style>
+    <script>
+        // Sincronico, dentro del head: fija el estado colapsado del sidebar
+        // antes del primer pintado (ver .personal-sidebar arriba).
+        (function () {
+            var html = document.documentElement;
+            try {
+                if (localStorage.getItem('personal_sidebar_collapsed') === '1') {
+                    html.classList.add('personal-sidebar-collapsed');
+                }
+            } catch (e) {}
+            window.addEventListener('load', function () {
+                requestAnimationFrame(function () { html.classList.add('personal-sidebar-anim'); });
+            });
+        })();
+    </script>
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900">
 
@@ -70,24 +146,43 @@
         <div
             x-data="{
                 sidebarOpen: false,
-                sidebarCollapsed: localStorage.getItem('personal_sidebar_collapsed') === '1',
+                {{-- El estado real vive en la clase de <html> (script del
+                     <head>), que es lo que lee el CSS; Alpine solo la
+                     cambia y la guarda. --}}
+                sidebarCollapsed: document.documentElement.classList.contains('personal-sidebar-collapsed'),
+                setSidebarCollapsed(valor) {
+                    this.sidebarCollapsed = valor;
+                    document.documentElement.classList.toggle('personal-sidebar-collapsed', valor);
+                    try { localStorage.setItem('personal_sidebar_collapsed', valor ? '1' : '0'); } catch (e) {}
+                },
                 toggleSidebarCollapse() {
-                    this.sidebarCollapsed = !this.sidebarCollapsed;
-                    localStorage.setItem('personal_sidebar_collapsed', this.sidebarCollapsed ? '1' : '0');
+                    this.setSidebarCollapsed(!this.sidebarCollapsed);
                 },
                 showSidebar() {
-                    this.sidebarCollapsed = false;
-                    localStorage.setItem('personal_sidebar_collapsed', '0');
+                    this.setSidebarCollapsed(false);
                 }
             }"
             class="flex min-h-0 flex-1"
         >
             @include('components.personal.sidebar')
 
+            <button
+                type="button"
+                @click="showSidebar()"
+                class="personal-sidebar-reopen"
+                title="Mostrar menú"
+                aria-label="Mostrar menú"
+            >
+                <i data-lucide="chevron-right" class="h-4 w-4"></i>
+            </button>
+
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
                 @include('components.personal.topbar')
 
-                <main class="min-w-0 flex-1 overflow-y-auto p-4 md:p-8">
+                {{-- main_class: una pantalla puede agregar una clase propia
+                     (ej. Vista completa del Diario de Campo usa menos margen
+                     y llena el alto disponible). --}}
+                <main class="min-w-0 flex-1 overflow-y-auto p-4 md:p-8 @yield('main_class')">
                     @yield('content')
                 </main>
             </div>
@@ -113,6 +208,18 @@
         </div>
     </div>
 
+    {{-- Dialogo de confirmacion compartido (ver confirmarAccion()). --}}
+    <div id="confirmDialog" class="personal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle">
+        <div class="w-full max-w-sm rounded-2xl bg-white p-5 text-left shadow-xl">
+            <h3 id="confirmDialogTitle" class="text-sm font-bold text-slate-900"></h3>
+            <p id="confirmDialogMessage" class="mt-2 whitespace-pre-line text-sm text-slate-600"></p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" id="confirmDialogCancel" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
+                <button type="button" id="confirmDialogOk" class="personal-confirm-peligro rounded-xl px-4 py-2 text-sm font-semibold"></button>
+            </div>
+        </div>
+    </div>
+
     {{-- html2canvas-pro (no html2canvas a secas): Tailwind 4 emite colores
          oklch() y el html2canvas original no lo parsea. Ver comentario
          completo en preview-personal/_layout.blade.php (de donde se porto
@@ -123,11 +230,10 @@
         function imageExporterMixin(filenamePrefix) {
             return {
                 exportando: false,
-                mensajeExport: null,
                 async exportarComoImagen(fileLabel = null) {
                     if (this.exportando) return;
                     if (!window.html2canvas) {
-                        this.mostrarMensaje('No se pudo cargar la librería de exportación (revisa la conexión/consola).');
+                        this.mostrarMensaje('No se pudo cargar la librería de exportación (revisa la conexión/consola).', 'error');
                         console.error('exportarComoImagen: window.html2canvas no está definido — el script del CDN no cargó.');
                         return;
                     }
@@ -215,7 +321,7 @@
                         canvas.toBlob(async (blob) => {
                             if (!blob) {
                                 this.exportando = false;
-                                this.mostrarMensaje('No se pudo generar la imagen (canvas vacío).');
+                                this.mostrarMensaje('No se pudo generar la imagen (canvas vacío).', 'error');
                                 console.error('exportarComoImagen: canvas.toBlob devolvió null.');
                                 return;
                             }
@@ -232,7 +338,7 @@
                         }, 'image/png');
                     } catch (err) {
                         this.exportando = false;
-                        this.mostrarMensaje('No se pudo generar la imagen: ' + (err?.message || err));
+                        this.mostrarMensaje('No se pudo generar la imagen: ' + (err?.message || err), 'error');
                         console.error('exportarComoImagen: html2canvas lanzó un error:', err);
                     } finally {
                         el.classList.remove('exporting-compact');
@@ -256,12 +362,14 @@
                         a.click();
                         a.remove();
                         URL.revokeObjectURL(url);
-                        this.mostrarMensaje('No se pudo copiar automáticamente: la imagen se descargó.');
+                        this.mostrarMensaje('No se pudo copiar automáticamente: la imagen se descargó.', 'warning');
                     }
                 },
-                mostrarMensaje(texto) {
-                    this.mensajeExport = texto;
-                    setTimeout(() => { this.mensajeExport = null; }, 5000);
+                // Mismo toast que el resto de /personal/* (pedido
+                // 2026-09-28: todas las notificaciones iguales) — antes era
+                // una burbuja oscura propia en cada vista.
+                mostrarMensaje(texto, tipo = 'success') {
+                    showCrudToast(texto, tipo);
                 },
             };
         }
@@ -317,6 +425,46 @@
             crudToastTimeout = setTimeout(() => {
                 toast.classList.add('hidden');
             }, isError ? 6500 : 3200);
+        }
+
+        // Confirmacion con el mismo estilo del panel (pedido 2026-09-28:
+        // "toda notificacion correcta") en vez del confirm() nativo.
+        // Devuelve una promesa: true si confirma, false si cancela (boton,
+        // Escape o clic fuera). Uso: if (!(await confirmarAccion({...}))) return;
+        function confirmarAccion({ titulo = '¿Confirmar acción?', mensaje = '', textoConfirmar = 'Confirmar' } = {}) {
+            const dialogo = document.getElementById('confirmDialog');
+            if (!dialogo) {
+                return Promise.resolve(window.confirm(mensaje || titulo));
+            }
+
+            const ok = document.getElementById('confirmDialogOk');
+            const cancelar = document.getElementById('confirmDialogCancel');
+            document.getElementById('confirmDialogTitle').textContent = titulo;
+            document.getElementById('confirmDialogMessage').textContent = mensaje;
+            ok.textContent = textoConfirmar;
+            dialogo.style.display = 'flex';
+            ok.focus();
+
+            return new Promise((resolve) => {
+                const cerrar = (resultado) => {
+                    dialogo.style.display = 'none';
+                    ok.removeEventListener('click', alConfirmar);
+                    cancelar.removeEventListener('click', alCancelar);
+                    dialogo.removeEventListener('click', alClicFuera);
+                    document.removeEventListener('keydown', alTeclado, true);
+                    resolve(resultado);
+                };
+                const alConfirmar = () => cerrar(true);
+                const alCancelar = () => cerrar(false);
+                const alClicFuera = (e) => { if (e.target === dialogo) cerrar(false); };
+                const alTeclado = (e) => {
+                    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(false); }
+                };
+                ok.addEventListener('click', alConfirmar);
+                cancelar.addEventListener('click', alCancelar);
+                dialogo.addEventListener('click', alClicFuera);
+                document.addEventListener('keydown', alTeclado, true);
+            });
         }
 
         {{-- Mensajes de exito por redirect (ej. BitacoraController::cuota())

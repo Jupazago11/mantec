@@ -17,6 +17,7 @@ class PersonalCategory extends Model
         'name',
         'activo',
         'responsable_actividad',
+        'administrar_roles',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class PersonalCategory extends Model
         return [
             'activo' => 'boolean',
             'responsable_actividad' => 'boolean',
+            'administrar_roles' => 'boolean',
         ];
     }
 

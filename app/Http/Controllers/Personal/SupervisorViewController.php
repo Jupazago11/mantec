@@ -4,13 +4,11 @@ namespace App\Http\Controllers\Personal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
-use App\Models\ActivityEmployeeHour;
 use App\Models\Employee;
+use App\Services\Personal\RegistroSupervisor;
 use App\Support\PersonalGuard;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 /**
@@ -27,36 +25,24 @@ use Illuminate\View\View;
  */
 class SupervisorViewController extends Controller
 {
+    public function __construct(private RegistroSupervisor $registro)
+    {
+    }
+
     public function index(Request $request, Employee $employee): View
     {
         abort_unless(PersonalGuard::isSuperadmin(), 403);
 
-        $date = $request->query('date')
-            ? Carbon::parse($request->query('date'))->toDateString()
-            : today()->toDateString();
+        // Misma ventana que la app (revision 2026-09-28): hoy o ayer; una
+        // fecha fuera de la ventana o invalida cae en hoy.
+        $date = RegistroSupervisor::fechaConsulta($request->query('date')) ?? today()->toDateString();
 
         // Seccion 7: "cada supervisor hace este registro para las
         // distintas actividades asignadas a su nombre ese dia" — el
         // "nombre" es responsible_employee_id, no ser parte de personas().
-        // Ademas de las de hoy, se incluyen las de AYER con turno Nocturno:
-        // un turno nocturno cruza medianoche, asi que al momento en que el
-        // responsable "hace login" para diligenciarla puede seguir estando
-        // en curso o recien terminada ya del lado de "hoy" en el reloj.
-        // Se muestran siempre (Registrado o Pendiente), igual que las de
-        // hoy — pedido explicito del usuario, sin ocultarlas al registrarse.
-        $ayer = Carbon::parse($date)->subDay()->toDateString();
-
-        $actividades = Activity::with(['company', 'personas', 'employeeHours', 'evidences'])
-            ->where('responsible_employee_id', $employee->id)
-            ->where(function ($query) use ($date, $ayer) {
-                $query->where('date', $date)
-                    ->orWhere(function ($nocturnaAyer) use ($ayer) {
-                        $nocturnaAyer->where('date', $ayer)->where('shift', 'Nocturno');
-                    });
-            })
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
+        // Incluye las nocturnas del dia anterior (seccion 14.20), dentro de
+        // la ventana — ver RegistroSupervisor::actividadesDe().
+        $actividades = $this->registro->actividadesDe($employee, $date, ['company', 'personas', 'employeeHours', 'evidences']);
 
         return view('personal.ver-como.index', [
             'empleado' => $employee,
@@ -79,63 +65,24 @@ class SupervisorViewController extends Controller
         // revisó — mismo criterio que canModify() en ActivityController.
         abort_if($activity->isClosed(), 403);
 
-        $validated = $this->validated($request);
-
-        if ($validated['all_worked_scheduled_hours']) {
-            $activity->employeeHours()->delete();
-            $reportedHours = $activity->estimated_hours;
-        } else {
-            $reportedHours = 0.0;
-            foreach ($validated['personas'] as $persona) {
-                $workedHours = round((float) $persona['worked_hours'], 2);
-                $reportedHours += $workedHours;
-
-                ActivityEmployeeHour::updateOrCreate(
-                    ['activity_id' => $activity->id, 'employee_id' => $persona['employee_id']],
-                    [
-                        'worked' => $workedHours > 0,
-                        'worked_hours' => $workedHours,
-                    ]
-                );
-            }
+        if (! RegistroSupervisor::dentroDeVentana($activity)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo puedes registrar actividades de hoy o de ayer.',
+            ], 403);
         }
 
-        $activity->update([
-            'comments' => $validated['comments'] ?? null,
-            'all_worked_scheduled_hours' => $validated['all_worked_scheduled_hours'],
-            'reported_hours' => round($reportedHours, 2),
-            'hours_registered_by_employee_id' => $employee->id,
-            'hours_registered_at' => now(),
-        ]);
+        // Misma validacion y guardado que la app (RegistroSupervisor): solo
+        // personas de la actividad, horas 0-24, en una transaccion. Esta
+        // pantalla no maneja comentario por persona.
+        $validated = $this->registro->validar($request, $activity, conComentarios: false);
+        $this->registro->registrar($activity, $employee, $validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Registro guardado correctamente.',
             'activity' => $this->serialize($activity->fresh(['personas', 'employeeHours', 'evidences'])),
         ]);
-    }
-
-    private function validated(Request $request): array
-    {
-        return Validator::make($request->all(), [
-            'comments' => ['nullable', 'string', 'max:2000'],
-            'all_worked_scheduled_hours' => ['required', 'boolean'],
-            'personas' => ['array'],
-            'personas.*.employee_id' => ['required', 'integer'],
-            // Horas nunca negativas (mismo criterio que "Horas estimadas"
-            // en Programación) — sin captura de hora inicio/hora final por
-            // ahora (pedido 2026-09-19: "no implementemos ahora lo de la
-            // hora de ingreso y final", queda para una iteración futura).
-            'personas.*.worked_hours' => ['required', 'numeric', 'min:0'],
-        ])->after(function ($validator) use ($request) {
-            if ($request->boolean('all_worked_scheduled_hours')) {
-                return;
-            }
-
-            if (collect($request->input('personas', []))->isEmpty()) {
-                $validator->errors()->add('personas', 'Indica el detalle por persona si no todos trabajaron las horas programadas.');
-            }
-        })->validate();
     }
 
     private function serialize(Activity $activity): array

@@ -9,8 +9,11 @@ use App\Models\Employee;
 use App\Models\PersonalCategory;
 use App\Models\PersonalRole;
 use App\Services\Bitacora\BitacoraHoursCalculator;
+use App\Services\FieldDiary\FieldDiaryFullView;
 use App\Support\PersonalGuard;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,12 +27,14 @@ class ActivityController extends Controller
     {
         abort_unless(PersonalGuard::can('ver_programacion'), 403);
 
-        $dateCarbon = $request->query('date')
-            ? Carbon::parse($request->query('date'))
-            : today();
+        // Fecha invalida en la URL (?date=abc) -> hoy, en vez de un 500 de
+        // Carbon::parse() (revision 2026-09-28).
+        $fechaQuery = FieldDiaryFullView::normalizeDate($request->query('date'));
+        $dateCarbon = $fechaQuery ? Carbon::parse($fechaQuery) : today();
         $date = $dateCarbon->toDateString();
 
         $actividades = Activity::with(['company', 'responsible', 'personas'])
+            ->withCount('evidences')
             ->where('date', $date)
             ->orderByRaw('group_number IS NULL, group_number')
             ->orderBy('id')
@@ -167,9 +172,17 @@ class ActivityController extends Controller
             ->values();
     }
 
+    // Crear/editar/eliminar exige ver Y editar Programacion (el permiso
+    // "editar_programacion" se separo de "ver_programacion" el
+    // 2026-09-28: a futuro un rol puede solo ver y otro programar).
+    private function puedeEditarProgramacion(): bool
+    {
+        return PersonalGuard::can('ver_programacion') && PersonalGuard::can('editar_programacion');
+    }
+
     public function store(Request $request): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::can('ver_programacion'), 403);
+        abort_unless($this->puedeEditarProgramacion(), 403);
 
         $validated = $this->validated($request);
 
@@ -205,7 +218,14 @@ class ActivityController extends Controller
 
     public function update(Request $request, Activity $activity): RedirectResponse|JsonResponse
     {
+        abort_unless($this->puedeEditarProgramacion(), 403);
         abort_if(! $this->canModify($activity), 403);
+
+        // La fecha de una actividad no se mueve desde aqui (seccion 14.4):
+        // se fuerza la de la propia actividad para que la ventana de
+        // edicion y la regla de "una primaria por persona/dia" se validen
+        // contra el dia real, no contra uno enviado en la peticion.
+        $request->merge(['date' => $activity->date->toDateString()]);
 
         $validated = $this->validated($request, $activity);
 
@@ -239,10 +259,27 @@ class ActivityController extends Controller
 
     public function destroy(Request $request, Activity $activity): RedirectResponse|JsonResponse
     {
+        abort_unless($this->puedeEditarProgramacion(), 403);
         abort_if(! $this->canModify($activity), 403);
 
         $date = $activity->date->toDateString();
         $id = $activity->id;
+
+        // Las filas de horas reportadas, comentarios del responsable y
+        // evidencias se borran en cascada (FK), pero los ARCHIVOS de las
+        // evidencias viven en R2 y quedaban huerfanos (revision
+        // 2026-09-28). La vista ya advierte antes de borrar cuando hay
+        // registro del supervisor o evidencias.
+        foreach ($activity->evidences as $evidencia) {
+            try {
+                Storage::disk($evidencia->disk)->delete($evidencia->path);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo borrar de R2 la evidencia de una actividad eliminada', [
+                    'activity_id' => $id, 'path' => $evidencia->path, 'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $activity->delete();
 
         if ($this->isAjaxRequest($request)) {
@@ -303,6 +340,10 @@ class ActivityController extends Controller
             'personas' => $activity->personas->map(fn ($p) => ['id' => $p->id, 'nickname' => $p->nickname, 'nombre' => $p->nombre])->values(),
             'closed' => $activity->isClosed(),
             'modificable' => $this->canModify($activity),
+            // Para advertir antes de eliminar (revision 2026-09-28): se
+            // pierde lo que ya reporto el responsable y sus evidencias.
+            'registrada' => $activity->hours_registered_at !== null,
+            'evidencias' => (int) ($activity->evidences_count ?? $activity->evidences()->count()),
         ];
     }
 
@@ -324,7 +365,9 @@ class ActivityController extends Controller
             // migracion add_scheduling_comment_to_activities_table.
             'scheduling_comment' => ['nullable', 'string', 'max:1000'],
             'activity_type' => ['required', Rule::in(['P', 'S'])],
-            'estimated_hours' => ['nullable', 'numeric', 'min:0'],
+            // max:24 (revision 2026-09-28): horas por persona en un dia; sin
+            // tope, un valor >= 1000 desbordaba decimal(5,2) con un 500.
+            'estimated_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'shift' => ['required', Rule::in(['Diurno', 'Nocturno'])],
             // Responsable = opcional, pero si se manda uno tiene que ser un
             // empleado activo de verdad, elegible por
@@ -430,6 +473,15 @@ class ActivityController extends Controller
 
     private function isEditable(string $date): bool
     {
+        // Revision 2026-09-28: sin "editar_programacion" (crear/editar/
+        // eliminar, separado de "ver_programacion") nada es editable —
+        // antes update()/destroy() solo miraban la ventana de fechas y un
+        // empleado SIN ningun permiso podia editar/borrar actividades de
+        // hoy/ayer por peticion directa.
+        if (! $this->puedeEditarProgramacion()) {
+            return false;
+        }
+
         // "editar_programacion_sin_limite" (seccion 6: antes atado a
         // role==='supervisor', ahora a un permiso configurable desde
         // Roles y permisos) — quien no lo tiene solo puede tocar hoy/ayer.

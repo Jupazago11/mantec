@@ -21,17 +21,19 @@ class PersonalCategoryController extends Controller
 {
     public function store(Request $request): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100', Rule::unique('personal_categories', 'name')],
             'responsable_actividad' => ['sometimes', 'boolean'],
+            'administrar_roles' => ['sometimes', 'boolean'],
         ]);
 
         $category = PersonalCategory::create([
             'name' => trim($validated['name']),
             'activo' => true,
             'responsable_actividad' => $request->boolean('responsable_actividad'),
+            'administrar_roles' => $request->boolean('administrar_roles'),
         ]);
 
         if ($this->isAjaxRequest($request)) {
@@ -47,16 +49,18 @@ class PersonalCategoryController extends Controller
 
     public function update(Request $request, PersonalCategory $personalCategory): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100', Rule::unique('personal_categories', 'name')->ignore($personalCategory->id)],
             'responsable_actividad' => ['sometimes', 'boolean'],
+            'administrar_roles' => ['sometimes', 'boolean'],
         ]);
 
         $personalCategory->update([
             'name' => trim($validated['name']),
             'responsable_actividad' => $request->boolean('responsable_actividad'),
+            'administrar_roles' => $request->boolean('administrar_roles'),
         ]);
 
         if ($this->isAjaxRequest($request)) {
@@ -75,7 +79,7 @@ class PersonalCategoryController extends Controller
     // Rol (sin importar el subrol) — reactivar no tiene esa restriccion.
     public function toggleActive(Request $request, PersonalCategory $personalCategory): RedirectResponse|JsonResponse
     {
-        abort_unless(PersonalGuard::isSuperadmin(), 403);
+        abort_unless(PersonalGuard::can('administrar_roles'), 403);
 
         if ($personalCategory->activo && $personalCategory->employees()->exists()) {
             $message = 'No se puede archivar un rol con empleados asignados. Reasígnalos primero desde Empleados.';
@@ -117,6 +121,7 @@ class PersonalCategoryController extends Controller
             'activo' => (bool) $category->activo,
             'employees_count' => $category->employees()->count(),
             'responsable_actividad' => (bool) $category->responsable_actividad,
+            'administrar_roles' => (bool) $category->administrar_roles,
         ];
     }
 }

@@ -8,6 +8,7 @@
     $etiquetas = [
         'ver_empleados' => 'Empleados',
         'ver_programacion' => 'Programación',
+        'editar_programacion' => 'Crear/editar/eliminar en Programación',
         'editar_programacion_sin_limite' => 'Editar sin límite de hoy/ayer',
         'ver_diario_campo' => 'Diario de Campo',
         'cerrar_diario_campo' => 'Cerrar Diario de Campo',
@@ -28,6 +29,7 @@
         'name' => $cat->name,
         'activo' => (bool) $cat->activo,
         'responsable_actividad' => (bool) $cat->responsable_actividad,
+        'administrar_roles' => (bool) $cat->administrar_roles,
         'employees_count' => $cat->employees()->count(),
         'roles' => $cat->roles->map(fn ($r) => array_merge([
             'id' => $r->id,
@@ -37,6 +39,7 @@
             'employees_count' => $r->employees_count,
             'disponible_en_programacion' => (bool) $r->disponible_en_programacion,
             'responsable_actividad' => (bool) $r->responsable_actividad,
+            'administrar_roles' => (bool) $r->administrar_roles,
         ], collect($permisos)->mapWithKeys(fn ($p) => [$p => (bool) $r->{$p}])->all()))->values(),
     ])->values();
 @endphp
@@ -125,6 +128,11 @@
                         class="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-800"
                         title="Los empleados de este Rol pueden elegirse como Responsable al crear una actividad en Programación"
                     >Responsable de actividad</span>
+                    <span
+                        x-show="cat.administrar_roles"
+                        class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800"
+                        title="Los subroles de este Rol que también lo tengan marcado pueden administrar Roles y permisos y los accesos de Empleados"
+                    >Administra roles y permisos</span>
                     <span class="text-xs text-slate-400" x-text="cat.employees_count + ' empleado(s)'"></span>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -157,6 +165,7 @@
                     @endforeach
                     <col>
                     <col>
+                    <col>
                 </colgroup>
                 <thead class="sticky-table-head bg-slate-50">
                     <tr>
@@ -182,12 +191,13 @@
                         @endforeach
                         <th class="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Disponible en Programación</th>
                         <th class="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Responsable de actividad</th>
+                        <th class="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Administrar roles y permisos</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 bg-white">
                     <template x-if="cat.roles.length === 0">
                         <tr>
-                            <td colspan="{{ 6 + count($etiquetas) }}" class="px-4 py-6 text-center text-sm text-slate-400">
+                            <td colspan="{{ 7 + count($etiquetas) }}" class="px-4 py-6 text-center text-sm text-slate-400">
                                 Este rol todavía no tiene subroles.
                             </td>
                         </tr>
@@ -235,6 +245,11 @@
                                 <i x-show="cat.responsable_actividad && rol.responsable_actividad" data-lucide="check" class="mx-auto h-4 w-4 text-emerald-600"></i>
                                 <i x-show="!(cat.responsable_actividad && rol.responsable_actividad)" data-lucide="minus" class="mx-auto h-4 w-4 text-slate-300"></i>
                             </td>
+                            {{-- Mismo criterio: efecto real (Rol Y Subrol). --}}
+                            <td class="px-2 py-2 text-center">
+                                <i x-show="cat.administrar_roles && rol.administrar_roles" data-lucide="check" class="mx-auto h-4 w-4 text-emerald-600"></i>
+                                <i x-show="!(cat.administrar_roles && rol.administrar_roles)" data-lucide="minus" class="mx-auto h-4 w-4 text-slate-300"></i>
+                            </td>
                         </tr>
                     </template>
                 </tbody>
@@ -280,6 +295,18 @@
                     <p class="mt-1 text-[11px] text-slate-400">
                         Todo empleado de este Rol (en cualquiera de sus subroles) podrá elegirse como "Responsable
                         (supervisor)" al crear una actividad en Programación.
+                    </p>
+                </div>
+
+                <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" x-model="formCategoria.administrar_roles">
+                        <span>Administrar roles y permisos</span>
+                    </label>
+                    <p class="mt-1 text-[11px] text-slate-400">
+                        Habilita que los subroles de este Rol se puedan marcar para administrar "Roles y permisos" y
+                        los accesos de Empleados (subrol, usuario, contraseña, activar/inactivar cuentas). Por sí solo
+                        no da acceso: hay que marcarlo también en cada subrol.
                     </p>
                 </div>
 
@@ -366,6 +393,25 @@
                             </p>
                         </template>
                     </div>
+                    <div class="border-t border-slate-200 pt-3">
+                        <label class="flex items-center gap-2 text-sm" :class="categoriaActualAdministra() ? 'text-slate-700' : 'text-slate-400'">
+                            <input type="checkbox" x-model="formRol.administrar_roles" :disabled="!categoriaActualAdministra()">
+                            <span>Administrar roles y permisos</span>
+                        </label>
+                        <template x-if="categoriaActualAdministra()">
+                            <p class="mt-1 text-[11px] text-slate-400">
+                                Da acceso a "Roles y permisos" y a los accesos de Empleados (subrol, usuario, contraseña,
+                                activar/inactivar cuentas). Quien lo tiene puede cambiar permisos, incluidos los propios:
+                                márcalo solo en roles de confianza.
+                            </p>
+                        </template>
+                        <template x-if="!categoriaActualAdministra()">
+                            <p class="mt-1 text-[11px] text-amber-600">
+                                El Rol "<span x-text="nombreCategoriaActual()"></span>" no tiene activo "Administrar roles y
+                                permisos" — actívalo primero ahí para poder marcar subroles específicos aquí.
+                            </p>
+                        </template>
+                    </div>
                 </div>
 
                 <div class="mt-6 flex justify-end gap-2">
@@ -387,11 +433,11 @@
         permisos, categoriasIniciales, csrfToken,
     }) {
         const emptyFormRol = (categoryId = null) => {
-            const form = { name: '', personal_category_id: categoryId, disponible_en_programacion: true, responsable_actividad: false };
+            const form = { name: '', personal_category_id: categoryId, disponible_en_programacion: true, responsable_actividad: false, administrar_roles: false };
             permisos.forEach((p) => { form[p] = false; });
             return form;
         };
-        const emptyFormCategoria = () => ({ name: '', responsable_actividad: false });
+        const emptyFormCategoria = () => ({ name: '', responsable_actividad: false, administrar_roles: false });
 
         const jsonHeaders = () => ({
             'Content-Type': 'application/json',
@@ -423,6 +469,9 @@
             },
             categoriaActualResponsable() {
                 return this.categorias.find((c) => c.id === this.formRol.personal_category_id)?.responsable_actividad ?? false;
+            },
+            categoriaActualAdministra() {
+                return this.categorias.find((c) => c.id === this.formRol.personal_category_id)?.administrar_roles ?? false;
             },
 
             // --- Subrol (PersonalRole) ---
@@ -475,6 +524,7 @@
                         personal_category_id: this.formRol.personal_category_id,
                         disponible_en_programacion: this.formRol.disponible_en_programacion,
                         responsable_actividad: this.formRol.responsable_actividad,
+                        administrar_roles: this.formRol.administrar_roles,
                     };
                     permisos.forEach((p) => { payload[p] = this.formRol[p]; });
 
@@ -565,7 +615,7 @@
                     this.categoriaId = cat.id;
                     this.formCategoriaAction = categoriaUpdateUrlTemplate.replace('__ID__', cat.id);
                     this.formCategoriaMethod = 'PUT';
-                    this.formCategoria = { name: cat.name, responsable_actividad: cat.responsable_actividad };
+                    this.formCategoria = { name: cat.name, responsable_actividad: cat.responsable_actividad, administrar_roles: cat.administrar_roles };
                 }
                 this.formErrorsCategoria = [];
                 this.modalCategoriaAbierto = true;
@@ -578,6 +628,7 @@
                     const res = await fetch(this.formCategoriaAction, { method: this.formCategoriaMethod, headers: jsonHeaders(), body: JSON.stringify({
                         name: this.formCategoria.name,
                         responsable_actividad: this.formCategoria.responsable_actividad,
+                        administrar_roles: this.formCategoria.administrar_roles,
                     }) });
                     const data = await res.json().catch(() => null);
 

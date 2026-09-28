@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\ActivityEvidence;
 use App\Models\Employee;
+use App\Services\Personal\RegistroSupervisor;
 use App\Support\ActivityEvidencePathBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -155,6 +156,9 @@ class ActivityEvidenceController extends Controller
 
         if (! $allowClosed) {
             abort_if($activity->isClosed(), 403);
+            // Subir/borrar evidencia: misma ventana hoy/ayer que el registro
+            // de horas (revision 2026-09-28). Ver sigue permitido.
+            abort_unless(RegistroSupervisor::dentroDeVentana($activity), 403, 'Solo puedes modificar evidencias de actividades de hoy o de ayer.');
         }
     }
 

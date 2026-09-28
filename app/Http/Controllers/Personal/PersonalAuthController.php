@@ -35,6 +35,9 @@ class PersonalAuthController extends Controller
         if ($employee && Hash::check($credentials['password'], $employee->password)) {
             Auth::guard('personal')->login($employee);
             $request->session()->regenerate();
+            // Si un administrador cambia la contrasena despues, la sesion
+            // se corta en la siguiente peticion (EnsurePersonalAccess).
+            \App\Http\Middleware\EnsurePersonalAccess::recordarClave($request, $employee);
 
             return redirect()->intended($this->destinoTrasLogin());
         }

@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Calculo de "horas finales" por empleado/dia (seccion 8 de
  * NUEVA_FUNCIONALIDAD_PERSONAL_Y_PROGRAMACION.md, seccion 14.19):
- * prioridad corregida > reportada > programada. "Reportada" viene del
+ * prioridad corregida > reportada > programada. Desde 2026-09-28 la base
+ * es el valor del Diario de Campo por actividad (horasDiarioPorDia()), para
+ * que Diario y Bitacora muestren siempre el mismo numero; la correccion
+ * por dia de la Bitacora sigue mandando encima. "Reportada" viene del
  * registro real del supervisor (seccion 7/14.18, "Ver como supervisor")
  * — antes de eso no existia fuente real y siempre quedaba en null.
  * Usado tanto por BitacoraController (consolidado mensual, detalle por
@@ -97,12 +100,75 @@ class BitacoraHoursCalculator
         return $porDia;
     }
 
-    // "Final" de un dia: la correccion administrativa manda si tiene texto
-    // (aunque no sea numerica, ej. "L" de licencia — no suma horas, pero
-    // is_numeric() la descarta correctamente donde se sume); si no hay
-    // correccion, manda lo reportado por el supervisor; si tampoco hay
-    // reporte, manda lo programado.
-    public function valorFinal(?float $programada, ?float $reportada, ?BitacoraEntry $entry): int|float|string|null
+    /**
+     * Horas del dia por empleado SEGUN EL DIARIO DE CAMPO (revision
+     * 2026-09-28: "Diario y Bitacora no pueden mostrar numeros distintos").
+     * Suma, actividad por actividad, el mismo valor por persona que muestra
+     * el Diario (Activity::diaryHourGroups()):
+     *   1. correccion de "Horas" del Diario (corrected_hours, toda la actividad);
+     *   2. si el responsable reporto detalle por persona, las horas de esa persona;
+     *   3. si no, reported_hours (= estimadas confirmadas) o las estimadas.
+     * Antes la Bitacora ignoraba la correccion del Diario y, si en un dia
+     * habia una actividad registrada y otra no, solo sumaba la registrada.
+     *
+     * @return array{valor: array<int, array<int, float|null>>, corregido: array<int, array<int, bool>>}
+     */
+    public function horasDiarioPorDia(int $year, int $month): array
+    {
+        $rows = DB::table('activity_employee')
+            ->join('activities', 'activities.id', '=', 'activity_employee.activity_id')
+            ->leftJoin('activity_employee_hours', function ($join) {
+                $join->on('activity_employee_hours.activity_id', '=', 'activity_employee.activity_id')
+                    ->on('activity_employee_hours.employee_id', '=', 'activity_employee.employee_id');
+            })
+            ->whereYear('activities.date', $year)
+            ->whereMonth('activities.date', $month)
+            ->select([
+                'activity_employee.employee_id as employee_id',
+                'activities.date as date',
+                'activities.estimated_hours',
+                'activities.reported_hours',
+                'activities.corrected_hours',
+                'activities.all_worked_scheduled_hours',
+                'activity_employee_hours.worked_hours',
+            ])
+            ->selectRaw('EXISTS (SELECT 1 FROM activity_employee_hours d WHERE d.activity_id = activities.id) as tiene_detalle')
+            ->get();
+
+        $valor = [];
+        $corregido = [];
+        foreach ($rows as $row) {
+            $dia = Carbon::parse($row->date)->day;
+
+            if ($row->corrected_hours !== null) {
+                $horas = (float) $row->corrected_hours;
+                $corregido[$row->employee_id][$dia] = true;
+            } elseif ($row->all_worked_scheduled_hours === false && $row->tiene_detalle) {
+                // Detalle por persona: sin fila propia = sin dato (igual que
+                // el grupo "sin registro" del Diario).
+                $horas = $row->worked_hours !== null ? (float) $row->worked_hours : null;
+            } else {
+                $base = $row->reported_hours ?? $row->estimated_hours;
+                $horas = $base !== null ? (float) $base : null;
+            }
+
+            if ($horas !== null) {
+                $valor[$row->employee_id][$dia] = ($valor[$row->employee_id][$dia] ?? 0.0) + $horas;
+            } else {
+                $valor[$row->employee_id][$dia] ??= null;
+            }
+        }
+
+        return ['valor' => $valor, 'corregido' => $corregido];
+    }
+
+    // "Final" de un dia: la correccion administrativa de la Bitacora manda
+    // si tiene texto (aunque no sea numerica, ej. "L" de licencia — no suma
+    // horas, pero is_numeric() la descarta correctamente donde se sume); si
+    // no hay, manda el valor del Diario de Campo (horasDiarioPorDia(), que
+    // ya aplica corregida del Diario > reportada > programada por
+    // actividad).
+    public function valorFinal(?float $diario, ?BitacoraEntry $entry): int|float|string|null
     {
         $corregida = $entry?->corrected_value;
 
@@ -110,7 +176,7 @@ class BitacoraHoursCalculator
             return $corregida;
         }
 
-        return $reportada ?? $programada;
+        return $diario;
     }
 
     /**
@@ -127,13 +193,11 @@ class BitacoraHoursCalculator
             return [];
         }
 
-        $programada = $this->horasProgramadasPorDia($year, $month);
-        $reportada = $this->horasReportadasPorDia($year, $month);
+        $diario = $this->horasDiarioPorDia($year, $month)['valor'];
         $entries = $this->correccionesPorDia($year, $month);
 
         $employeeIds = array_unique(array_merge(
-            array_keys($programada),
-            array_keys($reportada),
+            array_keys($diario),
             array_keys($entries)
         ));
 
@@ -144,8 +208,7 @@ class BitacoraHoursCalculator
 
             for ($dia = $desde; $dia <= $hasta; $dia++) {
                 $final = $this->valorFinal(
-                    $programada[$employeeId][$dia] ?? null,
-                    $reportada[$employeeId][$dia] ?? null,
+                    $diario[$employeeId][$dia] ?? null,
                     $entries[$employeeId][$dia] ?? null
                 );
 

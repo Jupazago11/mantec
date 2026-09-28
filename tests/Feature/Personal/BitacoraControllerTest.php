@@ -250,9 +250,18 @@ class BitacoraControllerTest extends TestCase
         $response->assertSee('es_responsable'.chr(92).'u0022:true', false);
     }
 
+    // Empleado CON usuario de acceso pero sin permisos: uno sin acceso ya no
+    // puede tener sesion (EnsurePersonalAccess, revision 2026-09-28).
+    private function empleadoConAccesoSinPermisos(string $nickname): Employee
+    {
+        return tap($this->empleado($nickname))->update([
+            'has_login' => true, 'username' => $nickname, 'password' => bcrypt('secret'),
+        ]);
+    }
+
     public function test_unauthorized_employee_cannot_view_bitacora(): void
     {
-        $persona = $this->empleado('sin-permiso-bitacora-test');
+        $persona = $this->empleadoConAccesoSinPermisos('sin-permiso-bitacora-test');
 
         $response = $this->actingAs($persona, 'personal')->get(route('personal.bitacora.index'));
 
@@ -277,10 +286,46 @@ class BitacoraControllerTest extends TestCase
         $this->assertDatabaseCount('bitacora_holidays', 0);
     }
 
-    // El dia marcado a mano debe servirse como festivo=true en la celda de
-    // valor (fuerza texto rojo en pantalla, ver :class en la vista) y el
-    // dia debe mostrar el marcador de festivo manual junto al numero.
-    public function test_manually_marked_holiday_is_served_as_festivo_true_for_that_day(): void
+    // Pedido 2026-09-28: la vista marca/quita festivos por AJAX sin
+    // recargar, y aplica el "festivo" que devuelve el servidor — la
+    // respuesta JSON debe reflejar el estado real tras cada toggle.
+    public function test_toggle_holiday_via_ajax_returns_resulting_state_as_json(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)
+            ->postJson(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20'])
+            ->assertOk()
+            ->assertExactJson([
+                'success' => true,
+                'message' => 'Día marcado como festivo.',
+                'date' => '2026-07-20',
+                'festivo' => true,
+            ]);
+        $this->assertDatabaseHas('bitacora_holidays', ['date' => '2026-07-20']);
+
+        $this->actingAs($admin)
+            ->postJson(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20'])
+            ->assertOk()
+            ->assertJson(['success' => true, 'message' => 'Festivo quitado.', 'festivo' => false]);
+        $this->assertDatabaseCount('bitacora_holidays', 0);
+    }
+
+    public function test_toggle_holiday_via_ajax_validates_date(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)
+            ->postJson(route('personal.bitacora.holidays.toggle'), ['date' => 'no-es-fecha'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('date');
+        $this->assertDatabaseCount('bitacora_holidays', 0);
+    }
+
+    // El dia marcado a mano debe llegar en "festivosManuales" del estado de
+    // pagina (bitacoraPage): de ahi sale esFestivo(), que pinta en rojo la
+    // celda del dia y las celdas de horas de esa fila (Alpine, reactivo).
+    public function test_manually_marked_holiday_is_served_in_page_state(): void
     {
         $admin = $this->superadmin();
         $company = $this->company();
@@ -296,13 +341,12 @@ class BitacoraControllerTest extends TestCase
         $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]));
 
         $response->assertOk();
-        $response->assertSee('festivo: true,', false);
-        $response->assertSee('Festivo marcado manualmente', false);
+        $response->assertSee("festivosManuales: JSON.parse('[20]'),", false);
     }
 
     // Un domingo sigue siendo festivo aunque nunca se haya marcado a mano
     // (comportamiento previo, no debe romperse con el cambio).
-    public function test_sunday_is_still_served_as_festivo_true_without_manual_mark(): void
+    public function test_sunday_is_still_served_as_festivo_without_manual_mark(): void
     {
         $admin = $this->superadmin();
         $company = $this->company();
@@ -317,18 +361,57 @@ class BitacoraControllerTest extends TestCase
 
         $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]));
 
+        // Domingos de julio 2026: 5, 12, 19, 26.
         $response->assertOk();
-        $response->assertSee('festivo: true,', false);
+        $response->assertSee("domingos: JSON.parse('[5,12,19,26]'),", false);
+        $response->assertSee('festivosManuales: [],', false);
+    }
+
+    // Pedido 2026-09-28: la tabla parpadeaba mientras Alpine inicializaba
+    // cada celda. El loader debe venir visible en el HTML servido (sin
+    // depender de Alpine) y la tabla oculta (x-cloak + x-show="listo")
+    // hasta que bitacoraPage marque "listo".
+    public function test_table_is_hidden_behind_loader_until_alpine_is_ready(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('loader-test');
+
+        $activity = Activity::create([
+            'date' => '2026-07-07', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        $html = $this->actingAs($admin)
+            ->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 7]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('<div x-show="!listo" class="bitacora-loader', $html);
+        $this->assertStringContainsString('Cargando bitácora…', $html);
+        $this->assertStringContainsString('<div x-show="listo" x-cloak class="bitacora-reveal', $html);
+        $this->assertStringContainsString('listo: false,', $html);
+
+        // La tabla va DENTRO del contenedor oculto, no antes.
+        $this->assertLessThan(
+            strpos($html, '<table class="preventive-table'),
+            strpos($html, 'x-show="listo" x-cloak')
+        );
     }
 
     public function test_unauthorized_employee_cannot_toggle_holiday(): void
     {
-        $persona = $this->empleado('sin-permiso-festivo-test');
+        $persona = $this->empleadoConAccesoSinPermisos('sin-permiso-festivo-test');
 
-        $response = $this->actingAs($persona, 'personal')
-            ->post(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20']);
+        $this->actingAs($persona, 'personal')
+            ->post(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20'])
+            ->assertStatus(403);
 
-        $response->assertStatus(403);
+        $this->actingAs($persona, 'personal')
+            ->postJson(route('personal.bitacora.holidays.toggle'), ['date' => '2026-07-20'])
+            ->assertStatus(403);
+
         $this->assertDatabaseCount('bitacora_holidays', 0);
     }
 
@@ -378,5 +461,168 @@ class BitacoraControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('comentarios: [],', false);
+    }
+
+    // Pedido 2026-09-28 ("todos los CRUD dinamicos, con toast"): la
+    // correccion de una celda se guarda por AJAX y la respuesta trae lo que
+    // la celda y el pie de la tabla necesitan para actualizarse sin
+    // recargar — valor corregido, historial de comentarios del dia y total
+    // del mes del empleado (misma regla corregida > reportada > programada).
+    public function test_save_entry_via_ajax_returns_cell_data_and_month_total(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('ajax-entry-test');
+
+        foreach (['2026-05-04' => 8, '2026-05-05' => 10] as $fecha => $horas) {
+            $activity = Activity::create([
+                'date' => $fecha, 'company_id' => $company->id, 'description' => 'x',
+                'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => $horas,
+            ]);
+            $activity->personas()->sync([$persona->id]);
+        }
+
+        $response = $this->actingAs($admin)->postJson(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-05-05', 'corrected_value' => '12', 'comment' => 'Se quedo hasta tarde',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('corregida', '12')
+            ->assertJsonPath('comentarios.0.texto', 'Se quedo hasta tarde')
+            ->assertJsonPath('comentarios.0.es_responsable', false);
+        // 8 (programada del 4) + 12 (corregida del 5, reemplaza los 10).
+        $this->assertEquals(20, $response->json('total_mes'));
+
+        // Una correccion de texto ("L") no suma: queda solo el 8 del dia 4.
+        $licencia = $this->actingAs($admin)->postJson(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-05-05', 'corrected_value' => 'L',
+        ]);
+        $licencia->assertJsonPath('corregida', 'L');
+        $this->assertEquals(8, $licencia->json('total_mes'));
+    }
+
+    public function test_save_entry_via_ajax_validation_error_is_json_422(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('ajax-entry-422-test');
+
+        $this->actingAs($admin)->postJson(route('personal.bitacora.entries.store'), [
+            'employee_id' => $persona->id, 'date' => '2026-05-05', 'corrected_value' => str_repeat('9', 21),
+        ])->assertStatus(422)->assertJsonValidationErrors('corrected_value');
+
+        $this->assertDatabaseCount('bitacora_entries', 0);
+    }
+
+    public function test_save_quota_via_ajax_returns_new_quota(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)->postJson(route('personal.bitacora.quota.store'), [
+            'year' => 2026, 'month' => 5, 'quota_hours' => 190.5,
+        ])->assertOk()->assertJson(['success' => true, 'cuota' => 190.5]);
+
+        $this->assertDatabaseHas('bitacora_quotas', ['year' => 2026, 'month' => 5, 'quota_hours' => 190.5]);
+
+        $this->actingAs($admin)->postJson(route('personal.bitacora.quota.store'), [
+            'year' => 2026, 'month' => 5, 'quota_hours' => -1,
+        ])->assertStatus(422);
+    }
+
+    // --- Diario de Campo y Bitacora muestran el mismo numero (2026-09-28) ---
+
+    private function celda($response, Employee $persona, int $dia): array
+    {
+        return $response->viewData('celdas')[$persona->id][$dia];
+    }
+
+    public function test_diario_hours_correction_flows_into_bitacora(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('correccion-diario-test');
+        $activity = Activity::create([
+            'date' => '2026-06-10', 'company_id' => $this->company()->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8, 'corrected_hours' => 10,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 6]));
+
+        $celda = $this->celda($response, $persona, 10);
+        $this->assertEquals(10, $celda['final']);
+        $this->assertTrue($celda['diario_corregido']);
+        $this->assertEquals(8, $celda['programada']);
+        $this->assertEquals(10, $response->viewData('totales')[$persona->id]);
+    }
+
+    // Un dia con una actividad ya registrada por el responsable y otra sin
+    // registrar: el Diario muestra ambas, la Bitacora ahora suma ambas
+    // (antes solo sumaba la registrada).
+    public function test_partially_registered_day_sums_all_activities_like_the_diary(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('parcial-test');
+        $registrada = Activity::create([
+            'date' => '2026-06-11', 'company_id' => $this->company()->id, 'description' => 'Registrada',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+            'all_worked_scheduled_hours' => false, 'reported_hours' => 9, 'hours_registered_at' => now(),
+        ]);
+        $registrada->personas()->sync([$persona->id]);
+        ActivityEmployeeHour::create(['activity_id' => $registrada->id, 'employee_id' => $persona->id, 'worked' => true, 'worked_hours' => 9]);
+        $sinRegistrar = Activity::create([
+            'date' => '2026-06-11', 'company_id' => $this->company()->id, 'description' => 'Sin registrar',
+            'activity_type' => 'S', 'shift' => 'Diurno', 'estimated_hours' => 1,
+        ]);
+        $sinRegistrar->personas()->sync([$persona->id]);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 6]));
+
+        $this->assertEquals(10, $this->celda($response, $persona, 11)['final']);
+        // Misma suma que el Diario: 9 (detalle) + 1 (estimada).
+        $horasDiario = collect([$registrada->fresh(), $sinRegistrar->fresh()])
+            ->flatMap(fn ($a) => $a->diaryHourGroups())
+            ->sum(fn ($g) => $g['horas']);
+        $this->assertEquals(10, $horasDiario);
+    }
+
+    public function test_bitacora_day_correction_still_overrides_the_diary(): void
+    {
+        $admin = $this->superadmin();
+        $persona = $this->empleado('licencia-sobre-diario-test');
+        $activity = Activity::create([
+            'date' => '2026-06-12', 'company_id' => $this->company()->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8, 'corrected_hours' => 10,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+        BitacoraEntry::create(['employee_id' => $persona->id, 'date' => '2026-06-12', 'corrected_value' => 'L']);
+
+        $response = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 6]));
+
+        $this->assertSame('L', $this->celda($response, $persona, 12)['final']);
+        $this->assertNull($response->viewData('totales')[$persona->id]);
+    }
+
+    // La vista ya no usa <form> nativos (recargaban la pagina) para la
+    // correccion ni para la cuota, y el pie de la tabla sale del estado
+    // reactivo.
+    public function test_bitacora_view_saves_without_native_forms(): void
+    {
+        $admin = $this->superadmin();
+        $company = $this->company();
+        $persona = $this->empleado('sin-forms-test');
+        $activity = Activity::create([
+            'date' => '2026-05-04', 'company_id' => $company->id, 'description' => 'x',
+            'activity_type' => 'P', 'shift' => 'Diurno', 'estimated_hours' => 8,
+        ]);
+        $activity->personas()->sync([$persona->id]);
+
+        $html = $this->actingAs($admin)->get(route('personal.bitacora.index', ['year' => 2026, 'month' => 5]))->getContent();
+
+        $this->assertStringNotContainsString('action="'.route('personal.bitacora.entries.store').'"', $html);
+        $this->assertStringNotContainsString('action="'.route('personal.bitacora.quota.store').'"', $html);
+        $this->assertStringContainsString('@submit.prevent="guardarCelda($data, '.$persona->id, $html);
+        $this->assertStringContainsString('@change="guardarCuota($event.target)"', $html);
+        $this->assertStringContainsString('x-text="totalTexto('.$persona->id.')"', $html);
+        $this->assertStringContainsString('x-text="extrasTexto('.$persona->id.')"', $html);
     }
 }

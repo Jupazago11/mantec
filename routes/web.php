@@ -474,7 +474,9 @@ Route::middleware('auth')->group(function () {
 */
 Route::prefix('personal')->name('personal.')->group(function () {
     Route::get('/login', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'login'])->name('login.attempt');
+    // throttle:5,1 (revision 2026-09-28): mismo limite que api/personal/login,
+    // el login web no tenia ninguno (fuerza bruta de contrasenas).
+    Route::post('/login', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'login'])->middleware('throttle:5,1')->name('login.attempt');
 
     Route::middleware('personal.auth')->group(function () {
         Route::post('/logout', [\App\Http\Controllers\Personal\PersonalAuthController::class, 'logout'])->name('logout');

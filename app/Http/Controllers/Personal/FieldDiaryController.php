@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Personal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
+use App\Services\FieldDiary\FieldDiaryFullView;
 use App\Support\PersonalGuard;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -19,9 +19,14 @@ class FieldDiaryController extends Controller
     // corrected_hours (validacion numerica separada abajo) y
     // executed_description (seccion 14.23: el comentario del supervisor
     // -"comments"- ES la actividad ejecutada, ya no hay celda separada
-    // para executed_description en esta pantalla).
+    // para executed_description en esta pantalla). 2026-09-28: se suman
+    // "team" (Equipo) y "description" (Actividad programada) — el usuario
+    // pidio poder corregirlos tambien desde aqui; description no puede
+    // quedar vacia (mismo "required" que en Programacion).
     private const EDITABLE_TEXT_FIELDS = [
+        'team' => 150,
         'process' => 150,
+        'description' => 255,
         'comments' => 2000,
         'zcom' => 50,
         'line_code' => 50,
@@ -30,23 +35,27 @@ class FieldDiaryController extends Controller
         'we_code' => 50,
     ];
 
-    public function index(Request $request): View
+    // Una sola vista para el Diario de Campo (pedido 2026-09-28): "Por dia"
+    // (por defecto hoy, sin columna Fecha, navegacion dia a dia) o "Todas
+    // las fechas" (?vista=todas). Misma tabla, mismos filtros tipo Excel,
+    // misma paginacion de 100 y misma edicion en linea en ambos modos —
+    // logica en FieldDiaryFullView. Reemplaza la vista diaria anterior y la
+    // "Vista completa" separada (/completo) del mismo dia.
+    public function index(Request $request, FieldDiaryFullView $vista): View
     {
         abort_unless(PersonalGuard::can('ver_diario_campo'), 403);
 
-        $date = $request->query('date')
-            ? Carbon::parse($request->query('date'))->toDateString()
-            : today()->toDateString();
+        $modoTodas = $request->query('vista') === 'todas';
+        $dia = $modoTodas
+            ? null
+            : (FieldDiaryFullView::normalizeDate($request->query('date')) ?? today()->toDateString());
 
-        $actividades = Activity::with(['company', 'responsible', 'personas', 'closedBy', 'employeeHours'])
-            ->where('date', $date)
-            ->orderByRaw('group_number IS NULL, group_number')
-            ->orderBy('id')
-            ->get();
-
-        return view('personal.diario-campo.index', [
-            'actividades' => $actividades,
-            'fecha' => $date,
+        return view('personal.diario-campo.index', $vista->build($request, $dia) + [
+            'columnas' => $modoTodas
+                ? FieldDiaryFullView::COLUMNS
+                : array_diff_key(FieldDiaryFullView::COLUMNS, ['fecha' => true]),
+            'modoTodas' => $modoTodas,
+            'dia' => $dia,
             // Seccion 2 del documento: el ADMINISTRATIVO edita el Diario
             // de Campo, no el supervisor — gobernado por el permiso
             // "cerrar_diario_campo" (Roles y permisos), no por el nombre
@@ -87,7 +96,15 @@ class FieldDiaryController extends Controller
             if ($value !== null && (float) $value < 0) {
                 throw ValidationException::withMessages(['value' => 'Las horas corregidas no pueden ser negativas.']);
             }
+            // Horas por persona en un dia (revision 2026-09-28): sin tope, un
+            // valor >= 1000 desbordaba decimal(5,2) con un error 500.
+            if ($value !== null && (float) $value > 24) {
+                throw ValidationException::withMessages(['value' => 'Las horas corregidas no pueden superar 24.']);
+            }
         } else {
+            if ($field === 'description' && $value === null) {
+                throw ValidationException::withMessages(['value' => 'La actividad programada no puede quedar vacía.']);
+            }
             $maxLength = self::EDITABLE_TEXT_FIELDS[$field];
             if ($value !== null && mb_strlen($value) > $maxLength) {
                 throw ValidationException::withMessages(['value' => 'Este campo es demasiado largo.']);

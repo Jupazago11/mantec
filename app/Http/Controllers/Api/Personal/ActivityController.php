@@ -4,13 +4,10 @@ namespace App\Http\Controllers\Api\Personal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
-use App\Models\ActivityEmployeeComment;
-use App\Models\ActivityEmployeeHour;
 use App\Models\Employee;
-use Carbon\Carbon;
+use App\Services\Personal\RegistroSupervisor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 // Seccion 14.24: API real para la app Android del supervisor — mismo
 // modelo de datos y misma logica que
@@ -21,31 +18,25 @@ use Illuminate\Support\Facades\Validator;
 // EnsureTokenableIsEmployee), nunca un parametro de ruta.
 class ActivityController extends Controller
 {
+    public function __construct(private RegistroSupervisor $registro)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         /** @var Employee $employee */
         $employee = $request->user();
 
-        $date = $request->query('date')
-            ? Carbon::parse($request->query('date'))->toDateString()
-            : today()->toDateString();
+        // Solo hoy o ayer (revision 2026-09-28) — ver RegistroSupervisor.
+        $date = RegistroSupervisor::fechaConsulta($request->query('date'));
+        if ($date === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo puedes consultar actividades de hoy o de ayer.',
+            ], 422);
+        }
 
-        // Mismo criterio que SupervisorViewController::index() (seccion
-        // 14.20): ademas de hoy, se incluyen las de AYER con turno
-        // Nocturno (cruzan medianoche), siempre visibles.
-        $ayer = Carbon::parse($date)->subDay()->toDateString();
-
-        $actividades = Activity::with(['company', 'personas', 'employeeHours', 'evidences', 'employeeComments'])
-            ->where('responsible_employee_id', $employee->id)
-            ->where(function ($query) use ($date, $ayer) {
-                $query->where('date', $date)
-                    ->orWhere(function ($nocturnaAyer) use ($ayer) {
-                        $nocturnaAyer->where('date', $ayer)->where('shift', 'Nocturno');
-                    });
-            })
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
+        $actividades = $this->registro->actividadesDe($employee, $date, ['company', 'personas', 'employeeHours', 'evidences', 'employeeComments']);
 
         return response()->json([
             'success' => true,
@@ -66,84 +57,25 @@ class ActivityController extends Controller
         abort_unless((int) $activity->responsible_employee_id === $employee->id, 404);
         abort_if($activity->isClosed(), 403);
 
-        $validated = $this->validated($request);
-
-        if ($validated['all_worked_scheduled_hours']) {
-            $activity->employeeHours()->delete();
-            $reportedHours = $activity->estimated_hours;
-            // Los comentarios por persona (pedido 2026-09-22) NO se borran
-            // aqui a proposito: son texto escrito a mano, mas "caro" de
-            // perder que un stepper de horas que vuelve a 0 — si el
-            // supervisor cambia a "Si" por error y vuelve a "No", no
-            // pierde lo que ya habia comentado. Se borran solo de forma
-            // explicita, desde el modal.
-        } else {
-            $reportedHours = 0.0;
-            foreach ($validated['personas'] as $persona) {
-                $workedHours = round((float) $persona['worked_hours'], 2);
-                $reportedHours += $workedHours;
-
-                ActivityEmployeeHour::updateOrCreate(
-                    ['activity_id' => $activity->id, 'employee_id' => $persona['employee_id']],
-                    [
-                        'worked' => $workedHours > 0,
-                        'worked_hours' => $workedHours,
-                    ]
-                );
-
-                $comentario = isset($persona['comment']) ? trim((string) $persona['comment']) : '';
-
-                if ($comentario !== '') {
-                    ActivityEmployeeComment::updateOrCreate(
-                        ['activity_id' => $activity->id, 'employee_id' => $persona['employee_id']],
-                        [
-                            'date' => $activity->date,
-                            'author_employee_id' => $employee->id,
-                            'author_name' => $employee->nombre,
-                            'comment' => $comentario,
-                        ]
-                    );
-                } else {
-                    ActivityEmployeeComment::where('activity_id', $activity->id)
-                        ->where('employee_id', $persona['employee_id'])
-                        ->delete();
-                }
-            }
+        if (! RegistroSupervisor::dentroDeVentana($activity)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo puedes registrar actividades de hoy o de ayer.',
+            ], 403);
         }
 
-        $activity->update([
-            'comments' => $validated['comments'] ?? null,
-            'all_worked_scheduled_hours' => $validated['all_worked_scheduled_hours'],
-            'reported_hours' => round($reportedHours, 2),
-            'hours_registered_by_employee_id' => $employee->id,
-            'hours_registered_at' => now(),
-        ]);
+        // Validacion (solo personas de la actividad, horas 0-24) y guardado
+        // en una transaccion: RegistroSupervisor (compartido con "Ver
+        // como"). Los comentarios por persona NO se borran al marcar "todos
+        // trabajaron" (seccion 14.31).
+        $validated = $this->registro->validar($request, $activity, conComentarios: true);
+        $this->registro->registrar($activity, $employee, $validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Registro guardado correctamente.',
             'activity' => $this->serialize($activity->fresh(['personas', 'employeeHours', 'evidences', 'employeeComments'])),
         ]);
-    }
-
-    private function validated(Request $request): array
-    {
-        return Validator::make($request->all(), [
-            'comments' => ['nullable', 'string', 'max:2000'],
-            'all_worked_scheduled_hours' => ['required', 'boolean'],
-            'personas' => ['array'],
-            'personas.*.employee_id' => ['required', 'integer'],
-            'personas.*.worked_hours' => ['required', 'numeric', 'min:0'],
-            'personas.*.comment' => ['nullable', 'string', 'max:1000'],
-        ])->after(function ($validator) use ($request) {
-            if ($request->boolean('all_worked_scheduled_hours')) {
-                return;
-            }
-
-            if (collect($request->input('personas', []))->isEmpty()) {
-                $validator->errors()->add('personas', 'Indica el detalle por persona si no todos trabajaron las horas programadas.');
-            }
-        })->validate();
     }
 
     private function serialize(Activity $activity): array

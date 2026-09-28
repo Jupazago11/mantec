@@ -210,7 +210,11 @@ class ActivityControllerAjaxTest extends TestCase
             'personal_category_id' => $category->id,
             'personal_role_id' => $role->id,
             'activo' => true,
-            'has_login' => false,
+            // Con acceso: un empleado sin usuario de acceso ya no puede
+            // tener sesion (EnsurePersonalAccess, revision 2026-09-28).
+            'has_login' => true,
+            'username' => 'sin_permisos_test',
+            'password' => bcrypt('secret'),
             'in_bitacora' => true,
         ]);
 

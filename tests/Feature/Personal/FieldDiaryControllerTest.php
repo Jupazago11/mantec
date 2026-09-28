@@ -87,6 +87,22 @@ class FieldDiaryControllerTest extends TestCase
         ], $overrides));
     }
 
+    // Pedido 2026-09-28: sin "Copiar como imagen", y una sola vista con
+    // selector "Por dia" / "Todas las fechas" (ver FieldDiaryFullViewTest).
+    public function test_single_view_with_mode_selector_and_no_image_export(): void
+    {
+        $admin = $this->superadmin();
+        $this->actividad();
+
+        $response = $this->actingAs($admin)->get(route('personal.diario-campo.index'));
+
+        $response->assertOk();
+        $response->assertSee('@click="irAPorDia()"', false);
+        $response->assertSee('@click="irATodas()"', false);
+        $response->assertDontSee('@click="exportarComoImagen', false);
+        $response->assertDontSee("'Copiar como imagen'", false);
+    }
+
     public function test_estado_badge_no_longer_exists(): void
     {
         $admin = $this->superadmin();
@@ -325,6 +341,52 @@ class FieldDiaryControllerTest extends TestCase
         );
 
         $response->assertStatus(403);
+    }
+
+    // Pedido 2026-09-28: Equipo y Actividad programada tambien se editan
+    // desde el Diario de Campo.
+    public function test_inline_update_saves_team_and_description(): void
+    {
+        $admin = $this->superadmin();
+        $activity = $this->actividad(['team' => 'Viejo', 'description' => 'Original']);
+
+        foreach (['team' => 'Horno 2', 'description' => 'Cambio de rodamientos'] as $campo => $valor) {
+            $this->actingAs($admin)->patch(
+                route('personal.diario-campo.inline-update', $activity),
+                ['field' => $campo, 'value' => $valor],
+                ['Accept' => 'application/json']
+            )->assertOk()->assertJsonPath('value', $valor);
+        }
+
+        $this->assertDatabaseHas('activities', ['id' => $activity->id, 'team' => 'Horno 2', 'description' => 'Cambio de rodamientos']);
+    }
+
+    // La actividad programada es obligatoria (igual que en Programacion):
+    // no se puede vaciar desde aqui.
+    public function test_inline_update_rejects_empty_description(): void
+    {
+        $admin = $this->superadmin();
+        $activity = $this->actividad(['description' => 'No borrar']);
+
+        $this->actingAs($admin)->patch(
+            route('personal.diario-campo.inline-update', $activity),
+            ['field' => 'description', 'value' => '   '],
+            ['Accept' => 'application/json']
+        )->assertStatus(422);
+
+        $this->assertDatabaseHas('activities', ['id' => $activity->id, 'description' => 'No borrar']);
+    }
+
+    public function test_inline_update_rejects_too_long_team(): void
+    {
+        $admin = $this->superadmin();
+        $activity = $this->actividad();
+
+        $this->actingAs($admin)->patch(
+            route('personal.diario-campo.inline-update', $activity),
+            ['field' => 'team', 'value' => str_repeat('x', 151)],
+            ['Accept' => 'application/json']
+        )->assertStatus(422);
     }
 
     // Guardar un valor vacio limpia el campo (mismo patron que

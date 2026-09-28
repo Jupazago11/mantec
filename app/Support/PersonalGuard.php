@@ -46,7 +46,16 @@ class PersonalGuard
             return true;
         }
 
-        return (bool) (self::employee()?->personalRole?->{$permission} ?? false);
+        $role = self::employee()?->personalRole;
+
+        // "administrar_roles" (2026-09-28) sigue el mismo esquema que
+        // responsable_actividad: solo cuenta si el Rol (PersonalCategory) Y
+        // el Subrol lo tienen marcado — el Rol es requisito, no alternativa.
+        if ($permission === 'administrar_roles') {
+            return (bool) ($role?->administrar_roles && $role->personalCategory?->administrar_roles);
+        }
+
+        return (bool) ($role?->{$permission} ?? false);
     }
 
     public static function displayName(): string
@@ -82,6 +91,7 @@ class PersonalGuard
             'ver_programacion' => 'personal.programacion.index',
             'ver_diario_campo' => 'personal.diario-campo.index',
             'ver_bitacora' => 'personal.bitacora.index',
+            'administrar_roles' => 'personal.roles.index',
         ];
 
         foreach ($mapa as $permiso => $ruta) {
