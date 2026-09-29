@@ -9,6 +9,7 @@ use App\Models\ElementType;
 use App\Models\Group;
 use App\Models\Role;
 use App\Models\User;
+use App\Rules\UsuarioUnicoEnPlataforma;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -297,7 +298,10 @@ class AdminManagedUserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'document' => ['nullable', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'unique:users,username'],
+            // UsuarioUnicoEnPlataforma (2026-09-29): tampoco puede repetir el
+            // usuario de un empleado del modulo Personal, sin distinguir
+            // mayusculas.
+            'username' => ['required', 'string', 'max:255', 'unique:users,username', new UsuarioUnicoEnPlataforma()],
             'password' => ['required', 'string', 'min:6'],
             'role_id' => ['required', Rule::in($assignableRoleIds)],
             'clients' => ['required', 'array', 'min:1'],
@@ -407,7 +411,7 @@ class AdminManagedUserController extends Controller
                 $validated = $request->validate([
                     'name' => ['required', 'string', 'max:255'],
                     'document' => ['nullable', 'string', 'max:255'],
-                    'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
+                    'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id), new UsuarioUnicoEnPlataforma(ignorarUsuario: $user->id)],
                     'password' => ['nullable', 'string', 'min:6'],
                 ]);
 
@@ -491,7 +495,7 @@ class AdminManagedUserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'document' => ['nullable', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
+            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id), new UsuarioUnicoEnPlataforma(ignorarUsuario: $user->id)],
             'password' => ['nullable', 'string', 'min:6'],
             'role_id' => ['required', Rule::in($assignableRoleIds)],
             'clients' => ['required', 'array', 'min:1'],

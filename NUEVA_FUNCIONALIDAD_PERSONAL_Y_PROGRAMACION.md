@@ -3164,3 +3164,44 @@ Con el mismo montaje de Puppeteer se verificaron también, con evidencia real y 
 **Cobertura** (suite completa ejecutada por primera vez en la sesión, contra un Postgres desechable en Docker): nuevos `tests/Feature/Personal/AccessControlTest.php` (18) y `tests/Feature/Api/Personal/SupervisorRegistrationRulesTest.php` (11), +3 en `BitacoraControllerTest` (corrección del Diario llega a Bitácora, día parcialmente registrado suma como el Diario, la corrección por día sigue mandando). Pruebas previas que actuaban con empleados **sin** usuario de acceso se ajustaron (esa sesión ya no es posible). Resultado: **188/189** (falla solo `ExampleTest`, preexistente y sin relación).
 
 **Verificado en esta sesión**: suite completa (arriba); migraciones aplicadas a la BD local (backfill `editar_programacion = ver_programacion` confirmado); el script que había reproducido los 8 huecos ahora da los 10 casos cerrados (403 al borrar sin permiso; 422 al asignarse otro subrol o cambiar la clave ajena, y la Bitácora sigue en 403; 302 al login para el inactivado; 401 para su token; 422 para personas ajenas e id inexistente; 422 para 1000 horas), con la BD local intacta. **No verificado**: la interacción en un navegador real ni contra la app Android real.
+
+### 14.40 Producción: Limpieza De Datos De Prueba Antes De Cargar Datos Reales (2026-09-29)
+
+**Pedido del usuario**: borrar los datos de prueba de producción; los usuarios empiezan a cargar datos reales ese mismo día.
+
+**Estado previo verificado (solo lectura)**: producción ya tenía el código del 28/09 (commit `4a7038a`, migraciones `2026_09_28_*` aplicadas en el lote 21 por el deploy de Railway). Datos del módulo: 10 actividades (21–24/09, todas de prueba), 18 filas de horas, 7 comentarios, 9 evidencias (archivos en R2), 3 correcciones de Bitácora, 1 cuota (oct-2026 = 150 h), 0 festivos, 10 empleados y 4 tokens de la app.
+
+**Decisiones del usuario**: borrar **todos** los empleados (y sus tokens), la cuota de octubre, y **todo** `personal-actividades/` en R2 (las 9 evidencias + 6 archivos huérfanos de pruebas locales anteriores); conservar empresas (ARGOS por defecto, CORONA), Roles y Subroles tal como están (incluido Supervisor con "Editar sin límite de hoy/ayer" activo).
+
+**Ejecución**:
+1. Respaldo completo de la BD de producción: `backups/railway_pre_limpieza_personal_2026-09-29.dump` (`pg_dump -F c`, 62 tablas, gitignored).
+2. Respaldo de los 15 archivos de R2 (29,1 MB, tamaños verificados uno a uno): `storage/app/backups-db/r2-personal-actividades-2026-09-29/` (gitignored), con `LISTA.txt`.
+3. Una sola transacción en producción con guardia: antes de borrar verificó que los conteos siguieran siendo exactamente los revisados (para no borrar datos reales cargados entretanto) y después que no quedara ninguna fila. Borró 10 actividades (cascada: personas, horas, evidencias, comentarios del responsable), 3 comentarios de administrativo, 3 correcciones, 1 cuota, 4 tokens y 10 empleados. Conservados: 2 empresas, 2 Roles, 4 Subroles, 46 usuarios del sistema, 15.564 `report_details`.
+4. Borrado de los 15 archivos de `personal-actividades/` en R2 (solo ese prefijo; el script abortaba ante cualquier ruta fuera de él o sin respaldo local). Quedaron 0.
+5. `https://mantecsas.com/personal/login` → 200; `/personal/programacion` sin sesión → redirige al login.
+
+**Para revertir** (si hiciera falta): `pg_restore` del dump anterior sobre las tablas del módulo, y volver a subir los archivos del respaldo local a R2 con la misma ruta relativa.
+
+### 14.41 Empleados: Nickname Y Usuario Únicos, Sin Placeholders Ni Autocompletado (2026-09-29)
+
+**Pedido del usuario**: quitar los textos de ejemplo del modal de empleado; que el nickname no se pueda repetir; que el usuario de acceso no se repita ni entre empleados ni contra los usuarios del módulo de reportes de activos.
+
+**Qué había**: el nickname no tenía ninguna validación de unicidad (dos empleados podían llamarse "Fernando" y quedaban indistinguibles en Programación, Diario, Bitácora y en los mensajes de conflicto de "una primaria por día"). El usuario del empleado era único solo contra `employees` y distinguiendo mayúsculas ("Ana" y "ana" convivían), y no se comparaba con `users`. Además el navegador (Edge) rellenaba en el modal el usuario y la contraseña guardados del propio superadmin, porque los campos se llamaban `username`/`password`.
+
+**Cambios**:
+- **Nickname** (`EmployeeController::validated()`): único sin distinguir mayúsculas ni espacios al inicio/final (`lower(trim(nickname))`); al editar se puede conservar el propio. Mensaje: "Ya existe un empleado con ese nickname."
+- **Usuario** — nueva regla `App\Rules\UsuarioUnicoEnPlataforma`: busca el usuario sin distinguir mayúsculas en `employees` **y** en `users`, ignorando el registro que se edita. Se aplica en:
+  - Empleados (crear/editar), solo cuando el empleado tendrá acceso (sin acceso el usuario se descarta, así que no choca con nadie).
+  - Usuarios del módulo de reportes (`AdminManagedUserController`: crear, editar a otro y editarse a sí mismo; y en `Admin\UserController`, que hoy no está enrutado).
+  - Mensaje: "Ese nombre de usuario ya está en uso (en Empleados o en los usuarios del sistema)."
+- **Respaldo en BD** — migración `2026_09_29_100000_add_case_insensitive_unique_indexes_to_employees`: índices únicos `employees_nickname_lower_unique` (`lower(trim(nickname))`) y `employees_username_lower_unique` (`lower(username)` donde no es nulo), para que dos guardados simultáneos tampoco dejen duplicados. El choque entre `employees` y `users` es entre tablas y solo lo cubre la validación. No se tocó la tabla `users` (otro módulo). Antes de crear los índices se verificó (solo lectura) que no hubiera duplicados ni en local ni en producción.
+- **Formulario** (`personal/empleados/index.blade.php`): sin placeholders en Nombre, Nickname y Usuario. Usuario → `name="empleado_usuario_nuevo"` con `autocomplete="off"`; Contraseña → `name="empleado_clave_nueva"` con `autocomplete="new-password"`. El guardado es por AJAX desde `formEmpleado`, así que el `name` no se usa en el servidor. Los errores siguen saliendo como toast.
+
+**Cobertura**: `tests/Feature/Personal/EmployeeUniqueIdentityTest.php` (9 pruebas):
+- Nickname repetido con otra capitalización o espacios → 422; editar conservando el propio → 200; tomar el de otro → 422.
+- Usuario repetido entre empleados → 422; usuario de empleado igual al de un usuario del sistema ("superadmin"/"SuperAdmin") → 422; editar conservando el propio → 200; sin acceso no valida el usuario.
+- Usuario del módulo de reportes igual al de un empleado → 422, al crear y al editarse a sí mismo; conservar el propio → 200.
+- Índices en BD rechazan duplicados.
+- El HTML no tiene los placeholders y trae los atributos de autocompletado.
+
+Suite completa: **197/198** (falla solo `ExampleTest`, preexistente). Migración aplicada en la BD local. **Producción**: la migración corre en el próximo deploy. **No verificado**: el comportamiento del autocompletado en un navegador real. Cada navegador decide cuánto respeta `autocomplete`; los `name` nuevos son lo que más ayuda.

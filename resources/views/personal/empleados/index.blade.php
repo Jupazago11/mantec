@@ -247,11 +247,11 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="sm:col-span-2">
                         <label class="mb-1 block text-xs font-medium text-slate-600">Nombre completo <span class="text-red-500">*</span></label>
-                        <input type="text" name="nombre" x-model="formEmpleado.nombre" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. Luis Fernando Montoya Zuluaga">
+                        <input type="text" name="nombre" x-model="formEmpleado.nombre" autocomplete="off" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="mb-1 block text-xs font-medium text-slate-600">Nickname (display corto) <span class="text-red-500">*</span></label>
-                        <input type="text" name="nickname" x-model="formEmpleado.nickname" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Ej. Fernando">
+                        <input type="text" name="nickname" x-model="formEmpleado.nickname" autocomplete="off" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     </div>
                     <div>
                         <label class="mb-1 block text-xs font-medium text-slate-600">Rol <span class="text-red-500">*</span></label>
@@ -329,14 +329,20 @@
                     <div x-show="formEmpleado.has_login" x-cloak class="grid gap-3 pl-6 sm:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-xs font-medium text-slate-600">Usuario <span class="text-red-500">*</span></label>
-                            <input type="text" name="username" x-model="formEmpleado.username" :disabled="!puedeAdministrarAccesos" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100" placeholder="Ej. lfernando">
+                            {{-- Sin autocompletado del navegador (pedido 2026-09-29): el
+                                 navegador rellenaba aqui el usuario y la contraseña guardados
+                                 del propio superadmin. name distinto de "username"/"password"
+                                 + autocomplete off/new-password para que no lo detecte como
+                                 formulario de login. El guardado es por AJAX (formEmpleado),
+                                 el name no se usa. --}}
+                            <input type="text" name="empleado_usuario_nuevo" x-model="formEmpleado.username" :disabled="!puedeAdministrarAccesos" autocomplete="off" autocapitalize="none" spellcheck="false" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-slate-600">
                                 Contraseña <span class="text-red-500" x-show="!modoEdicion">*</span>
                                 <span class="text-slate-400" x-show="modoEdicion">(vacío = mantener la actual)</span>
                             </label>
-                            <input type="password" name="password" x-model="formEmpleado.password" :disabled="!puedeAdministrarAccesos" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
+                            <input type="password" name="empleado_clave_nueva" x-model="formEmpleado.password" :disabled="!puedeAdministrarAccesos" autocomplete="new-password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
                         </div>
                     </div>
 

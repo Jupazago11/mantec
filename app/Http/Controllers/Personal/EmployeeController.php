@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\PersonalCategory;
 use App\Models\PersonalRole;
+use App\Rules\UsuarioUnicoEnPlataforma;
 use App\Support\PersonalGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -162,16 +163,38 @@ class EmployeeController extends Controller
             $usernameRule = $usernameRule->ignore($employee->id);
         }
 
+        // Usuario unico en toda la plataforma (empleados + usuarios del
+        // sistema de reportes, sin distinguir mayusculas, pedido
+        // 2026-09-29) — solo si el empleado tendra acceso: sin acceso el
+        // usuario se descarta (preparePayload).
+        $usuarioUnico = $request->boolean('has_login')
+            ? [new UsuarioUnicoEnPlataforma(ignorarEmpleado: $employee?->id)]
+            : [];
+
         $validator = Validator::make($request->all(), [
             'nombre' => ['required', 'string', 'max:150'],
-            'nickname' => ['required', 'string', 'max:50'],
+            // Nickname unico sin distinguir mayusculas (pedido 2026-09-29):
+            // es el nombre que se ve en Programacion, Diario, Bitacora
+            // (encabezado de columna) y en los mensajes de conflicto de
+            // "una primaria por dia" — dos iguales eran indistinguibles.
+            // Tambien hay indice unico en BD (lower(trim(nickname))).
+            'nickname' => ['required', 'string', 'max:50', function ($attribute, $value, $fail) use ($employee) {
+                $repetido = Employee::query()
+                    ->whereRaw('lower(trim(nickname)) = ?', [mb_strtolower(trim((string) $value))])
+                    ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
+                    ->exists();
+
+                if ($repetido) {
+                    $fail('Ya existe un empleado con ese nickname.');
+                }
+            }],
             'personal_category_id' => ['required', Rule::exists('personal_categories', 'id')->where('activo', true)],
             'has_login' => ['sometimes', 'boolean'],
             'in_bitacora' => ['sometimes', 'boolean'],
             // Solo subroles activos (un subrol archivado no debe poder
             // asignarse ni por peticion directa).
             'personal_role_id' => ['nullable', Rule::exists('personal_roles', 'id')->where('activo', true)],
-            'username' => ['nullable', 'string', 'max:50', $usernameRule],
+            'username' => ['nullable', 'string', 'max:50', $usernameRule, ...$usuarioUnico],
             'password' => ['nullable', 'string', 'min:6'],
         ]);
 

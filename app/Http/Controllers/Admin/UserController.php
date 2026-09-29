@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\ElementType;
 use App\Models\Role;
 use App\Models\User;
+use App\Rules\UsuarioUnicoEnPlataforma;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -130,7 +131,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'document' => ['nullable', 'string', 'max:50'],
-            'username' => ['required', 'string', 'max:50', 'unique:users,username'],
+            'username' => ['required', 'string', 'max:50', 'unique:users,username', new UsuarioUnicoEnPlataforma()],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'max:255'],
             'role_id' => ['required', Rule::in($allowedRoleIds)],
@@ -266,6 +267,7 @@ public function update(Request $request, User $user): RedirectResponse
                 'string',
                 'max:50',
                 Rule::unique('users', 'username')->ignore($user->id),
+                new UsuarioUnicoEnPlataforma(ignorarUsuario: $user->id),
             ],
             'email' => [
                 'nullable',
