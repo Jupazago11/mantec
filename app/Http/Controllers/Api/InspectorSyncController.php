@@ -137,6 +137,7 @@ class InspectorSyncController extends Controller
                     'execution_status_id' => $executionStatusId,
                     'execution_date' => $this->executionStatusResolver->isOkCondition($condition) ? null : $validated['execution_date'],
                 ]);
+                $this->reportDetailMerger->recordInspector($existing, (int) $user->id);
 
                 return [$existing, true];
             }

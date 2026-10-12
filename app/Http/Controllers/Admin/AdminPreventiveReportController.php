@@ -689,6 +689,7 @@ class AdminPreventiveReportController extends Controller
         $query = ReportDetail::query()
             ->with([
                 'user:id,name',
+                'additionalInspectors:id,name',
                 'element:id,name,code,warehouse_code,area_id,element_type_id,group_id',
                 'element.area:id,name,client_id',
                 'component:id,name',
@@ -720,7 +721,6 @@ class AdminPreventiveReportController extends Controller
                 $component = $report->component;
                 $diagnostic = $report->diagnostic;
                 $condition = $report->condition;
-                $inspector = $report->user;
                 $executionStatus = $report->executionStatus;
 
                 $statusName = trim((string) ($executionStatus?->name ?? ''));
@@ -733,7 +733,8 @@ class AdminPreventiveReportController extends Controller
                 $report->diagnostic_name = $diagnostic?->name ?: '';
                 $report->condition_code = $condition?->code ?: '';
                 $report->condition_name = $condition?->name ?: '';
-                $report->inspector_name = $inspector?->name ?: '';
+                // Un inspector por línea (la columna "inspector" ya se exporta con ajuste de texto).
+                $report->inspector_name = implode("\n", $report->inspectorNames());
                 $report->responsable_name = $responsablesByArea->get((int) ($element?->area_id ?? 0), '');
                 $report->execution_status_name = $statusName !== '' ? $statusName : 'PENDIENTE';
                 $report->executed = $this->executionStatusResolver->isDoneStatusName($statusUpper);
@@ -1228,6 +1229,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
     $baseQuery = \App\Models\ReportDetail::query()
         ->with([
             'user:id,name',
+            'additionalInspectors:id,name',
             'element:id,name,code,warehouse_code,area_id,element_type_id,group_id',
             'element.area:id,name,client_id',
             'component:id,name',
@@ -1283,7 +1285,6 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             $component = $report->component;
             $diagnostic = $report->diagnostic;
             $condition = $report->condition;
-            $inspector = $report->user;
             $executionStatus = $report->executionStatus;
 
             $statusName = trim((string) ($executionStatus?->name ?? ''));
@@ -1300,7 +1301,9 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             $report->condition_name = $condition?->name ?: '—';
             $report->condition_color = $condition?->color ?: '#e2e8f0';
 
-            $report->inspector_name = $inspector?->name ?: '—';
+            // Creador + inspectores que complementaron el reporte por fusión.
+            $report->inspector_names = $report->inspectorNames();
+            $report->inspector_name = implode(', ', $report->inspector_names) ?: '—';
             $report->responsable_name = $responsablesByArea->get(
                 (int) ($element?->area_id ?? 0),
                 '—'
@@ -1333,7 +1336,6 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             $component = $report->component;
             $diagnostic = $report->diagnostic;
             $condition = $report->condition;
-            $inspector = $report->user;
             $executionStatus = $report->executionStatus;
 
         return (object) [
@@ -1344,12 +1346,12 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
             'component_name' => $component?->name,
             'diagnostic_id' => $diagnostic?->id,
             'diagnostic_name' => $diagnostic?->name,
-            'recommendation' => $report->recommendation,
+            'recommendation' => $this->normalizeMultilineFilterValue($report->recommendation),
             'condition_code' => $condition?->code,
             'condition_name' => $condition?->name,
             'orden' => $report->orden,
             'aviso' => $report->aviso,
-            'inspector_name' => $inspector?->name,
+            'inspector_names' => $report->inspectorNames(),
             'responsable_name' => $responsablesByArea->get(
                 (int) ($element?->area_id ?? 0),
                 '—'
@@ -1406,7 +1408,7 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
     ),
 
     'inspector_names' => $this->buildFilterOptionsFromValues(
-        $optionsRows->pluck('inspector_name'),
+        $optionsRows->flatMap(fn ($row) => $row->inspector_names ?: ['']),
         true
     ),
 
@@ -1446,7 +1448,12 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         'area_names' => (array) $request->input('area_names', []),
         'warehouse_codes' => (array) $request->input('warehouse_codes', []),
         'diagnostic_pairs' => (array) $request->input('diagnostic_pairs', []),
-        'recommendation_values' => (array) $request->input('recommendation_values', []),
+        // Mismo formato que las opciones, para que el popover marque como elegido
+        // un hallazgo multilínea aunque el navegador lo haya reenviado con \r\n.
+        'recommendation_values' => array_map(
+            fn ($value) => $this->normalizeMultilineFilterValue($value),
+            (array) $request->input('recommendation_values', [])
+        ),
         'condition_codes' => (array) $request->input('condition_codes', []),
         'orden_values' => (array) $request->input('orden_values', []),
         'aviso_values' => (array) $request->input('aviso_values', []),
@@ -1830,9 +1837,22 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
         if ($request->filled('recommendation_values')) {
             [$values, $wantsEmpty] = $this->splitEmptyFilterValues((array) $request->input('recommendation_values', []));
 
+            // Un hallazgo multilínea (p. ej. fusionado de varios inspectores) vuelve del
+            // navegador con \r\n aunque esté guardado con \n: se compara normalizado en
+            // ambos lados, con la misma regla que normalizeMultilineFilterValue().
+            $values = collect($values)
+                ->map(fn ($value) => $this->normalizeMultilineFilterValue($value))
+                ->filter(fn ($value) => $value !== '')
+                ->unique()
+                ->values()
+                ->all();
+
             $query->where(function ($q) use ($values, $wantsEmpty) {
                 if (!empty($values)) {
-                    $q->orWhereIn('recommendation', $values);
+                    $q->orWhereIn(
+                        \Illuminate\Support\Facades\DB::raw("btrim(replace(coalesce(report_details.recommendation, ''), chr(13), ''), E' \\t\\n')"),
+                        $values
+                    );
                 }
 
                 if ($wantsEmpty) {
@@ -1886,6 +1906,11 @@ public function showByGroup(\App\Models\Group $group, \Illuminate\Http\Request $
                 if (!empty($names)) {
                     $q->orWhereHas('user', function ($userQuery) use ($names) {
                         $userQuery->whereIn('name', $names);
+                    });
+
+                    // También los inspectores que complementaron el reporte por fusión.
+                    $q->orWhereHas('additionalInspectors', function ($userQuery) use ($names) {
+                        $userQuery->whereIn('users.name', $names);
                     });
                 }
 
@@ -2763,6 +2788,16 @@ private function buildFilterOptionsFromValues(
     }
 
     return $options->values();
+}
+
+/**
+ * Forma canónica de un texto multilínea para filtrar: sin \r (el navegador
+ * convierte \n en \r\n al enviar un formulario) y sin espacios/saltos en los
+ * extremos. Debe coincidir con la expresión SQL del filtro de hallazgo.
+ */
+private function normalizeMultilineFilterValue($value): string
+{
+    return trim(str_replace("\r", '', (string) ($value ?? '')), " \t\n");
 }
 
 private function splitEmptyFilterValues(array $values): array

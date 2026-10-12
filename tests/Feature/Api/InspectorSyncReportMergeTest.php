@@ -158,6 +158,36 @@ class InspectorSyncReportMergeTest extends TestCase
         $this->assertStringContainsString('Realizar limpieza general en las canastillas', $report->recommendation);
     }
 
+    public function test_merge_records_each_additional_inspector_once_and_never_the_creator(): void
+    {
+        $scenario = $this->buildScenario();
+        $ana = $this->makeInspector('Ana Cecilia', $scenario['client'], $scenario['group']);
+        $norman = $this->makeInspector('Norman Berrío', $scenario['client'], $scenario['group']);
+        $eder = $this->makeInspector('Eder Gutiérrez', $scenario['client'], $scenario['group']);
+
+        $sync = function (User $inspector, string $recommendation) use ($scenario) {
+            Sanctum::actingAs($inspector, ['*']);
+
+            return $this->postJson(
+                '/api/inspector/reports/sync',
+                $this->payload($scenario, $scenario['conditionAlta'], $recommendation)
+            )->assertOk();
+        };
+
+        $reportId = $sync($ana, 'hallazgo inicial')->json('server_report_detail_id');
+        $sync($norman, 'complemento de Norman');
+        $sync($norman, 'segundo complemento de Norman');
+        $sync($ana, 'la creadora vuelve a complementar');
+        // Sin hallazgo también cuenta: el inspector igual hizo la inspección.
+        $sync($eder, '');
+
+        $this->assertSame(1, ReportDetail::count());
+
+        $report = ReportDetail::with(['user', 'additionalInspectors'])->find($reportId);
+        $this->assertSame([$norman->id, $eder->id], $report->additionalInspectors->pluck('id')->all());
+        $this->assertSame(['Ana Cecilia', 'Norman Berrío', 'Eder Gutiérrez'], $report->inspectorNames());
+    }
+
     public function test_same_inspector_merge_does_not_add_name_prefix(): void
     {
         $scenario = $this->buildScenario();

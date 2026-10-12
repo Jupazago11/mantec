@@ -460,6 +460,51 @@
                 box-shadow: 0 0 0 3px rgba(217, 77, 51, 0.15);
             }
 
+            /* Hallazgo/recomendación: respeta los saltos de línea guardados (p. ej. el
+               bloque de cada inspector cuando un reporte se fusionó). */
+            .preventive-table .multiline-text {
+                white-space: pre-line;
+            }
+
+            .inline-edit-textarea {
+                min-width: 260px;
+                min-height: 7rem;
+                resize: vertical;
+            }
+
+            .inline-edit-hint {
+                font-size: 0.7rem;
+                line-height: 1rem;
+                color: rgb(100 116 139);
+            }
+
+            /* Popover de filtros: el alto lo limita positionFilterPopover() al espacio
+               visible; solo la lista de opciones se encoge y hace scroll, así título,
+               buscador y botones Aplicar/Limpiar siempre quedan a la vista. */
+            #filterPopover:not(.hidden) {
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            #filterPopover .filter-popover-root {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+            }
+
+            #filterPopover .filter-popover-list {
+                flex: 0 1 auto;
+                min-height: 5rem;
+            }
+
+            #filterPopover .filter-option-label {
+                white-space: pre-line;
+            }
+
             .inline-edit-actions {
                 display: flex;
                 align-items: center;
@@ -960,7 +1005,8 @@
                                     $diagnosticName = $report->diagnostic_name ?: '—';
                                     $recommendationText = filled($report->recommendation) ? $report->recommendation : '—';
                                     $responsableName = $report->responsable_name ?: '—';
-                                    $inspectorName = $report->inspector_name ?: '—';
+                                    $inspectorNames = $report->inspector_names
+                                        ?? array_values(array_filter([$report->inspector_name ?? null], fn ($name) => filled($name) && $name !== '—'));
                                     $areaName = $report->area_name ?: '—';
                                     $elementName = $report->element_name ?: '—';
                                     $warehouseCode = $report->warehouse_code ?: '—';
@@ -996,11 +1042,11 @@
                                             @case('recommendation')
                                                 <td class="cell-recommendation text-sm text-slate-700">
                                                     @if($col['can_edit'] || $canEditReports)
-                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation" data-value="{{ $report->recommendation ?? '' }}">
-                                                            <span class="inline-edit-trigger">{{ $recommendationText }}</span>
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation" data-multiline="1" data-value="{{ $report->recommendation ?? '' }}">
+                                                            <span class="inline-edit-trigger multiline-text">{{ $recommendationText }}</span>
                                                         </div>
                                                     @elseif($recommendationText !== '—')
-                                                        <div lang="es">{{ $recommendationText }}</div>
+                                                        <div lang="es" class="multiline-text">{{ $recommendationText }}</div>
                                                     @else
                                                         —
                                                     @endif
@@ -1010,11 +1056,11 @@
                                             @case('recommendation_2')
                                                 <td class="cell-recommendation-2 text-sm text-slate-700">
                                                     @if($col['can_edit'] || $canEditReports)
-                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation_2" data-value="{{ $report->recommendation_2 ?? '' }}">
-                                                            <span class="inline-edit-trigger">{{ $recommendation2Text }}</span>
+                                                        <div class="inline-editable" data-report-id="{{ $reportId }}" data-field="recommendation_2" data-multiline="1" data-value="{{ $report->recommendation_2 ?? '' }}">
+                                                            <span class="inline-edit-trigger multiline-text">{{ $recommendation2Text }}</span>
                                                         </div>
                                                     @elseif($recommendation2Text !== '—')
-                                                        <div lang="es">{{ $recommendation2Text }}</div>
+                                                        <div lang="es" class="multiline-text">{{ $recommendation2Text }}</div>
                                                     @else
                                                         —
                                                     @endif
@@ -1065,7 +1111,14 @@
                                                 @break
 
                                             @case('inspector')
-                                                <td class="cell-inspector text-sm text-slate-700">{{ $inspectorName }}</td>
+                                                <td class="cell-inspector text-sm text-slate-700">
+                                                    {{-- Creador primero y luego quienes complementaron el reporte por fusión, uno por línea. --}}
+                                                    @forelse($inspectorNames as $inspectorName)
+                                                        <div @class(['mt-1' => !$loop->first])>{{ $inspectorName }}</div>
+                                                    @empty
+                                                        —
+                                                    @endforelse
+                                                </td>
                                                 @break
 
                                             @case('responsable')
@@ -1529,6 +1582,9 @@
             });
         }
 
+        // Encabezado que abrió el popover, para reubicarlo al hacer scroll o cambiar el tamaño.
+        let filterPopoverTrigger = null;
+
         function closeFilterPopover() {
             if (!filterPopover) {
                 return;
@@ -1536,6 +1592,7 @@
 
             filterPopover.classList.add('hidden');
             filterPopover.innerHTML = '';
+            filterPopoverTrigger = null;
         }
 
         function rebuildFiltersForm(params) {
@@ -1689,17 +1746,68 @@
                 .replaceAll("'", '&#039;');
         }
 
-        function getPopoverPosition(event) {
-            const triggerRect = event.currentTarget.getBoundingClientRect();
-            const width = 320;
-            const left = Math.min(
-                window.scrollX + triggerRect.left,
-                window.scrollX + window.innerWidth - width - 16
-            );
-            const top = window.scrollY + triggerRect.bottom + 10;
+        /*
+         * El popover es position:fixed, así que se ubica con coordenadas del viewport.
+         * Abre hacia abajo si cabe; si no, hacia el lado con más espacio, y su alto
+         * nunca supera el espacio visible (la lista de opciones es la que se encoge).
+         * En pantallas muy bajas se ancla arriba usando todo el alto disponible.
+         */
+        function positionFilterPopover() {
+            if (!filterPopover || filterPopover.classList.contains('hidden') || !filterPopoverTrigger) {
+                return;
+            }
 
-            return { left: Math.max(8, left), top };
+            if (!document.body.contains(filterPopoverTrigger)) {
+                closeFilterPopover();
+                return;
+            }
+
+            const margin = 8;
+            const gap = 8;
+            const minUsableHeight = 220;
+            const rect = filterPopoverTrigger.getBoundingClientRect();
+            const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            filterPopover.style.maxHeight = '';
+            filterPopover.style.top = '';
+            filterPopover.style.bottom = '';
+
+            const width = filterPopover.offsetWidth || 320;
+            const naturalHeight = filterPopover.scrollHeight;
+            const left = Math.min(rect.left, viewportWidth - width - margin);
+            filterPopover.style.left = `${Math.max(margin, left)}px`;
+
+            const spaceBelow = viewportHeight - rect.bottom - gap - margin;
+            const spaceAbove = rect.top - gap - margin;
+            const openBelow = naturalHeight <= spaceBelow
+                || (naturalHeight > spaceAbove && spaceBelow >= spaceAbove);
+            const available = openBelow ? spaceBelow : spaceAbove;
+
+            if (available < minUsableHeight) {
+                filterPopover.style.top = `${margin}px`;
+                filterPopover.style.maxHeight = `${viewportHeight - (margin * 2)}px`;
+                return;
+            }
+
+            filterPopover.style.maxHeight = `${available}px`;
+
+            if (openBelow) {
+                filterPopover.style.top = `${rect.bottom + gap}px`;
+            } else {
+                filterPopover.style.bottom = `${viewportHeight - rect.top + gap}px`;
+            }
         }
+
+        window.addEventListener('resize', positionFilterPopover);
+        window.addEventListener('scroll', (event) => {
+            // El scroll de la propia lista de opciones no debe mover el popover.
+            if (filterPopover && event.target instanceof Node && filterPopover.contains(event.target)) {
+                return;
+            }
+
+            positionFilterPopover();
+        }, true);
 
         function openFilterPopover(event, filterKey) {
             event.preventDefault();
@@ -1708,9 +1816,7 @@
                 return;
             }
 
-            const position = getPopoverPosition(event);
-            filterPopover.style.left = `${position.left}px`;
-            filterPopover.style.top = `${position.top}px`;
+            filterPopoverTrigger = event.currentTarget;
             filterPopover.classList.remove('hidden');
 
             const title = FILTER_LABELS[filterKey] || 'Filtro';
@@ -1722,7 +1828,7 @@
                 const toValue = currentValue?.to ?? '';
 
                 filterPopover.innerHTML = `
-                    <div class="space-y-4">
+                    <div class="filter-popover-root">
                         <div class="flex items-center justify-between gap-3">
                             <h3 class="text-sm font-semibold text-slate-900">${escapeHtml(title)}</h3>
                             <button
@@ -1781,6 +1887,7 @@
                     </div>
                 `;
 
+                positionFilterPopover();
                 return;
             }
 
@@ -1801,13 +1908,13 @@
                             ${checked}
                             class="filter-option-checkbox mt-0.5 rounded border-slate-300 text-[#d94d33] focus:ring-[#d94d33]"
                         >
-                        <span class="text-sm text-slate-700 leading-5">${escapeHtml(label)}</span>
+                        <span class="filter-option-label text-sm text-slate-700 leading-5">${escapeHtml(label)}</span>
                     </label>
                 `;
             }).join('');
 
             filterPopover.innerHTML = `
-                <div class="space-y-4">
+                <div class="filter-popover-root">
                     <div class="flex items-center justify-between gap-3">
                         <h3 class="text-sm font-semibold text-slate-900">${escapeHtml(title)}</h3>
                         <button
@@ -1850,7 +1957,7 @@
                     <div
                         id="filter-options-container"
                         data-filter-key="${escapeHtml(filterKey)}"
-                        class="max-h-72 space-y-1 overflow-y-auto pr-1"
+                        class="filter-popover-list max-h-72 space-y-1 overflow-y-auto pr-1"
                     >
                         ${optionItems || '<p class="px-2 py-2 text-sm text-slate-500">No hay opciones disponibles con los filtros actuales.</p>'}
                     </div>
@@ -1874,6 +1981,8 @@
                     </div>
                 </div>
             `;
+
+            positionFilterPopover();
         }
                 function filterPopoverOptions() {
             const searchInput = document.getElementById('filter-search-input');
@@ -2221,17 +2330,25 @@
             const reportId = container.dataset.reportId;
             const field = container.dataset.field;
             const originalValue = container.dataset.value ?? '';
+            // Hallazgo y recomendación son multilínea (bloques por inspector al fusionar):
+            // un <input> descartaría los saltos de línea al guardar.
+            const isMultiline = container.dataset.multiline === '1';
 
             container.dataset.editing = '1';
 
-            container.innerHTML = `
-                <div class="inline-edit-box">
-                    <input
+            const fieldHtml = isMultiline
+                ? `<textarea class="inline-edit-input inline-edit-textarea" maxlength="5000">${escapeInlineValue(originalValue)}</textarea>
+                   <span class="inline-edit-hint">Enter guarda · Shift+Enter nueva línea</span>`
+                : `<input
                         type="text"
                         class="inline-edit-input"
                         value="${escapeInlineValue(originalValue)}"
                         maxlength="255"
-                    >
+                    >`;
+
+            container.innerHTML = `
+                <div class="inline-edit-box">
+                    ${fieldHtml}
                     <div class="inline-edit-actions">
                         <button type="button" class="inline-edit-btn inline-edit-btn-cancel" title="Cancelar">✕</button>
                         <button type="button" class="inline-edit-btn inline-edit-btn-save" title="Guardar">✓</button>
@@ -2253,7 +2370,7 @@
                         restoreInlineCell(container, originalValue);
                     }
 
-                    if (event.key === 'Enter') {
+                    if (event.key === 'Enter' && !(isMultiline && event.shiftKey)) {
                         event.preventDefault();
                         saveInlineCell(container, reportId, field, input.value);
                     }
@@ -2274,10 +2391,11 @@
             container.dataset.value = value ?? '';
 
             const displayValue = value && String(value).trim() !== '' ? value : '—';
+            const triggerClass = container.dataset.multiline === '1'
+                ? 'inline-edit-trigger multiline-text'
+                : 'inline-edit-trigger';
 
-            container.innerHTML = `
-                <span class="inline-edit-trigger">${escapeInlineValue(displayValue)}</span>
-            `;
+            container.innerHTML = `<span class="${triggerClass}">${escapeInlineValue(displayValue)}</span>`;
         }
 
         async function saveInlineCell(container, reportId, field, value) {

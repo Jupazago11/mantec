@@ -146,4 +146,32 @@ class InspectorReportMergeTraceabilityTest extends TestCase
         );
         $this->assertStringContainsString('Realizar limpieza general en las canastillas', $report->recommendation);
     }
+
+    public function test_web_merge_records_additional_inspector_but_not_the_creator(): void
+    {
+        $scenario = $this->buildScenario();
+        $ana = $this->makeInspector('Ana Cecilia', $scenario['client'], $scenario['group']);
+        $norman = $this->makeInspector('Norman Berrío', $scenario['client'], $scenario['group']);
+
+        $this->actingAs($ana)->post(
+            route('inspector.reports.store'),
+            $this->payload($scenario, $scenario['conditionAlta'], 'cambiar rodillo #21-D')
+        )->assertRedirect(route('inspector.reports.index'));
+
+        $this->actingAs($ana)->post(
+            route('inspector.reports.store'),
+            $this->payload($scenario, $scenario['conditionAlta'], 'complemento de la creadora')
+        )->assertRedirect(route('inspector.reports.index'));
+
+        $report = ReportDetail::first();
+        $this->assertSame(0, $report->additionalInspectors()->count());
+
+        $this->actingAs($norman)->post(
+            route('inspector.reports.store'),
+            $this->payload($scenario, $scenario['conditionMedia'], 'Realizar limpieza general en las canastillas')
+        )->assertRedirect(route('inspector.reports.index'));
+
+        $this->assertSame(1, ReportDetail::count());
+        $this->assertSame([$norman->id], $report->additionalInspectors()->pluck('users.id')->all());
+    }
 }

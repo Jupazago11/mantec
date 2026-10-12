@@ -1,6 +1,6 @@
 # Analisis Del Sistema Laravel - Mantec
 
-Ultima actualizacion: 2026-09-17  
+Ultima actualizacion: 2026-10-12  
 Estado del documento: canonico y de mantenimiento continuo
 
 ## 1. Proposito
@@ -400,6 +400,55 @@ Cobertura: [tests/Feature/Api/InspectorSyncReportMergeTest.php](/home/jupazago/D
 [tests/Feature/Api/InspectorSyncFileAccessTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Api/InspectorSyncFileAccessTest.php),
 [tests/Feature/Inspector/InspectorReportMergeTraceabilityTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Inspector/InspectorReportMergeTraceabilityTest.php),
 [tests/Feature/Admin/ReportEvidenceUploaderTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/ReportEvidenceUploaderTest.php).
+
+### 8.1.2 Inspectores de un reporte fusionado y filtros del reporte por agrupación (2026-10-12)
+
+Hasta ahora, al fusionarse un reporte, `report_details.user_id` quedaba con el
+creador y los demás inspectores solo aparecían como texto dentro del hallazgo (y
+ni siquiera eso si no escribían hallazgo). Ahora:
+
+- **Tabla nueva `report_detail_inspectors`** (`report_detail_id`, `user_id`,
+  timestamps, único por par): inspectores *adicionales* que complementaron el
+  reporte. El creador sigue en `user_id`. Relación `ReportDetail::additionalInspectors()`
+  y helper `inspectorNames()` (creador primero, luego adicionales en orden de aporte).
+  `ReportDetailMerger::recordInspector()` la alimenta en los dos canales
+  (`InspectorReportController::store` web e `InspectorSyncController::store` API),
+  incluso si el inspector no escribió hallazgo. **Sin cambios en el contrato de la
+  app Android** (mismo request/response).
+- **Backfill** en la propia migración (`2026_10_12_100000_create_report_detail_inspectors_table`,
+  vía `ReportDetailInspectorBackfill`): reconstruye los adicionales de reportes ya
+  fusionados leyendo los encabezados `Nombre — dd/mm/aaaa HH:mm:` del hallazgo
+  (`ReportDetailMerger::findingAuthors()`). Solo asocia nombres que coinciden
+  exactamente con **un único** usuario; un nombre ambiguo o inexistente se omite.
+  Es idempotente. Limitación: un inspector que complementó **sin** hallazgo antes
+  de este cambio no dejó rastro y no se puede reconstruir.
+- **Reporte por agrupación** (`showByGroup`, `show.blade.php`, `exportGroup`):
+  - Columna Inspector: un nombre por línea (creador + adicionales). Filtro Inspector:
+    las opciones incluyen a los adicionales y filtrar por uno de ellos encuentra el
+    reporte. El Excel lleva los mismos nombres, uno por línea.
+  - Hallazgo/recomendación respetan los saltos de línea guardados (`white-space: pre-line`).
+    El editor inline de esos dos campos pasó de `<input>` (que descartaba los saltos
+    de línea y limitaba a 255) a `<textarea>` (Enter guarda, Shift+Enter nueva línea).
+  - **Bug corregido en el filtro de hallazgo**: al enviar el formulario, el navegador
+    convierte `\n` en `\r\n` (estándar HTML), y el backend comparaba el texto exacto,
+    así que *cualquier* hallazgo multilínea (todos los fusionados) devolvía 0
+    resultados. Ahora se compara normalizado en ambos lados (sin `\r`, sin
+    espacios/saltos en los extremos — `normalizeMultilineFilterValue()` y la misma
+    expresión en SQL).
+  - **Popover de filtros**: abría siempre hacia abajo, sin límite de alto, y sumaba
+    `window.scrollY` a un elemento `position: fixed`; en portátiles el botón Aplicar
+    quedaba fuera de la pantalla. `positionFilterPopover()` abre hacia el lado con
+    espacio, limita el alto al espacio visible (solo la lista se encoge y hace
+    scroll) y se reubica con scroll/resize.
+
+Cobertura: [tests/Feature/Admin/PreventiveGroupReportMultiInspectorTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/PreventiveGroupReportMultiInspectorTest.php),
+[tests/Feature/Admin/ReportDetailInspectorBackfillTest.php](/home/jupazago/Documentos/mantecv1/mantec/tests/Feature/Admin/ReportDetailInspectorBackfillTest.php),
+y casos nuevos en `InspectorSyncReportMergeTest` / `InspectorReportMergeTraceabilityTest`.
+
+Fuera de alcance (pendiente): el reporte general por cliente (`general.blade.php`)
+tiene su propio popover de filtros y no se tocó; la ruta `show()` por
+cliente/tipo de activo renderiza `show.blade.php` sin `$group`/`$columnConfig` y
+no parece estar en uso.
 
 ### 8.2 Estado de ejecucion
 
@@ -803,6 +852,14 @@ Estado consolidado al 2026-09-21:
   Verificado en esta sesion simulando ambos entornos: `url('/')` da
   `http://127.0.0.1:8000` en local real y `https://...` simulando
   `production` — ya no hace falta tocar el archivo a mano en ningun caso.
+
+Estado consolidado al 2026-10-12:
+
+- Reportes fusionados: los inspectores adicionales quedan en la tabla nueva
+  `report_detail_inspectors` (con backfill desde el texto del hallazgo); el reporte
+  por agrupación los muestra/filtra/exporta, respeta los saltos de línea del
+  hallazgo, filtra correctamente hallazgos multilínea y su popover de filtros ya no
+  se sale de la pantalla: ver [8.1.2](#812-inspectores-de-un-reporte-fusionado-y-filtros-del-reporte-por-agrupacion-2026-10-12).
 
 ## 17. Riesgos Y Deuda Tecnica Visible
 

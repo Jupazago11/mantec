@@ -99,4 +99,33 @@ class ReportDetail extends Model
         return $this->belongsTo(ExecutionStatus::class, 'execution_status_id');
     }
 
+    /**
+     * Inspectores que complementaron este reporte al fusionarse otro reporte
+     * sobre él (ver ReportDetailMerger). El creador sigue siendo user().
+     */
+    public function additionalInspectors()
+    {
+        return $this->belongsToMany(User::class, 'report_detail_inspectors')
+            ->withTimestamps()
+            ->orderBy('report_detail_inspectors.created_at')
+            ->orderBy('report_detail_inspectors.id');
+    }
+
+    /**
+     * Creador primero y luego los inspectores adicionales, sin repetir.
+     * Requiere user y additionalInspectors cargados para no disparar consultas por fila.
+     *
+     * @return array<int, string>
+     */
+    public function inspectorNames(): array
+    {
+        return collect([$this->user?->name])
+            ->merge($this->additionalInspectors->pluck('name'))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter(fn ($name) => $name !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
 }

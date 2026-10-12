@@ -790,6 +790,7 @@ public function getWeeklyDiagnosticStatus(Element $element): JsonResponse
                 }
 
                 $existingReport->update($updateData);
+                $this->reportDetailMerger->recordInspector($existingReport, (int) $user->id);
 
                 return [$existingReport, true];
             }
